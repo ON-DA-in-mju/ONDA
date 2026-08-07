@@ -1,0 +1,32 @@
+# OS / editor
+.DS_Store
+*.log
+*.swp
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Python
+__pycache__/
+*.pyc
+
+# Android (android-native)
+android-native/.gradle/
+android-native/build/
+android-native/app/build/
+android-native/local.properties
+android-native/*.iml
+android-native/.cxx/
+android-native/captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Secrets / local
+*.keystore
+*.jks
+.env
+.env.*
