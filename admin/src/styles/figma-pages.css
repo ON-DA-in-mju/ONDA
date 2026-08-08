@@ -1,0 +1,370 @@
+/* Figma admin dense page styles (scaled from 500×330 frames) */
+
+.figma-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.figma-kpi {
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 72px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.figma-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.figma-kpi-icon.blue {
+  background: #eaf1ff;
+  color: #266ef4;
+}
+.figma-kpi-icon.red {
+  background: #ffecec;
+  color: #eb4047;
+}
+.figma-kpi-icon.orange {
+  background: #fff4e5;
+  color: #fdac38;
+}
+.figma-kpi-icon.gray {
+  background: #f3f4f7;
+  color: #6b7280;
+}
+.figma-kpi-icon.green {
+  background: #eaf8ef;
+  color: #3fb46a;
+}
+.figma-kpi-icon.purple {
+  background: #f1eefc;
+  color: #7964f2;
+}
+
+.figma-kpi .label {
+  font-size: 12px;
+  color: #8b92a4;
+  margin-bottom: 2px;
+}
+
+.figma-kpi .value {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.figma-kpi .value em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 3px;
+  color: #6b7280;
+}
+
+.figma-kpi .hint {
+  font-size: 11px;
+  color: #9a9eaf;
+  margin-top: 2px;
+}
+
+.figma-kpi .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8b92a4;
+}
+
+.figma-split-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
+  gap: 12px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.figma-panel {
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.figma-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.figma-panel-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.figma-panel-head h3 .muted {
+  font-weight: 500;
+  color: #8b92a4;
+  font-size: 12px;
+}
+
+.figma-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-xs {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.btn-danger-soft {
+  background: #fff1f2;
+  color: #eb4047;
+  border: 1px solid #fecdd3;
+}
+
+.data-table.dense th,
+.data-table.dense td {
+  padding: 7px 6px;
+  font-size: 11px;
+}
+
+.data-table.dense th {
+  font-size: 11px;
+  color: #8b92a4;
+  font-weight: 600;
+  background: #fafbfd;
+}
+
+.notice-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 12px;
+  align-items: start;
+}
+
+.type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.type-pill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e8ef;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #54627c;
+}
+
+.type-pill.active {
+  background: #266ef4;
+  border-color: #266ef4;
+  color: #fff;
+}
+
+.type-pill.active.danger {
+  background: #eb4047;
+  border-color: #eb4047;
+}
+
+.phone-preview {
+  background: #f5f7fb;
+  border: 1px solid #e5e8ef;
+  border-radius: 14px;
+  padding: 10px 10px 12px;
+  min-height: 320px;
+}
+
+.phone-preview .cap {
+  font-size: 10px;
+  color: #8b92a4;
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+
+.phone-preview .screen {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #eef1f6;
+  padding: 10px;
+  min-height: 200px;
+}
+
+.phone-preview .screen .tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #ffecec;
+  color: #eb4047;
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.phone-preview .screen strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.phone-preview .screen .time {
+  font-size: 10px;
+  color: #9a9eaf;
+  margin-bottom: 8px;
+}
+
+.phone-preview .screen p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.phone-preview .push {
+  margin-top: 10px;
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.phone-preview .push .app {
+  font-size: 10px;
+  font-weight: 700;
+  color: #266ef4;
+}
+
+.phone-preview .push .when {
+  float: right;
+  font-size: 10px;
+  color: #9a9eaf;
+}
+
+.phone-preview .push .body {
+  clear: both;
+  font-size: 11px;
+  margin-top: 4px;
+  color: #374151;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #54627c;
+  margin: 2px 0;
+}
+
+.figma-split-vehicle {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.figma-kpis-5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.donut-sm {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: conic-gradient(#266ef4 0 50%, #fdac38 0 75%, #3fb46a 0 91.7%, #c4c9d7 0);
+  display: grid;
+  place-items: center;
+  margin: 8px auto;
+}
+
+.donut-sm-hole {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.stat-list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #54627c;
+}
+
+.stat-list-row strong {
+  color: #111827;
+}
+
+.alert-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-stack .alert {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.perm-table td:last-child {
+  text-align: center;
+  font-weight: 700;
+}
+
+@media (max-width: 1200px) {
+  .figma-split-notice,
+  .figma-split-vehicle,
+  .notice-form-grid,
+  .figma-kpis,
+  .figma-kpis-5 {
+    grid-template-columns: 1fr;
+  }
+}
