@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 
 import androidx.lifecycle.viewModelScope
 
+import com.mju.onda.driver.core.login.LoginHistoryReporter
+
 import com.mju.onda.driver.data.mock.MockDriver
 
 import com.mju.onda.driver.feature.auth.data.AuthResult
@@ -149,6 +151,14 @@ class LoginViewModel(
                         userId = result.driver.id,
 
                         autoLogin = current.autoLogin,
+
+                    )
+
+                    LoginHistoryReporter.report(
+
+                        userId = result.driver.id,
+
+                        name = result.driver.name,
 
                     )
 

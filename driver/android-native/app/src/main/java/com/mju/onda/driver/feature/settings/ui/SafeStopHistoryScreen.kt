@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mju.onda.driver.core.theme.OndaColors
@@ -70,9 +74,16 @@ fun SafeStopHistoryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(Unit) {
-        viewModel.load()
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.load()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(Unit) {
@@ -87,13 +98,7 @@ fun SafeStopHistoryScreen(
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
-                SafeStopHistoryEvent.Refreshed -> {
-                    Toast.makeText(
-                        context,
-                        MockSafeStopHistory.REFRESH_TOAST,
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
+                SafeStopHistoryEvent.Refreshed -> Unit
                 is SafeStopHistoryEvent.OpenReceived -> onOpenReceived()
                 is SafeStopHistoryEvent.OpenApproved -> onOpenApproved()
                 is SafeStopHistoryEvent.OpenContinue -> onOpenContinue()
@@ -310,11 +315,13 @@ private fun HistoryRow(
         SafeStopReviewStatus.Pending -> MockSafeStopHistory.STATUS_PENDING
         SafeStopReviewStatus.Confirmed -> MockSafeStopHistory.STATUS_CONFIRMED
         SafeStopReviewStatus.ActionCompleted -> MockSafeStopHistory.STATUS_ACTION_COMPLETED
+        SafeStopReviewStatus.Cancelled -> MockSafeStopHistory.STATUS_CANCELLED
     }
     val statusColor = when (item.reviewStatus) {
         SafeStopReviewStatus.Pending -> SuccessText
         SafeStopReviewStatus.Confirmed -> ConfirmedText
         SafeStopReviewStatus.ActionCompleted -> OndaColors.TextPrimary
+        SafeStopReviewStatus.Cancelled -> Color(0xFFE53935)
     }
 
     Row(

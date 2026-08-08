@@ -15,6 +15,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // 에뮬레이터 → 호스트 PC의 Vite(admin) 개발 서버. 실기기는 LAN IP로 오버라이드.
+        buildConfigField("String", "ADMIN_DEV_BASE_URL", "\"http://10.0.2.2:5173\"")
     }
 
     buildTypes {
@@ -38,6 +40,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

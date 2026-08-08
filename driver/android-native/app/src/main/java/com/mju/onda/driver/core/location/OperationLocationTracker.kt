@@ -122,6 +122,8 @@ object OperationLocationTracker {
 
         isTracking = true
 
+        LiveHeartbeatReporter.start(operationId)
+
     }
 
 
@@ -132,9 +134,13 @@ object OperationLocationTracker {
 
         val ctx = appContext ?: return
 
+        val endingId = activeOperationId
+
         isTracking = false
 
         activeOperationId = null
+
+        LiveHeartbeatReporter.stopAndMarkEnded(endingId)
 
         val intent = Intent(ctx, OperationLocationService::class.java).apply {
 

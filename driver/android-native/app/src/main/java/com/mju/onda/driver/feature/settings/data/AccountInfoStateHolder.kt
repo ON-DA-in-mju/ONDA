@@ -150,11 +150,15 @@ object AccountInfoStateHolder {
 
     private fun defaultVehicle(userId: String): String = when (userId) {
 
-        "driver02" -> "1호차"
+        "user02" -> "1호차"
 
-        "2026001" -> "3호차"
+        "user03" -> "3호차"
 
-        else -> "2호차"
+        "user04" -> "4호차"
+
+        "user05" -> "5호차"
+
+        else -> "2호차" // user01 및 기본
 
     }
 

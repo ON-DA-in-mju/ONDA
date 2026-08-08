@@ -1,6 +1,7 @@
 package com.mju.onda.driver.feature.settings.data
 
 data class StopRequestReceivedInfo(
+    val requestId: String = "",
     val reason: String,
     val requestedAt: String,
 )

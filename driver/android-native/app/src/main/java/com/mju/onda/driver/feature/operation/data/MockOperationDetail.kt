@@ -2,6 +2,7 @@ package com.mju.onda.driver.feature.operation.data
 
 import com.mju.onda.driver.feature.home.data.AssignedOperation
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
+import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.OperationStatus
 
 data class OperationDetailInfo(
@@ -55,16 +56,30 @@ object MockOperationDetail {
     )
 
     fun forOperationId(operationId: String): OperationDetailInfo {
-        if (operationId == giheungDetail.id) return giheungDetail
-
         val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
-            ?: return giheungDetail
-
-        return fromAssigned(op)
+        if (op != null) return fromAssigned(op)
+        if (operationId == giheungDetail.id) {
+            return fromAssigned(
+                AssignedOperation(
+                    id = giheungDetail.id,
+                    routeName = giheungDetail.routeName,
+                    vehicleName = giheungDetail.vehicleName,
+                    departTime = giheungDetail.departTime,
+                    origin = giheungDetail.origin,
+                    destination = giheungDetail.destination,
+                    round = giheungDetail.round,
+                    expectedEndTime = giheungDetail.expectedEndTime,
+                    status = OperationStatus.Scheduled,
+                ),
+            )
+        }
+        return giheungDetail
     }
 
-    private fun fromAssigned(op: AssignedOperation): OperationDetailInfo =
-        OperationDetailInfo(
+    private fun fromAssigned(op: AssignedOperation): OperationDetailInfo {
+        val resolved = OperationRuntimeStateHolder.withRuntimeStatus(listOf(op)).first()
+        val status = resolved.status
+        return OperationDetailInfo(
             id = op.id,
             routeName = op.routeName,
             vehicleName = op.vehicleName,
@@ -74,7 +89,8 @@ object MockOperationDetail {
             origin = op.origin,
             destination = op.destination,
             dateLabel = MockTodayOperations.DATE_LABEL,
-            status = op.status,
-            statusLabel = MockTodayOperations.statusLabel(op.status),
+            status = status,
+            statusLabel = MockTodayOperations.statusLabel(status),
         )
+    }
 }

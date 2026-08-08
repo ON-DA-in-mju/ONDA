@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bus,
@@ -12,18 +13,27 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useAuth } from '../../state/AuthContext'
+import {
+  fetchAdminNotifications,
+  markNotificationRead,
+  type AdminNotification,
+} from '../../lib/adminNotificationsApi'
 import { Header, Sidebar, type NavItem } from './SidebarHeader'
 import '../../styles/layout.css'
+
+const TOAST_DURATION_MS = 8_000
 
 const titles: Record<string, string> = {
   '/dashboard': '대시보드',
   '/schedules': '오늘의 운행·배차 목록',
+  '/schedules/assignments': '기사 배정',
   '/schedules/detail': '운행 일정 상세',
   '/schedules/bulk': '일괄 등록 미리보기',
   '/schedules/suspend': '운행 중단·기상악화 처리',
   '/live': '실시간 운행 관제',
-  '/live/detail': '운행 상태 상세',
-  '/live/suspend': '운행 중단 요청 처리',
+  '/live/detail': '오늘의 운행 목록',
+  '/live/suspend': '안전 정차 요청',
+  '/notifications': '알림',
   '/reports': '커뮤니티 제보 관리',
   '/notices': '공지·긴급 알림 관리',
   '/routes': '노선·운행 관리',
@@ -40,6 +50,62 @@ export function AdminLayout() {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [toast, setToast] = useState<AdminNotification | null>(null)
+  const knownIdsRef = useRef<Set<string> | null>(null)
+  const toastTimerRef = useRef<number | null>(null)
+
+  const dismissToast = () => {
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
+    setToast(null)
+  }
+
+  const showToast = (item: AdminNotification) => {
+    if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current)
+    setToast(item)
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null)
+      toastTimerRef.current = null
+    }, TOAST_DURATION_MS)
+  }
+
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      const data = await fetchAdminNotifications()
+      if (!alive) return
+      setUnreadCount(data.unreadCount)
+
+      const ids = new Set(data.items.map((n) => n.id))
+      if (knownIdsRef.current == null) {
+        knownIdsRef.current = ids
+        return
+      }
+      const fresh = data.items.filter((n) => !knownIdsRef.current!.has(n.id) && !n.read)
+      knownIdsRef.current = ids
+      if (fresh.length > 0) {
+        showToast(fresh[0])
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 3_000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
+  const onToastClick = async () => {
+    if (!toast) return
+    const target = toast
+    dismissToast()
+    if (!target.read) await markNotificationRead(target.id)
+    navigate(target.href || '/live/suspend')
+  }
 
   const items: NavItem[] = [
     { to: '/dashboard', label: '대시보드', icon: <House size={16} /> },
@@ -54,7 +120,13 @@ export function AdminLayout() {
     { to: '/settings', label: '설정', icon: <Settings size={16} /> },
   ]
 
-  const title = titles[location.pathname] ?? 'ON-DA 관리자'
+  const title =
+    titles[location.pathname] ??
+    (location.pathname.startsWith('/live/detail/')
+      ? '운행 상태 상세'
+      : location.pathname.startsWith('/schedules/detail')
+        ? '운행 일정 상세'
+        : 'ON-DA 관리자')
 
   return (
     <div className="admin-shell">
@@ -71,11 +143,19 @@ export function AdminLayout() {
           title={title}
           userName={user?.name ?? '관리자'}
           userEmail={user?.email ?? 'admin@mju.ac.kr'}
-          notificationCount={3}
+          notificationCount={unreadCount}
+          onNotificationClick={() => navigate('/notifications')}
         />
         <main className="admin-content">
           <Outlet />
         </main>
+        {toast ? (
+          <button type="button" className="admin-toast" onClick={() => void onToastClick()}>
+            <strong>{toast.title}</strong>
+            <span>{toast.body}</span>
+            <em>클릭하면 안전 정차 요청 화면으로 이동합니다 · 8초 후 자동으로 닫힙니다</em>
+          </button>
+        ) : null}
       </div>
     </div>
   )

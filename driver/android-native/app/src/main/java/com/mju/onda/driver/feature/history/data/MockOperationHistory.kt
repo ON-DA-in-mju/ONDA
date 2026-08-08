@@ -136,7 +136,7 @@ object MockOperationHistory {
     private const val PLATE_DRIVER02 = "34나 5678"
 
     fun plateForCurrentUser(): String =
-        if (SessionStateHolder.currentUserId == "driver02") PLATE_DRIVER02 else PLATE_DRIVER01
+        if (SessionStateHolder.currentUserId == "user02") PLATE_DRIVER02 else PLATE_DRIVER01
 
     private data class SeedDef(
         val id: String,
@@ -166,7 +166,7 @@ object MockOperationHistory {
         )
     }
 
-    /** driver01 시드 — 오늘~7일 전 (시각은 Mock 유지) */
+    /** user01 시드 — 오늘~7일 전 (시각은 Mock 유지) */
     private val driver01SeedDefs: List<SeedDef> = listOf(
         SeedDef("h1", 1, "기흥역 통학버스", "2호차", PLATE_DRIVER01, "09:03", "18분", "09:03 ~ 09:21", HistoryResultStatus.Completed),
         SeedDef("h2", 2, "명지대역 셔틀", "1호차", PLATE_DRIVER01, "10:00", "42분", "10:00 ~ 10:42", HistoryResultStatus.AdminEnded),
@@ -179,21 +179,21 @@ object MockOperationHistory {
     )
 
     private val driver02SeedDefs: List<SeedDef> = listOf(
-        SeedDef("h1", 1, "수원역 통학버스", "1호차", PLATE_DRIVER02, "08:38", "28분", "08:38 ~ 09:06", HistoryResultStatus.Completed),
-        SeedDef("h2", 2, "영통역 셔틀", "1호차", PLATE_DRIVER02, "11:08", "36분", "11:08 ~ 11:44", HistoryResultStatus.AdminEnded),
-        SeedDef("h3", 3, "보정·기흥 순환", "4호차", PLATE_DRIVER02, "14:22", "15분", "14:22 ~ 14:37", HistoryResultStatus.Interrupted),
-        SeedDef("h4", 4, "수원역 통학버스", "1호차", PLATE_DRIVER02, "08:39", "29분", "08:39 ~ 09:08", HistoryResultStatus.Completed),
-        SeedDef("h5", 5, "영통역 셔틀", "1호차", PLATE_DRIVER02, "11:11", "33분", "11:11 ~ 11:44", HistoryResultStatus.Completed),
-        SeedDef("h6", 6, "보정·기흥 순환", "4호차", PLATE_DRIVER02, "14:21", "6분", "14:21 ~ 14:27", HistoryResultStatus.Interrupted),
-        SeedDef("h7", 7, "수원역 통학버스", "1호차", PLATE_DRIVER02, "08:37", "30분", "08:37 ~ 09:07", HistoryResultStatus.Completed),
-        SeedDef("h8", 7, "영통역 셔틀", "1호차", PLATE_DRIVER02, "11:09", "34분", "11:09 ~ 11:43", HistoryResultStatus.Completed),
+        SeedDef("h1", 1, "기흥역 통학버스", "1호차", PLATE_DRIVER02, "08:38", "28분", "08:38 ~ 09:06", HistoryResultStatus.Completed),
+        SeedDef("h2", 2, "명지대역 셔틀", "1호차", PLATE_DRIVER02, "11:08", "36분", "11:08 ~ 11:44", HistoryResultStatus.AdminEnded),
+        SeedDef("h3", 3, "시내 셔틀", "4호차", PLATE_DRIVER02, "14:22", "15분", "14:22 ~ 14:37", HistoryResultStatus.Interrupted),
+        SeedDef("h4", 4, "기흥역 통학버스", "1호차", PLATE_DRIVER02, "08:39", "29분", "08:39 ~ 09:08", HistoryResultStatus.Completed),
+        SeedDef("h5", 5, "명지대역 셔틀", "1호차", PLATE_DRIVER02, "11:11", "33분", "11:11 ~ 11:44", HistoryResultStatus.Completed),
+        SeedDef("h6", 6, "시내 셔틀", "4호차", PLATE_DRIVER02, "14:21", "6분", "14:21 ~ 14:27", HistoryResultStatus.Interrupted),
+        SeedDef("h7", 7, "기흥역 통학버스", "1호차", PLATE_DRIVER02, "08:37", "30분", "08:37 ~ 09:07", HistoryResultStatus.Completed),
+        SeedDef("h8", 7, "명지대역 셔틀", "1호차", PLATE_DRIVER02, "11:09", "34분", "11:09 ~ 11:43", HistoryResultStatus.Completed),
     )
 
     /** 시드 전체. 로그인 계정별. */
     val allSeedRecords: List<HistoryRecord>
         get() {
             val defs = when (SessionStateHolder.currentUserId) {
-                "driver02" -> driver02SeedDefs
+                "user02" -> driver02SeedDefs
                 else -> driver01SeedDefs
             }
             return defs.map(::toRecord)

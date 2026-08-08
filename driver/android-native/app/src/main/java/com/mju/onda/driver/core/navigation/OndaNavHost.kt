@@ -411,6 +411,16 @@ fun OndaNavHost() {
                 onContactAdmin = {
                     navController.navigate(Routes.CONTACT_ADMIN)
                 },
+                onOpenApproved = {
+                    navController.navigate(Routes.STOP_APPROVED) {
+                        popUpTo(Routes.STOP_REQUEST_RECEIVED) { inclusive = true }
+                    }
+                },
+                onOpenContinue = {
+                    navController.navigate(Routes.CONTINUE_OPERATION) {
+                        popUpTo(Routes.STOP_REQUEST_RECEIVED) { inclusive = true }
+                    }
+                },
             )
         }
 

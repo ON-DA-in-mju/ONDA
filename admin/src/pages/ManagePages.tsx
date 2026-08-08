@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, Eye, Megaphone } from 'lucide-react'
 import { maintenances, notices, reports, routes, systemLogs, users } from '../data/mock'
+import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
 import { StatusBadge } from '../components/ui/Form'
 import '../styles/figma-pages.css'
 
@@ -917,7 +918,30 @@ export function DriversPage() {
 /** ADM-08 사용자 관리 — Figma 430:19862 */
 export function UsersPage() {
   const [selected, setSelected] = useState(0)
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([])
   const user = users[selected]
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const rows = await fetchLoginHistory()
+      if (alive) setLoginHistory(rows)
+    }
+    void load()
+    const timer = window.setInterval(load, 5_000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const lastLoginByUser = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of loginHistory) {
+      if (!map.has(row.userId)) map.set(row.userId, toLastLoginDisplay(row.time))
+    }
+    return map
+  }, [loginHistory])
 
   return (
     <div className="page">
@@ -983,7 +1007,7 @@ export function UsersPage() {
                   <td>
                     <StatusBadge tone={row.status === '활성' ? 'green' : 'gray'}>{row.status}</StatusBadge>
                   </td>
-                  <td>{row.lastLogin}</td>
+                  <td>{lastLoginByUser.get(row.id) ?? row.lastLogin}</td>
                   <td>
                     <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelected(idx)}>
                       상세
@@ -1046,13 +1070,16 @@ export function UsersPage() {
               </button>
             </div>
             <div className="muted" style={{ fontSize: 12, lineHeight: 1.8 }}>
-              관리자 (admin) · 2026.07.20 09:32:15 · 192.168.10.25
-              <br />
-              김운영 (operator1) · 2026.07.20 08:15:44 · 192.168.10.18
-              <br />
-              박사용 (user01) · 2026.07.20 07:50:21 · 192.168.10.32
-              <br />
-              이운영 (operator2) · 2026.07.19 17:45:09 · 192.168.10.18
+              {loginHistory.length === 0 ? (
+                <span>로그인 기록이 없습니다. 관리자 웹(dev) 실행 후 기사 앱에서 로그인하면 여기에 반영됩니다.</span>
+              ) : (
+                loginHistory.slice(0, 8).map((row) => (
+                  <div key={`${row.userId}-${row.time}-${row.ip}`}>
+                    {row.name} ({row.userId}) · {row.time} · {row.ip}
+                    {row.source === 'driver-app' ? ' · 기사앱' : ''}
+                  </div>
+                ))
+              )}
             </div>
           </section>
 

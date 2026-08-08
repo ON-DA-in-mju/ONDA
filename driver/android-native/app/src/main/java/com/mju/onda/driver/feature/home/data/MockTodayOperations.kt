@@ -128,7 +128,7 @@ object MockTodayOperations {
 
 
 
-    /** driver01 · 그 외 기본 계정 */
+    /** user01 · 그 외 기본 계정 */
 
     private val driver01Operations: List<AssignedOperation> = listOf(
 
@@ -150,7 +150,7 @@ object MockTodayOperations {
 
             expectedEndTime = "09:25",
 
-            status = OperationStatus.DepartingSoon,
+            status = OperationStatus.Scheduled,
 
         ),
 
@@ -202,7 +202,7 @@ object MockTodayOperations {
 
 
 
-    /** driver02 — 동일 형식(3건), 경로·시간·차량만 다름 */
+    /** user02 — 동일 형식(3건), 경로·시간·차량만 다름 */
 
     private val driver02Operations: List<AssignedOperation> = listOf(
 
@@ -210,21 +210,21 @@ object MockTodayOperations {
 
             id = "d02-op-0840",
 
-            routeName = "수원역 통학버스",
+            routeName = "기흥역 통학버스",
 
             vehicleName = "1호차",
 
             departTime = "08:40",
 
-            origin = "제2공학관",
+            origin = "채플관 앞",
 
-            destination = "수원역 로데오거리",
+            destination = "기흥역 5번 출구",
 
             round = 1,
 
             expectedEndTime = "09:10",
 
-            status = OperationStatus.DepartingSoon,
+            status = OperationStatus.Scheduled,
 
         ),
 
@@ -232,7 +232,7 @@ object MockTodayOperations {
 
             id = "d02-op-1110",
 
-            routeName = "영통역 셔틀",
+            routeName = "명지대역 셔틀",
 
             vehicleName = "1호차",
 
@@ -240,7 +240,7 @@ object MockTodayOperations {
 
             origin = "자연캠퍼스",
 
-            destination = "영통역 8번 출구",
+            destination = "명지대역",
 
             round = 1,
 
@@ -254,7 +254,7 @@ object MockTodayOperations {
 
             id = "d02-op-1420",
 
-            routeName = "보정·기흥 순환",
+            routeName = "시내 셔틀",
 
             vehicleName = "4호차",
 
@@ -262,7 +262,7 @@ object MockTodayOperations {
 
             origin = "채플관 앞",
 
-            destination = "보정역",
+            destination = "용인시청",
 
             round = 1,
 
@@ -282,11 +282,21 @@ object MockTodayOperations {
 
 
 
-    fun forUser(userId: String?): List<AssignedOperation> = when (userId) {
+    /** 로컬 API 캐시가 있으면 우선, 없으면 계정별 mock 시드 */
+    fun forUser(userId: String?): List<AssignedOperation> {
+        TodayAssignmentsHolder.getOrNull()?.let { return it }
+        return seedForUser(userId)
+    }
 
-        "driver02" -> driver02Operations
 
-        else -> driver01Operations
+
+    fun seedForUser(userId: String?): List<AssignedOperation> = when (userId) {
+
+        "user02" -> driver02Operations
+
+        "user03", "user04", "user05" -> emptyList()
+
+        else -> driver01Operations // user01 및 기본
 
     }
 

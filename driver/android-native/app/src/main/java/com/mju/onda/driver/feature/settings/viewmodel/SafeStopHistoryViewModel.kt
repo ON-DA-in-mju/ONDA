@@ -3,13 +3,13 @@ package com.mju.onda.driver.feature.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
+import com.mju.onda.driver.feature.settings.data.SafeStopDecisionPoller
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryItem
 import com.mju.onda.driver.feature.settings.data.SafeStopOutcome
 import com.mju.onda.driver.feature.settings.data.SafeStopReviewStatus
 import com.mju.onda.driver.feature.settings.data.StopRequestReceivedHolder
 import com.mju.onda.driver.feature.settings.data.StopRequestReceivedInfo
-import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -42,9 +42,21 @@ class SafeStopHistoryViewModel : ViewModel() {
     private val _events = MutableSharedFlow<SafeStopHistoryEvent>()
     val events: SharedFlow<SafeStopHistoryEvent> = _events.asSharedFlow()
 
+    init {
+        viewModelScope.launch {
+            SafeStopDecisionPoller.updates.collect {
+                refreshState()
+            }
+        }
+    }
+
     fun load() {
         SafeStopHistoryHolder.ensureSeedIfEmpty()
         refreshState()
+        viewModelScope.launch {
+            SafeStopDecisionPoller.pollOnce()
+            refreshState()
+        }
     }
 
     private fun refreshState() {
@@ -57,11 +69,11 @@ class SafeStopHistoryViewModel : ViewModel() {
     }
 
     fun onRefresh() {
-        SafeStopHistoryHolder.markAllConfirmed {
-            if (Random.nextBoolean()) SafeStopOutcome.Approved else SafeStopOutcome.ContinueOperation
+        viewModelScope.launch {
+            SafeStopDecisionPoller.pollOnce()
+            refreshState()
+            _events.emit(SafeStopHistoryEvent.Refreshed)
         }
-        refreshState()
-        viewModelScope.launch { _events.emit(SafeStopHistoryEvent.Refreshed) }
     }
 
     fun onItemClick(item: SafeStopHistoryItem) {
@@ -71,12 +83,14 @@ class SafeStopHistoryViewModel : ViewModel() {
                 SafeStopReviewStatus.Pending -> {
                     StopRequestReceivedHolder.set(
                         StopRequestReceivedInfo(
+                            requestId = item.id,
                             reason = item.reason,
                             requestedAt = item.requestedAt,
                         ),
                     )
                     _events.emit(SafeStopHistoryEvent.OpenReceived(item.id))
                 }
+                SafeStopReviewStatus.Cancelled -> Unit
                 SafeStopReviewStatus.Confirmed,
                 SafeStopReviewStatus.ActionCompleted,
                 -> {

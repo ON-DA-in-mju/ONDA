@@ -6,7 +6,7 @@ import com.mju.onda.driver.data.mock.MockUsers
 
 /**
  * 로그인 계정(userId)별로 SharedPreferences 파일을 분리한다.
- * 예: onda_operation_runtime__driver01
+ * 예: onda_operation_runtime__user01
  */
 object UserScopedPrefs {
     private var appContext: Context? = null
@@ -27,6 +27,7 @@ object UserScopedPrefs {
         "onda_account_info",
         "onda_alarm_settings",
         "onda_location_consent",
+        "onda_today_assignments",
     )
 
     fun init(context: Context) {

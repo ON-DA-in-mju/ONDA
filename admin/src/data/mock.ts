@@ -20,12 +20,41 @@ export const gpsAlerts = [
   { bus: '온다 8호기', route: '수원역 ↔ 캠퍼스', location: '영통 IC', issue: '통신 지연', time: '07:22', status: '조치 완료', tone: 'gray' as const },
 ]
 
+/** 노선 관리·기사 앱과 동일한 3개 노선 기준 운행 일정 */
 export const schedules = [
-  { day: '월', route: '기흥역 ↔ 캠퍼스', start: '07:00', end: '22:30', interval: '15분', rounds: 42, status: '운행 중', tone: 'green' as const },
-  { day: '화', route: '용인시청 ↔ 캠퍼스', start: '07:10', end: '21:40', interval: '20분', rounds: 30, status: '운행 중', tone: 'green' as const },
-  { day: '수', route: '수원역 ↔ 캠퍼스', start: '06:50', end: '22:00', interval: '15분', rounds: 38, status: '수정 중', tone: 'blue' as const },
-  { day: '목', route: '죽전역 ↔ 캠퍼스', start: '07:20', end: '21:20', interval: '25분', rounds: 24, status: '운행 중', tone: 'green' as const },
+  {
+    no: 1,
+    route: '기흥역 통학버스',
+    start: '07:00',
+    end: '22:30',
+    interval: '15분',
+    rounds: 0,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
+  {
+    no: 2,
+    route: '명지대역 셔틀',
+    start: '08:00',
+    end: '21:00',
+    interval: '20분',
+    rounds: 0,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
+  {
+    no: 3,
+    route: '시내 셔틀',
+    start: '07:30',
+    end: '20:30',
+    interval: '20분',
+    rounds: 0,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
 ]
+
+export const SCHEDULE_ROUTE_OPTIONS = ['기흥역 통학버스', '명지대역 셔틀', '시내 셔틀'] as const
 
 export const liveVehicles = [
   { bus: '온다 1호기', driver: '이기사', route: '용인시청', stop: '정문 정류장', status: '운행 중', tone: 'green' as const, gps: '정상', last: '방금 전' },
@@ -95,9 +124,11 @@ export const stops = [
 ]
 
 export const drivers = [
-  { name: '김민수', email: 'driver01@onda.local', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222' },
-  { name: '이정호', email: 'driver02@onda.local', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444' },
-  { name: '박서연', email: 'driver03@onda.local', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666' },
+  { name: '박사용', email: 'user01@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222' },
+  { name: '최사용', email: 'user02@mju.ac.kr', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444' },
+  { name: '정사용', email: 'user03@mju.ac.kr', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666' },
+  { name: '한사용', email: 'user04@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.04 17:20', phone: '010-7777-8888' },
+  { name: '임사용', email: 'user05@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.03 16:05', phone: '010-9999-0000' },
 ]
 
 export const systemLogs = [

@@ -31,7 +31,7 @@ object MockDriverSettings {
     const val NOT_IN_OPERATION_TOAST = "현재 차량이 운행 중이 아닙니다"
 
     val profile = DriverProfile(
-        name = "김민수 기사님",
+        name = "박사용 기사님",
         organization = "명지 셔틀 운영팀",
     )
 

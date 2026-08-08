@@ -6,9 +6,11 @@ import com.mju.onda.driver.feature.batterywarning.data.BatteryWarningPrefs
 import com.mju.onda.driver.feature.consent.data.LocationConsentPrefs
 import com.mju.onda.driver.feature.history.data.HistoryRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
+import com.mju.onda.driver.feature.home.data.TodayAssignmentsHolder
 import com.mju.onda.driver.feature.permission.data.PermissionStateHolder
 import com.mju.onda.driver.feature.settings.data.AccountInfoStateHolder
 import com.mju.onda.driver.feature.settings.data.AlarmSettingsStateHolder
+import com.mju.onda.driver.feature.settings.data.SafeStopDecisionPoller
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 
 /**
@@ -27,9 +29,12 @@ object UserScopedState {
         AccountInfoStateHolder.bindUser(userId)
         AlarmSettingsStateHolder.bindUser()
         LocationConsentPrefs.bindUser()
+        TodayAssignmentsHolder.bindUser()
+        SafeStopDecisionPoller.start()
     }
 
     fun unbind() {
+        SafeStopDecisionPoller.stop()
         OperationRuntimeStateHolder.unbindUser()
         HistoryRuntimeStateHolder.unbindUser()
         AlarmReadStateHolder.unbindUser()
@@ -40,6 +45,7 @@ object UserScopedState {
         AccountInfoStateHolder.unbindUser()
         AlarmSettingsStateHolder.unbindUser()
         LocationConsentPrefs.unbindUser()
+        TodayAssignmentsHolder.unbindUser()
         UserScopedPrefs.unbind()
     }
 
@@ -55,5 +61,6 @@ object UserScopedState {
         AccountInfoStateHolder.clear()
         AlarmSettingsStateHolder.clear()
         LocationConsentPrefs.clear()
+        TodayAssignmentsHolder.clear()
     }
 }

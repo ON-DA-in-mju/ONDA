@@ -11,10 +11,15 @@ object MockStopRequestReceived {
     const val LABEL_GPS = "현재 GPS 전송 상태"
 
     const val ADMIN_PENDING = "확인 대기"
+    const val ADMIN_CANCELLED = "요청 취소"
     const val GPS_SENDING = "전송 중"
 
     const val INFO_BANNER = "관리자 승인 후 학생용 앱과\n공지에 상태가 반영됩니다."
     const val LIST_LABEL = "목록으로"
+    const val CANCEL_REQUEST_LABEL = "요청 취소하기"
+    const val CANCEL_CONFIRM_MESSAGE = "요청을 취소하시겠습니까?"
+    const val CANCEL_CONFIRM_YES = "예"
+    const val CANCEL_CONFIRM_NO = "아니오"
     const val CONTACT_ADMIN_LABEL = "관리자 문의"
 
     const val FALLBACK_REASON = "차량 고장"

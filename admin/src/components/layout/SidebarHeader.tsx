@@ -51,17 +51,35 @@ type HeaderProps = {
   userName: string
   userEmail: string
   notificationCount: number
+  onNotificationClick?: () => void
 }
 
-export function Header({ title, userName, userEmail, notificationCount }: HeaderProps) {
+export function Header({
+  title,
+  userName,
+  userEmail,
+  notificationCount,
+  onNotificationClick,
+}: HeaderProps) {
   return (
     <header className="admin-header">
       <h1>{title}</h1>
       <div className="header-right">
-        <div className="bell-wrap" aria-label="알림">
+        <button
+          type="button"
+          className="bell-wrap"
+          aria-label="알림"
+          onClick={onNotificationClick}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
           <Bell size={16} />
           {notificationCount > 0 ? <span className="bell-badge">{notificationCount}</span> : null}
-        </div>
+        </button>
         <div className="profile">
           <div className="avatar">{userName.slice(0, 1)}</div>
           <div>

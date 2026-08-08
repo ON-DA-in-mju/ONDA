@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +65,8 @@ private val InfoBannerBg = Color(0xFFEDF4FE)
 private val InfoBannerBorder = Color(0xFFB7D0F8)
 private val SuccessSoft = Color(0xFFE6F4F1)
 private val SuccessText = Color(0xFF00897B)
+private val CancelSoft = Color(0xFFFFEBEE)
+private val CancelText = Color(0xFFE53935)
 private val HeadlineBlack = Color(0xFF111111)
 private val SubtitleGray = Color(0xFF6B7A90)
 private val RowIconSize = 22.dp
@@ -73,6 +77,8 @@ fun StopRequestReceivedScreen(
     onBack: () -> Unit,
     onGoToList: () -> Unit,
     onContactAdmin: () -> Unit,
+    onOpenApproved: () -> Unit = {},
+    onOpenContinue: () -> Unit = {},
     viewModel: StopRequestReceivedViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,8 +93,43 @@ fun StopRequestReceivedScreen(
                 StopRequestReceivedEvent.NavigateBack -> onBack()
                 StopRequestReceivedEvent.GoToList -> onGoToList()
                 StopRequestReceivedEvent.ContactAdmin -> onContactAdmin()
+                StopRequestReceivedEvent.Cancelled -> onGoToList()
+                is StopRequestReceivedEvent.OpenApproved -> onOpenApproved()
+                is StopRequestReceivedEvent.OpenContinue -> onOpenContinue()
             }
         }
+    }
+
+    if (uiState.showCancelConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissCancelConfirmDialog,
+            text = {
+                Text(
+                    text = MockStopRequestReceived.CANCEL_CONFIRM_MESSAGE,
+                    style = OndaTypography.bodyLarge.copy(
+                        fontSize = 15.sp,
+                        color = OndaColors.TextPrimary,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::onCancelConfirmYes) {
+                    Text(
+                        text = MockStopRequestReceived.CANCEL_CONFIRM_YES,
+                        color = CancelText,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissCancelConfirmDialog) {
+                    Text(
+                        text = MockStopRequestReceived.CANCEL_CONFIRM_NO,
+                        color = OndaColors.TextSecondary,
+                    )
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -159,6 +200,7 @@ fun StopRequestReceivedScreen(
                     reason = uiState.reason,
                     requestedAt = uiState.requestedAt,
                     adminStatus = uiState.adminStatus,
+                    adminCancelled = uiState.adminStatus == MockStopRequestReceived.ADMIN_CANCELLED,
                     gpsStatus = uiState.gpsStatus,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
@@ -192,6 +234,34 @@ fun StopRequestReceivedScreen(
                     )
                 }
 
+                if (uiState.canCancel) {
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = viewModel::onCancelRequestClick,
+                        enabled = !uiState.cancelling,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.2.dp, CancelText),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = CancelText,
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    ) {
+                        Text(
+                            text = MockStopRequestReceived.CANCEL_REQUEST_LABEL,
+                            style = OndaTypography.labelLarge.copy(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CancelText,
+                            ),
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedButton(
@@ -222,6 +292,7 @@ private fun ReceivedSummaryCard(
     reason: String,
     requestedAt: String,
     adminStatus: String,
+    adminCancelled: Boolean,
     gpsStatus: String,
     modifier: Modifier = Modifier,
 ) {
@@ -269,12 +340,15 @@ private fun ReceivedSummaryCard(
                 Text(
                     text = adminStatus,
                     modifier = Modifier
-                        .background(SuccessSoft, RoundedCornerShape(20.dp))
+                        .background(
+                            if (adminCancelled) CancelSoft else SuccessSoft,
+                            RoundedCornerShape(20.dp),
+                        )
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                     style = OndaTypography.labelSmall.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = SuccessText,
+                        color = if (adminCancelled) CancelText else SuccessText,
                     ),
                 )
             },

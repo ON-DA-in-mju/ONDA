@@ -282,7 +282,7 @@ object MockOperationAlarms {
 
         get() = when (SessionStateHolder.currentUserId) {
 
-            "driver02" -> driver02SeedItems
+            "user02" -> driver02SeedItems
 
             else -> driver01SeedItems
 

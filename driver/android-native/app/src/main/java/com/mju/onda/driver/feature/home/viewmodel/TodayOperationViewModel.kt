@@ -10,6 +10,8 @@ import com.mju.onda.driver.feature.home.data.AssignedOperation
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.OperationStatus
+import com.mju.onda.driver.feature.home.data.TodayAssignmentsApi
+import com.mju.onda.driver.feature.home.data.TodayAssignmentsHolder
 import com.mju.onda.driver.feature.permission.data.PermissionStateHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class DepartureHomeAlert {
@@ -74,6 +77,15 @@ class TodayOperationViewModel : ViewModel() {
 
     private val _events = MutableSharedFlow<TodayOperationEvent>()
     val events: SharedFlow<TodayOperationEvent> = _events.asSharedFlow()
+
+    init {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(30_000)
+                syncRuntimeStatus()
+            }
+        }
+    }
 
     fun onAlarmClick() {
         viewModelScope.launch {
@@ -132,13 +144,24 @@ class TodayOperationViewModel : ViewModel() {
         }
     }
 
-    /** 새로고침 → Mock 배정 데이터 로드 (DRI-01-00A). 이후 앱 재실행에도 유지 */
+    /** 새로고침 → 관리자 로컬 API 배정 조회, 실패 시 mock 시드 (DRI-01-00A) */
     fun onRefresh() {
         if (_uiState.value.isRefreshing) return
 
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
-            delay(500)
+            val userId = SessionStateHolder.currentUserId
+            when (val result = if (userId != null) {
+                TodayAssignmentsApi.fetchForDriver(userId)
+            } else {
+                TodayAssignmentsApi.Result.Failed
+            }) {
+                is TodayAssignmentsApi.Result.Ok -> TodayAssignmentsHolder.set(result.items)
+                TodayAssignmentsApi.Result.Failed -> {
+                    // API 불가 시 계정별 mock 시드 사용
+                    TodayAssignmentsHolder.set(MockTodayOperations.seedForUser(userId))
+                }
+            }
             SessionStateHolder.markAssignmentsLoaded()
             _uiState.update {
                 it.copy(
@@ -150,16 +173,13 @@ class TodayOperationViewModel : ViewModel() {
         }
     }
 
-    /** 운행 시작 후 홈 복귀 시 배지(곧 출발 → 운행 중) 반영 */
+    /** 운행 시작 후 홈 복귀·시계 진행 시 배지(운행 예정 ↔ 곧 출발 ↔ 운행 중) 반영 */
     fun syncRuntimeStatus() {
-        val current = _uiState.value.operations
+        if (!SessionStateHolder.assignmentsLoaded) return
+        val base = MockTodayOperations.assignedOperations
         _uiState.update {
             it.copy(
-                operations = if (current.isEmpty()) {
-                    current
-                } else {
-                    OperationRuntimeStateHolder.withRuntimeStatus(current)
-                },
+                operations = OperationRuntimeStateHolder.withRuntimeStatus(base),
                 unreadAlarmCount = MockOperationAlarms.unreadCount(),
             )
         }

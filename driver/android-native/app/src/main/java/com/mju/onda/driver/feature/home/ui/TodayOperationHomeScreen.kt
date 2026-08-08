@@ -205,7 +205,11 @@ fun TodayOperationHomeScreen(
                     )
                 }
 
-                DemoResetSection(onReset = viewModel::onResetDemoState)
+                HomeActionSection(
+                    isRefreshing = uiState.isRefreshing,
+                    onRefresh = viewModel::onRefresh,
+                    onReset = viewModel::onResetDemoState,
+                )
             }
         }
     }
@@ -542,11 +546,51 @@ private fun DepartureAlertBanner(alert: DepartureHomeAlert) {
 }
 
 @Composable
-private fun DemoResetSection(onReset: () -> Unit) {
+private fun HomeActionSection(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    onReset: () -> Unit,
+) {
     Spacer(modifier = Modifier.height(28.dp))
+    androidx.compose.material3.Button(
+        onClick = onRefresh,
+        enabled = !isRefreshing,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = OndaColors.Primary,
+            contentColor = Color.White,
+            disabledContainerColor = OndaColors.Primary.copy(alpha = 0.45f),
+        ),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = Color.White,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(
+                text = MockTodayOperations.REFRESH_LABEL,
+                style = OndaTypography.labelLarge,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.Rounded.Autorenew,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(10.dp))
     OndaOutlinedButton(
         label = MockTodayOperations.DEMO_RESET_BUTTON,
         onClick = onReset,
+        enabled = !isRefreshing,
         height = 44.dp,
     )
 }

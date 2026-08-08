@@ -28,8 +28,8 @@ object MockAccountInfo {
     const val NAME_HINT = "이름"
 
     val info = AccountInfo(
-        driverName = "김민수 기사님",
-        driverId = "driver_mju_023",
+        driverName = "박사용 기사님",
+        driverId = "user01",
         organization = "명지 셔틀 운영팀",
         vehicleName = "2호차",
         contactStatus = "관리자 문의를 통해 연결",

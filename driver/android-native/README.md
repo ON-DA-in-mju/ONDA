@@ -27,10 +27,13 @@ cd android-native
 .\gradlew.bat :app:installDebug
 ```
 
-## Mock 로그인
+## Mock 로그인 (관리자 웹 사용자 관리와 동일)
 
-- `driver01` / `1234`
-- `2026001` / `onda1234`
+- `user01` / `1234` — 박사용
+- `user02` / `1234` — 최사용
+- `user03` / `1234` — 정사용
+- `user04` / `1234` — 한사용
+- `user05` / `1234` — 임사용
 
 ## 화면 진행
 

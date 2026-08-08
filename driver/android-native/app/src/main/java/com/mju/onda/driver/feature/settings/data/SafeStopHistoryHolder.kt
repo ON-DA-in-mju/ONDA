@@ -14,6 +14,8 @@ enum class SafeStopReviewStatus {
     Confirmed,
     /** 운행 계속 또는 운행 종료 조치까지 완료 */
     ActionCompleted,
+    /** 기사가 요청을 취소함 */
+    Cancelled,
 }
 
 enum class SafeStopOutcome {
@@ -30,7 +32,8 @@ object MockSafeStopHistory {
     const val STATUS_PENDING = "확인 대기"
     const val STATUS_CONFIRMED = "확인 완료"
     const val STATUS_ACTION_COMPLETED = "조치 완료"
-    const val REFRESH_TOAST = "관리자 확인 상태를 갱신했습니다."
+    const val STATUS_CANCELLED = "요청 취소"
+    const val REFRESH_TOAST = "관리자 처리 상태를 확인했습니다."
 
     /** 어제 (기기 날짜) */
     val PAST_DATE_LABEL: String
@@ -101,17 +104,59 @@ object SafeStopHistoryHolder {
         persist()
     }
 
-    fun markAllConfirmed(randomOutcome: () -> SafeStopOutcome) {
+    /**
+     * 관리자 API 결정(continue/stop)을 로컬 이력에 반영한다.
+     * Pending 항목만 Confirmed로 올리며, 이미 조치 완료된 항목은 건드리지 않는다.
+     * @return 새로 반영된 건수
+     */
+    /**
+     * 관리자/원격 결정 반영.
+     * @param remoteById id → "continue" | "stop" | "cancelled"
+     */
+    fun applyRemoteDecisions(remoteById: Map<String, String>): Int {
+        var changed = 0
         for (i in items.indices) {
             val item = items[i]
-            if (item.reviewStatus == SafeStopReviewStatus.Pending) {
-                items[i] = item.copy(
-                    reviewStatus = SafeStopReviewStatus.Confirmed,
-                    outcome = randomOutcome(),
-                )
+            if (item.reviewStatus != SafeStopReviewStatus.Pending) continue
+            when (remoteById[item.id]) {
+                "continue" -> {
+                    items[i] = item.copy(
+                        reviewStatus = SafeStopReviewStatus.Confirmed,
+                        outcome = SafeStopOutcome.ContinueOperation,
+                    )
+                    changed++
+                }
+                "stop" -> {
+                    items[i] = item.copy(
+                        reviewStatus = SafeStopReviewStatus.Confirmed,
+                        outcome = SafeStopOutcome.Approved,
+                    )
+                    changed++
+                }
+                "cancelled" -> {
+                    items[i] = item.copy(
+                        reviewStatus = SafeStopReviewStatus.Cancelled,
+                        outcome = null,
+                    )
+                    changed++
+                }
             }
         }
+        if (changed > 0) persist()
+        return changed
+    }
+
+    fun cancelById(id: String): Boolean {
+        val index = items.indexOfFirst { it.id == id }
+        if (index < 0) return false
+        val item = items[index]
+        if (item.reviewStatus != SafeStopReviewStatus.Pending) return false
+        items[index] = item.copy(
+            reviewStatus = SafeStopReviewStatus.Cancelled,
+            outcome = null,
+        )
         persist()
+        return true
     }
 
     fun markSelectedActionCompleted() {
@@ -164,7 +209,7 @@ object SafeStopHistoryHolder {
 
     private fun pastSeedItem(): SafeStopHistoryItem {
         val op = MockTodayOperations.assignedOperations.firstOrNull()
-        val isDriver02 = SessionStateHolder.currentUserId == "driver02"
+        val isDriver02 = SessionStateHolder.currentUserId == "user02"
         return SafeStopHistoryItem(
             id = "seed-1",
             reason = "차량 고장",

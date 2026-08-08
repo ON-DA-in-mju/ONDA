@@ -286,6 +286,7 @@
 }
 
 .admin-main {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -375,6 +376,50 @@
   padding: 20px 24px 32px;
 }
 
+.admin-toast {
+  position: fixed;
+  top: calc(var(--header-height) + 12px);
+  left: calc(var(--sidebar-width) + 24px);
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.7);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.admin-toast strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-toast span {
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.96;
+}
+
+.admin-toast em {
+  margin-top: 2px;
+  font-size: 11px;
+  font-style: normal;
+  opacity: 0.82;
+}
+
+.admin-toast:hover {
+  background: rgba(29, 78, 216, 0.78);
+}
+
 @media (max-width: 900px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -383,5 +428,10 @@
   .sidebar {
     position: relative;
     height: auto;
+  }
+
+  .admin-toast {
+    left: 16px;
+    right: 16px;
   }
 }

@@ -150,13 +150,10 @@ object OperationRuntimeStateHolder {
 
     fun withRuntimeStatus(operations: List<AssignedOperation>): List<AssignedOperation> =
         operations.map { op ->
-            val baseStatus = MockTodayOperations.assignedOperations
-                .find { it.id == op.id }?.status
-                ?: op.status
             when {
                 isInProgress(op.id) -> op.copy(status = OperationStatus.InProgress)
                 isEnded(op.id) -> op.copy(status = OperationStatus.Ended)
-                else -> op.copy(status = baseStatus)
+                else -> op.copy(status = AssignmentStatusResolver.resolve(op))
             }
         }
 
