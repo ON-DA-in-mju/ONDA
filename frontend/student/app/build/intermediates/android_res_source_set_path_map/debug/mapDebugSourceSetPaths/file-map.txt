@@ -1,0 +1,7 @@
+com.onda.mju.student.app-pngs-0 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\build\generated\res\pngs\debug
+com.onda.mju.student.app-updated_navigation_xml-1 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\build\generated\updated_navigation_xml\debug
+com.onda.mju.student.app-packageDebugResources-2 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.onda.mju.student.app-packageDebugResources-3 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.onda.mju.student.app-debug-4 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.onda.mju.student.app-debug-5 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\src\debug\res
+com.onda.mju.student.app-main-6 C:\Users\USER\AndroidStudioProjects\ONDAStudent\app\src\main\res
