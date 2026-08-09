@@ -1,4 +1,4 @@
-# OS / editor
+﻿# OS / editor
 .DS_Store
 *.log
 *.swp
@@ -11,19 +11,33 @@
 __pycache__/
 *.pyc
 
-# Android (android-native)
-android-native/.gradle/
-android-native/build/
-android-native/app/build/
-android-native/local.properties
-android-native/*.iml
-android-native/.cxx/
-android-native/captures/
+# Android (driver app)
+**/android-native/.gradle/
+**/android-native/build/
+**/android-native/app/build/
+**/android-native/local.properties
+**/android-native/*.iml
+**/android-native/.cxx/
+**/android-native/captures/
+frontend/driver/.gradle/
+frontend/driver/build/
+frontend/driver/app/build/
+frontend/driver/local.properties
+frontend/driver/*.iml
+frontend/driver/.cxx/
+frontend/driver/captures/
+frontend/driver/.kotlin/
 *.apk
 *.aab
 *.ap_
 *.dex
 *.class
+
+# Node / Vite (admin)
+frontend/admin/node_modules/
+frontend/admin/dist/
+**/node_modules/
+**/dist/
 
 # Secrets / local
 *.keystore
