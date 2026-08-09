@@ -1,0 +1,134 @@
+.legal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.legal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(17, 24, 39, 0.45);
+  cursor: pointer;
+}
+
+.legal-modal {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(860px, calc(100vh - 48px));
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #eef1f6;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.legal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 24px 12px;
+  border-bottom: 1px solid #f0f2f7;
+}
+
+.legal-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.legal-head p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.legal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #e5e8ef;
+  background: #fff;
+  color: #54627c;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.legal-close:hover {
+  background: #f9fafb;
+}
+
+.legal-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 24px 0;
+}
+
+.legal-tabs button {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.legal-tabs button.active {
+  background: #eaf1ff;
+  color: #266ef4;
+  border-color: #c9daff;
+}
+
+.legal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 24px 8px;
+}
+
+.legal-meta {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: #8b92a4;
+}
+
+.legal-section {
+  margin-bottom: 18px;
+}
+
+.legal-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.legal-section p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-line;
+}
+
+.legal-foot {
+  padding: 14px 24px 18px;
+  border-top: 1px solid #f0f2f7;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.legal-foot .btn {
+  min-width: 96px;
+  height: 40px;
+}

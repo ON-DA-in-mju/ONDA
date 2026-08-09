@@ -1,0 +1,360 @@
+/* ADM-09 시스템 관리 */
+
+.system-page {
+  display: grid;
+  gap: 12px;
+}
+
+.system-panel {
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.system-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.system-panel-head h3 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--section-title-size);
+  font-weight: var(--section-title-weight);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #111827;
+}
+
+.system-panel-head h3 svg {
+  width: var(--section-title-icon);
+  height: var(--section-title-icon);
+  color: #266ef4;
+  flex-shrink: 0;
+}
+
+.system-panel-head h3 .muted {
+  font-weight: 500;
+  color: #8b92a4;
+  font-size: 13px;
+}
+
+.system-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.system-field {
+  display: grid;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.system-field > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.system-field .input,
+.system-field select.input {
+  height: 36px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.system-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e8ef;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #54627c;
+  min-width: 200px;
+}
+
+.system-date svg {
+  color: #8b92a4;
+}
+
+.system-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.system-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8b92a4;
+  pointer-events: none;
+}
+
+.system-search .input {
+  width: 100%;
+  height: 36px;
+  padding-left: 34px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.system-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.system-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.system-kpi {
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 84px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.system-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.system-kpi-icon.blue { background: #eaf1ff; color: #266ef4; }
+.system-kpi-icon.green { background: #eaf8ef; color: #3fb46a; }
+.system-kpi-icon.purple { background: #f1eefc; color: #7964f2; }
+.system-kpi-icon.orange { background: #fff4e5; color: #fdac38; }
+.system-kpi-icon.red { background: #ffecec; color: #eb4047; }
+
+.system-kpi .label {
+  font-size: 12px;
+  color: #8b92a4;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.system-kpi .value {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.system-kpi .value em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 3px;
+  color: #6b7280;
+}
+
+.system-kpi .hint {
+  font-size: 11px;
+  margin-top: 4px;
+  color: #9a9eaf;
+  font-weight: 600;
+}
+
+.system-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.system-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.system-table-wrap {
+  overflow: auto;
+  min-height: 360px;
+}
+
+.system-table-wrap table {
+  min-width: 780px;
+}
+
+.system-type-fail,
+.system-type-error {
+  color: #eb4047;
+  font-weight: 700;
+}
+
+.system-pager {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.system-pager button {
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid #e5e8ef;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #54627c;
+  cursor: pointer;
+}
+
+.system-pager button.active {
+  background: #266ef4;
+  border-color: #266ef4;
+  color: #fff;
+}
+
+.system-note {
+  margin: 10px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a9eaf;
+}
+
+.system-donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 4px;
+}
+
+.system-donut {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.system-donut-hole {
+  width: 98px;
+  height: 98px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 3px;
+}
+
+.system-donut-hole strong {
+  font-size: 18px;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1.1;
+}
+
+.system-donut-hole span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b92a4;
+}
+
+.system-donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.system-donut-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.system-donut-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.system-donut-legend .name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.system-donut-legend strong {
+  font-weight: 800;
+  color: #54627c;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.system-policy p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #54627c;
+}
+
+.system-policy .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 1280px) {
+  .system-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .system-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .system-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .system-filter-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

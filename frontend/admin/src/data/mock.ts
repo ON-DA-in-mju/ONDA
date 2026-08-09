@@ -1,10 +1,10 @@
 export const kpiCards = [
-  { title: '오늘 배정 운행 수', value: 96, unit: '건', delta: '+4건 (전일 대비)', color: '#266ef4' },
-  { title: '현재 운행 중 차량', value: 28, unit: '대', delta: '+3대 (전일 대비)', color: '#3fb46a' },
-  { title: '운행 배정 차량', value: 42, unit: '대', delta: '+2대 (전일 대비)', color: '#fdac38' },
-  { title: 'GPS·통신 이상', value: 5, unit: '건', delta: '+2건 (전일 대비)', color: '#eb4047' },
-  { title: '처리 중 학생 제보', value: 12, unit: '건', delta: '+4건 (전일 대비)', color: '#7964f2' },
-  { title: '긴급 공지', value: 1, unit: '건', delta: '게시 중', color: '#ec181b' },
+  { title: '오늘 예정 운행 수', value: 96, unit: '건', delta: '▲ 8건 (전일 대비)', deltaTone: 'up' as const, color: '#266ef4' },
+  { title: '현재 운행 중 차량', value: 28, unit: '대', delta: '▲ 3대 (전일 대비)', deltaTone: 'up' as const, color: '#3fb46a' },
+  { title: '운행 예정 차량', value: 42, unit: '대', delta: '▲ 2대 (전일 대비)', deltaTone: 'up' as const, color: '#fdac38' },
+  { title: 'GPS·통신 이상', value: 5, unit: '대', delta: '▲ 2대 (전일 대비)', deltaTone: 'down' as const, color: '#eb4047' },
+  { title: '처리할 학생 제보', value: 12, unit: '건', delta: '▲ 4건 (전일 대비)', deltaTone: 'up' as const, color: '#7964f2' },
+  { title: '긴급 공지', value: 1, unit: '건', delta: '- (전일 대비)', deltaTone: 'flat' as const, color: '#ec181b' },
 ]
 
 export const recentOps = [
@@ -17,7 +17,7 @@ export const recentOps = [
 export const gpsAlerts = [
   { bus: '온다 6호기', route: '죽전역 ↔ 캠퍼스', location: '죽전역 인근', issue: '신호 미수신', time: '07:51', status: '확인 중', tone: 'red' as const },
   { bus: '온다 2호기', route: '기흥역 ↔ 캠퍼스', location: '캠퍼스 정문', issue: '위치 오차', time: '07:40', status: '조치 중', tone: 'orange' as const },
-  { bus: '온다 8호기', route: '수원역 ↔ 캠퍼스', location: '영통 IC', issue: '통신 지연', time: '07:22', status: '조치 완료', tone: 'gray' as const },
+  { bus: '온다 8호기', route: '수원역 ↔ 캠퍼스', location: '영통 IC', issue: '통신 지연', time: '07:22', status: '해결 완료', tone: 'gray' as const },
 ]
 
 export const schedules = [
@@ -27,18 +27,115 @@ export const schedules = [
   { day: '목', route: '죽전역 ↔ 캠퍼스', start: '07:20', end: '21:20', interval: '25분', rounds: 24, status: '운행 중', tone: 'green' as const },
 ]
 
+/** 명지대 자연캠(용인) 인근 데모 좌표 — 실제 연동 시 vehicle_locations 사용 */
 export const liveVehicles = [
-  { bus: '온다 1호기', driver: '이기사', route: '용인시청', stop: '정문 정류장', status: '운행 중', tone: 'green' as const, gps: '정상', last: '방금 전' },
-  { bus: '온다 3호기', driver: '김기사', route: '기흥역', stop: '도서관 앞', status: '운행 중', tone: 'green' as const, gps: '정상', last: '12초 전' },
-  { bus: '온다 5호기', driver: '박기사', route: '수원역', stop: '영통 IC', status: '정지 중', tone: 'orange' as const, gps: '정상', last: '1분 전' },
-  { bus: '온다 6호기', driver: '최기사', route: '죽전역', stop: '신호 없음', status: '실시간 미수신', tone: 'red' as const, gps: '미수신', last: '8분 전' },
+  { bus: '온다 1호차', driver: '김기사', route: '15-1', stop: '명지대 정문', status: '운행 중', tone: 'green' as const, gps: '정상', last: '방금 전', lat: 37.2226, lng: 127.1872 },
+  { bus: '온다 2호차', driver: '박기사', route: '5-2', stop: '기흥역 방향', status: '운행 중', tone: 'green' as const, gps: '정상', last: '8초 전', lat: 37.2248, lng: 127.1825 },
+  { bus: '온다 3호차', driver: '이기사', route: '12-1', stop: '도서관 앞', status: '정차 중', tone: 'blue' as const, gps: '정상', last: '15초 전', lat: 37.2208, lng: 127.1901 },
+  { bus: '온다 4호차', driver: '최기사', route: '7-1', stop: '수원역 대기', status: '대기 중', tone: 'orange' as const, gps: '정상', last: '32초 전', lat: 37.2189, lng: 127.1854 },
+  { bus: '온다 5호차', driver: '정기사', route: '9-2', stop: '영통 IC 구간', status: '운행 중', tone: 'green' as const, gps: '정상', last: '1분 전', lat: 37.2261, lng: 127.1918 },
+  { bus: '온다 6호차', driver: '한기사', route: '9-2', stop: '신호 없음', status: '장시간 미수신', tone: 'red' as const, gps: '미수신', last: '32분 전', lat: 37.2195, lng: 127.1935 },
+  { bus: '온다 7호차', driver: '오기사', route: '15-1', stop: '캠퍼스 순환', status: '운행 중', tone: 'green' as const, gps: '정상', last: '20초 전', lat: 37.2235, lng: 127.1896 },
+  { bus: '온다 8호차', driver: '윤기사', route: '5-1', stop: '죽전역 하차', status: '운행 종료', tone: 'gray' as const, gps: '정상', last: '5분 전', lat: 37.2255, lng: 127.1860 },
 ]
 
 export const reports = [
-  { type: '무정차 통과', target: '기흥역 / 온다 3호기', time: '09:12', likes: 12, bookmarks: 3, status: '처리 대기', tone: 'orange' as const },
-  { type: '과속 운행', target: '수원역 / 온다 5호기', time: '08:44', likes: 8, bookmarks: 1, status: '완료', tone: 'blue' as const },
-  { type: '정류장 혼잡', target: '캠퍼스 정문', time: '08:20', likes: 21, bookmarks: 5, status: '처리 대기', tone: 'orange' as const },
-  { type: '불친절', target: '용인시청 / 온다 1호기', time: '07:55', likes: 4, bookmarks: 0, status: '비활성', tone: 'gray' as const },
+  {
+    type: '만석',
+    typeKey: 'crowded' as const,
+    route: '15-1',
+    vehicle: '15-07',
+    stop: '명지대 정문',
+    time: '오늘 09:05',
+    likes: 18,
+    dislikes: 2,
+    status: '처리 대기',
+    tone: 'orange' as const,
+    content: '아침 출근 시간에 버스가 만석이라 타지 못했습니다. 배차 간격 조정이 필요해 보입니다.',
+    reporter: '익명 사용자',
+    reporterId: 'user_3a91',
+    datetime: '2026.07.08 (화) 09:05',
+  },
+  {
+    type: '대기줄 김',
+    typeKey: 'queue' as const,
+    route: '5-2',
+    vehicle: '05-12',
+    stop: '기흥역 3번 출구',
+    time: '오늘 08:42',
+    likes: 11,
+    dislikes: 1,
+    status: '검토 중',
+    tone: 'blue' as const,
+    content: '기흥역 대기줄이 매우 길어 탑승까지 15분 이상 걸렸습니다.',
+    reporter: '익명 사용자',
+    reporterId: 'user_9c2e',
+    datetime: '2026.07.08 (화) 08:42',
+  },
+  {
+    type: '교통 정체',
+    typeKey: 'traffic' as const,
+    route: '12-1',
+    vehicle: '12-04',
+    stop: '영통 IC 구간',
+    time: '어제 18:12',
+    likes: 7,
+    dislikes: 0,
+    status: '처리 완료',
+    tone: 'green' as const,
+    content: '영통 IC 구간 정체로 평소보다 약 10분 지연되었습니다.',
+    reporter: '익명 사용자',
+    reporterId: 'user_1b44',
+    datetime: '2026.07.07 (월) 18:12',
+  },
+  {
+    type: '버스 지나감',
+    typeKey: 'passed' as const,
+    route: '1-1',
+    vehicle: '11-03',
+    stop: '상공회의소 앞',
+    time: '08:35',
+    likes: 5,
+    dislikes: 12,
+    status: '비활성',
+    tone: 'gray' as const,
+    content: '08:30쯤 학생회관 앞에서 손드는 사람 있었는데 그냥 지나갔어요.',
+    reporter: '익명 사용자',
+    reporterId: 'user_7f2a',
+    datetime: '2024.05.08 (수) 08:35',
+  },
+  {
+    type: '기타',
+    typeKey: 'other' as const,
+    route: '9-2',
+    vehicle: '09-08',
+    stop: '도서관 앞',
+    time: '어제 17:40',
+    likes: 3,
+    dislikes: 1,
+    status: '처리 대기',
+    tone: 'orange' as const,
+    content: '에어컨이 거의 안 나와서 객실 온도가 너무 높았습니다.',
+    reporter: '익명 사용자',
+    reporterId: 'user_55d0',
+    datetime: '2026.07.07 (월) 17:40',
+  },
+  {
+    type: '만석',
+    typeKey: 'crowded' as const,
+    route: '7-1',
+    vehicle: '07-02',
+    stop: '수원역 환승센터',
+    time: '어제 08:15',
+    likes: 22,
+    dislikes: 4,
+    status: '검토 중',
+    tone: 'blue' as const,
+    content: '수원역 첫차 만석으로 다음 차량까지 대기했습니다.',
+    reporter: '익명 사용자',
+    reporterId: 'user_a812',
+    datetime: '2026.07.07 (월) 08:15',
+  },
 ]
 
 export const notices = [
@@ -77,14 +174,16 @@ export const maintenances = [
 ]
 
 export const users = [
-  { id: 'admin', name: '관리자', email: 'admin@mju.ac.kr', role: '관리자', lastLogin: '2026.07.20 09:32', status: '활성' },
+  { id: 'admin', name: '김관리', email: 'admin@mju.ac.kr', role: '관리자', lastLogin: '2026.07.20 09:32', status: '활성' },
+  { id: 'admin02', name: '이총괄', email: 'admin02@mju.ac.kr', role: '관리자', lastLogin: '2026.07.20 08:50', status: '활성' },
   { id: 'operator1', name: '김운영', email: 'operator1@mju.ac.kr', role: '운영자', lastLogin: '2026.07.20 08:15', status: '활성' },
   { id: 'operator2', name: '이운영', email: 'operator2@mju.ac.kr', role: '운영자', lastLogin: '2026.07.19 17:45', status: '활성' },
-  { id: 'user01', name: '박사용', email: 'user01@mju.ac.kr', role: '일반', lastLogin: '2026.07.20 07:50', status: '활성' },
-  { id: 'user02', name: '최사용', email: 'user02@mju.ac.kr', role: '일반', lastLogin: '2026.07.18 14:20', status: '활성' },
-  { id: 'user03', name: '정사용', email: 'user03@mju.ac.kr', role: '일반', lastLogin: '2026.07.19 11:05', status: '활성' },
-  { id: 'user04', name: '한사용', email: 'user04@mju.ac.kr', role: '일반', lastLogin: '2026.07.20 06:40', status: '비활성' },
-  { id: 'user05', name: '임사용', email: 'user05@mju.ac.kr', role: '일반', lastLogin: '2026.07.17 09:12', status: '활성' },
+  { id: 'operator3', name: '박운행', email: 'operator3@mju.ac.kr', role: '운영자', lastLogin: '2026.07.19 16:20', status: '활성' },
+  { id: 'user01', name: '박사용', email: 'user01@mju.ac.kr', role: '일반 사용자', lastLogin: '2026.07.20 07:50', status: '활성' },
+  { id: 'user02', name: '최사용', email: 'user02@mju.ac.kr', role: '일반 사용자', lastLogin: '2026.07.18 14:20', status: '활성' },
+  { id: 'user03', name: '정사용', email: 'user03@mju.ac.kr', role: '일반 사용자', lastLogin: '2026.07.19 11:05', status: '활성' },
+  { id: 'user04', name: '한사용', email: 'user04@mju.ac.kr', role: '일반 사용자', lastLogin: '2026.07.20 06:40', status: '비활성' },
+  { id: 'user05', name: '임사용', email: 'user05@mju.ac.kr', role: '일반 사용자', lastLogin: '2026.07.17 09:12', status: '활성' },
 ]
 
 export const stops = [
@@ -95,9 +194,94 @@ export const stops = [
 ]
 
 export const drivers = [
-  { name: '김민수', email: 'driver01@onda.local', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222' },
-  { name: '이정호', email: 'driver02@onda.local', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444' },
-  { name: '박서연', email: 'driver03@onda.local', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666' },
+  { name: '김민수', email: 'driver01@onda.local', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222', bus: '온다 1호차', route: '15-1' },
+  { name: '이정호', email: 'driver02@onda.local', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444', bus: '온다 2호차', route: '5-2' },
+  { name: '박서연', email: 'driver03@onda.local', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666', bus: '온다 3호차', route: '12-1' },
+  { name: '최기사', email: 'driver04@onda.local', status: '운행 가능', lastTrip: '2026.08.06 07:55', phone: '010-7777-8888', bus: '온다 4호차', route: '7-1' },
+  { name: '한기사', email: 'driver05@onda.local', status: 'GPS 이상', lastTrip: '2026.08.06 07:51', phone: '010-9999-0000', bus: '온다 6호차', route: '9-2' },
+]
+
+export const notifications = [
+  {
+    id: 'n1',
+    category: 'GPS',
+    title: '온다 6호차 GPS 미수신',
+    body: '죽전역 노선 차량의 위치 신호가 32분째 수신되지 않습니다.',
+    time: '방금 전',
+    unread: true,
+    tone: 'red' as const,
+    href: '/live/detail',
+  },
+  {
+    id: 'n2',
+    category: '제보',
+    title: '신규 제보 3건 접수',
+    body: '만석·대기줄 관련 제보가 처리 대기 상태입니다.',
+    time: '12분 전',
+    unread: true,
+    tone: 'orange' as const,
+    href: '/reports',
+  },
+  {
+    id: 'n3',
+    category: '정비',
+    title: '정기 점검 예정 알림',
+    body: '72버 1234 차량의 정기점검이 2일 후 예정되어 있습니다.',
+    time: '1시간 전',
+    unread: true,
+    tone: 'orange' as const,
+    href: '/vehicles/maintenance/detail',
+  },
+  {
+    id: 'n4',
+    category: '공지',
+    title: '긴급 공지 게시 완료',
+    body: '폭설로 인한 운행 지연 안내가 학생 앱에 게시되었습니다.',
+    time: '어제',
+    unread: false,
+    tone: 'blue' as const,
+    href: '/notices',
+  },
+  {
+    id: 'n5',
+    category: '운행',
+    title: '예외 일정 적용 예정',
+    body: '개교기념일(08.14) 일부 노선 운행 축소가 예정되어 있습니다.',
+    time: '어제',
+    unread: false,
+    tone: 'gray' as const,
+    href: '/schedules/exception',
+  },
+]
+
+export const scheduleExceptions = [
+  {
+    date: '2026.08.14',
+    day: '금',
+    reason: '개교기념일',
+    route: '전체 노선',
+    action: '운행 축소',
+    status: '예정',
+    note: '첫차·막차 유지, 중간 배차 30분 간격으로 조정',
+  },
+  {
+    date: '2026.08.20',
+    day: '목',
+    reason: '기상악화(폭우)',
+    route: '기흥역 통학버스',
+    action: '임시 중단',
+    status: '예정',
+    note: '안전 운행 불가 시 학생 앱 긴급 공지와 함께 중단',
+  },
+  {
+    date: '2026.07.17',
+    day: '목',
+    reason: '대학 축제',
+    route: '시내 셔틀',
+    action: '우회 운행',
+    status: '종료',
+    note: '학생회관~정문 구간 우회',
+  },
 ]
 
 export const systemLogs = [

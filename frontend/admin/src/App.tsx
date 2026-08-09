@@ -12,17 +12,28 @@ import {
 } from './pages/SchedulesPages'
 import { LiveDetailPage, LivePage, LiveSuspendPage } from './pages/LivePages'
 import {
-  DriversPage,
   NoticesPage,
   ReportsPage,
   RouteDetailPage,
   RoutesPage,
   SettingsPage,
-  StopsPage,
   SystemPage,
   UsersPage,
   VehiclesPage,
 } from './pages/ManagePages'
+import {
+  DriverContactPage,
+  DriverFormPage,
+  DriversPage,
+  ExceptionSchedulePage,
+  MaintenanceCreatePage,
+  MaintenanceDetailPage,
+  NotificationsPage,
+  RouteCreatePage,
+  StopFormPage,
+  StopsPage,
+  UserCreatePage,
+} from './pages/ExtraPages'
 
 /**
  * SPA 루트
@@ -46,19 +57,28 @@ export default function App() {
           <Route path="/schedules/detail" element={<ScheduleDetailPage />} />
           <Route path="/schedules/bulk" element={<ScheduleBulkPage />} />
           <Route path="/schedules/suspend" element={<ScheduleSuspendPage />} />
+          <Route path="/schedules/exception" element={<ExceptionSchedulePage />} />
           <Route path="/live" element={<LivePage />} />
           <Route path="/live/detail" element={<LiveDetailPage />} />
           <Route path="/live/suspend" element={<LiveSuspendPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/routes" element={<RoutesPage />} />
+          <Route path="/routes/new" element={<RouteCreatePage />} />
           <Route path="/routes/detail" element={<RouteDetailPage />} />
           <Route path="/stops" element={<StopsPage />} />
+          <Route path="/stops/new" element={<StopFormPage />} />
           <Route path="/vehicles" element={<VehiclesPage />} />
+          <Route path="/vehicles/maintenance/new" element={<MaintenanceCreatePage />} />
+          <Route path="/vehicles/maintenance/detail" element={<MaintenanceDetailPage />} />
           <Route path="/drivers" element={<DriversPage />} />
+          <Route path="/drivers/new" element={<DriverFormPage />} />
+          <Route path="/drivers/contact" element={<DriverContactPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/users/new" element={<UserCreatePage />} />
           <Route path="/system" element={<SystemPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 

@@ -49,7 +49,7 @@ const DEMO_USER: AuthUser = {
 
 async function fetchProfile(userId: string, fallbackEmail: string): Promise<AuthUser> {
   const { data, error } = await supabase
-    .from('profiles')
+    .from('users')
     .select('id, email, name, role')
     .eq('id', userId)
     .maybeSingle()
@@ -65,9 +65,9 @@ async function fetchProfile(userId: string, fallbackEmail: string): Promise<Auth
 
   return {
     id: data.id,
-    email: data.email,
+    email: data.email ?? fallbackEmail,
     name: data.name,
-    role: data.role,
+    role: (data.role as AdminRole) || 'ADMIN',
   }
 }
 

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   AlertTriangle,
   Bus,
@@ -7,76 +8,95 @@ import {
   RadioTower,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import mapImg from '../assets/map.png'
-import { gpsAlerts, kpiCards, recentOps } from '../data/mock'
-import { StatCard, StatusBadge } from '../components/ui/Form'
+import { NaverMap, type MapVehicle } from '../components/map/NaverMap'
+import { gpsAlerts, kpiCards, liveVehicles, recentOps } from '../data/mock'
+import { StatusBadge } from '../components/ui/Form'
+import '../styles/dashboard.css'
 
 const iconNodes = [CalendarDays, Bus, Bus, RadioTower, MessageSquareWarning, Megaphone]
 
 const reportLegend = [
-  { label: '승하차 불편', color: '#9870d7' },
-  { label: '운행 문의', color: '#fea907' },
-  { label: '기사 서비스', color: '#3fb46a' },
-  { label: '분실물', color: '#266ef4' },
-  { label: '기타', color: '#c4c9d7' },
+  { label: '승하차 불편', count: 5, pct: '41.7%', color: '#9870d7' },
+  { label: '안전/사고', count: 2, pct: '16.7%', color: '#fea907' },
+  { label: '기사/서비스', count: 2, pct: '16.7%', color: '#3fb46a' },
+  { label: '분실물', count: 2, pct: '16.7%', color: '#266ef4' },
+  { label: '기타', count: 1, pct: '8.3%', color: '#c4c9d7' },
 ]
 
-/** ADM-02 대시보드 — Figma 위젯 구조 반영 */
+/** ADM-01 대시보드 — Figma 7457c195 */
 export function DashboardPage() {
+  const mapVehicles: MapVehicle[] = useMemo(
+    () =>
+      liveVehicles.slice(0, 5).map((v) => ({
+        id: v.bus,
+        label: v.bus.replace('온다 ', ''),
+        subLabel: v.route,
+        lat: v.lat,
+        lng: v.lng,
+        tone: v.tone,
+        gpsStatus: v.gps,
+      })),
+    [],
+  )
+
   return (
-    <div className="page">
-      <div className="grid grid-6">
+    <div className="page dash-page">
+      <div className="dash-kpis">
         {kpiCards.map((card, idx) => {
           const Icon = iconNodes[idx]
           return (
-            <StatCard
-              key={card.title}
-              title={card.title}
-              value={card.value}
-              unit={card.unit}
-              delta={card.delta}
-              color={card.color}
-              icon={<Icon size={18} />}
-            />
+            <div key={card.title} className="dash-kpi">
+              <div className="dash-kpi-icon" style={{ background: card.color }}>
+                <Icon size={18} />
+              </div>
+              <div className="dash-kpi-body">
+                <div className="label">{card.title}</div>
+                <div className="value">
+                  {card.value}
+                  <em>{card.unit}</em>
+                </div>
+                <div className={`delta ${card.deltaTone}`}>{card.delta}</div>
+              </div>
+            </div>
           )
         })}
       </div>
 
       <div className="dash-mid">
-        <section className="card card-pad">
+        <section className="card card-pad dash-panel">
           <div className="card-head">
             <h3>실시간 운행 지도</h3>
-            <Link className="btn btn-ghost" to="/live" style={{ height: 30, fontSize: 12 }}>
+            <Link className="btn btn-outline btn-xs" to="/live">
               실시간 운행 보기
             </Link>
           </div>
-          <div className="map-frame">
-            <img src={mapImg} alt="실시간 운행 지도" />
+          <div className="dash-map">
+            <NaverMap vehicles={mapVehicles} zoom={14} />
           </div>
           <div className="legend-row">
             <span>
               <i style={{ background: '#236cee' }} /> 운행 중
             </span>
             <span>
-              <i style={{ background: '#3fb46a' }} /> 대기
+              <i style={{ background: '#3fb46a' }} /> 예정
             </span>
             <span>
-              <i style={{ background: '#fea907' }} /> 지연
+              <i style={{ background: '#fea907' }} /> 대기
             </span>
             <span>
-              <i style={{ background: '#e64c51' }} /> 통신이상
+              <i style={{ background: '#e64c51' }} /> GPS 이상
             </span>
             <span>
-              <i style={{ background: '#9870d7' }} /> 제보
+              <i style={{ background: '#9870d7' }} /> 정비
             </span>
           </div>
         </section>
 
-        <section className="card card-pad">
+        <section className="card card-pad dash-panel">
           <div className="card-head">
             <h3>최근 운행 현황</h3>
-            <Link to="/schedules" className="muted" style={{ fontSize: 12 }}>
-              모든 운행 보기
+            <Link className="btn btn-outline btn-xs" to="/schedules">
+              오늘의 운행 보기
             </Link>
           </div>
           <div className="ops-list">
@@ -95,14 +115,14 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="card card-pad">
+        <section className="card card-pad dash-panel">
           <div className="card-head">
             <h3>학생 제보 요약</h3>
-            <Link className="btn btn-ghost" to="/reports" style={{ height: 30, fontSize: 12 }}>
+            <Link className="btn btn-outline btn-xs" to="/reports">
               학생 제보 확인
             </Link>
           </div>
-          <div className="donut-wrap">
+          <div className="dash-report">
             <div className="donut">
               <div className="donut-hole">
                 총 12건
@@ -110,29 +130,32 @@ export function DashboardPage() {
                 처리 대기
               </div>
             </div>
+            <div className="dash-report-legend">
+              {reportLegend.map((item) => (
+                <div key={item.label} className="dash-report-row">
+                  <span>
+                    <i style={{ background: item.color }} />
+                    {item.label}
+                  </span>
+                  <strong>
+                    {item.count}건 · {item.pct}
+                  </strong>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="legend-col">
-            {reportLegend.map((item) => (
-              <span key={item.label}>
-                <i style={{ background: item.color }} /> {item.label}
-              </span>
-            ))}
-          </div>
-          <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-            가장 많은 제보 유형은 승하차 관련입니다.
-          </p>
         </section>
       </div>
 
       <div className="dash-bottom">
-        <section className="card card-pad">
+        <section className="card card-pad dash-panel">
           <div className="card-head">
             <h3>GPS·통신 이상 경고</h3>
-            <Link className="btn btn-ghost" to="/live" style={{ height: 30, fontSize: 12 }}>
+            <Link className="btn btn-outline btn-xs" to="/live">
               실시간 운행 보기
             </Link>
           </div>
-          <table className="data-table">
+          <table className="data-table dense">
             <thead>
               <tr>
                 <th>차량 번호</th>
@@ -160,27 +183,28 @@ export function DashboardPage() {
           </table>
         </section>
 
-        <section className="card card-pad">
+        <section className="card card-pad dash-panel">
           <div className="card-head">
             <h3>최근 긴급 공지</h3>
-            <Link className="btn btn-ghost" to="/notices" style={{ height: 30, fontSize: 12 }}>
+            <Link className="btn btn-outline btn-xs" to="/notices">
               긴급 공지 등록
             </Link>
           </div>
-          <div className="alert alert-danger" style={{ display: 'flex', gap: 10 }}>
-            <AlertTriangle size={18} />
-            <div>
-              <strong>폭염 특보에 따른 운행 조정 안내</strong>
-              <div style={{ marginTop: 4 }}>2023.08.20 ~ 2023.08.23</div>
-              <div style={{ marginTop: 6 }}>
-                폭염 특보 발령으로 일부 노선의 배차 간격과 운행 시간이 임시 조정됩니다.
+          <div className="dash-notice">
+            <div className="dash-notice-icon">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="dash-notice-body">
+              <div className="dash-notice-top">
+                <StatusBadge tone="red">진행 중</StatusBadge>
+                <span className="muted">2026.08.20 ~ 2026.08.23</span>
               </div>
+              <strong>폭염 특보에 따른 운행 조정 안내</strong>
+              <p>폭염 특보 발령으로 일부 노선의 배차 간격과 운행 시간이 임시 조정됩니다.</p>
             </div>
           </div>
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
-            <Link to="/notices" className="muted" style={{ fontSize: 12, color: 'var(--color-primary)' }}>
-              긴급 공지 전체 보기 &gt;
-            </Link>
+          <div className="dash-notice-link">
+            <Link to="/notices">긴급 공지 전체 보기 &gt;</Link>
           </div>
         </section>
       </div>

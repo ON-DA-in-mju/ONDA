@@ -1,48 +1,85 @@
+/* ADM-00 로그인 — 중앙 컬럼에 로고·문의·폼·일러스트를 같은 폭으로 맞춤 */
+
 .login-page {
-  min-height: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  background: #ffffff;
+  color: #111827;
+}
+
+.login-shell {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  padding: 28px 20px 0;
+  box-sizing: border-box;
 }
 
 .login-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 28px 0;
+  width: 100%;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.login-top .brand-logo {
+  display: block;
+  flex-shrink: 0;
+  height: 36px !important;
 }
 
 .login-contact {
+  margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  font-weight: 500;
+  color: #374151;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.login-contact a {
+  color: #266ef4;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-contact a:hover {
+  text-decoration: underline;
 }
 
 .login-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 24px 16px 8px;
   width: 100%;
-  max-width: 420px;
-  margin: 0 auto;
+  padding: 48px 0 20px;
 }
 
 .login-main h1 {
   margin: 0 0 12px;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 800;
   text-align: center;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  color: #111827;
 }
 
 .login-main .lead {
   margin: 0 0 28px;
   text-align: center;
   color: #6b7280;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
+  font-weight: 500;
 }
 
 .login-form {
@@ -52,21 +89,34 @@
   gap: 14px;
 }
 
+.login-form .field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
 .login-form .btn-primary {
   height: 46px;
   margin-top: 6px;
   font-size: 15px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: #266ef4;
+}
+
+.login-form .btn-primary:hover {
+  background: #1f5fe0;
 }
 
 .login-links {
-  margin-top: 18px;
+  margin-top: 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
 }
 
 .login-links a {
-  color: var(--color-primary);
+  color: #266ef4;
   font-weight: 700;
   margin-left: 4px;
 }
@@ -75,23 +125,28 @@
   width: 100%;
   margin-top: auto;
   line-height: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #eaf3ff 40%, #dceaff 100%);
+  background: #ffffff;
+  padding: 4px 0 0;
 }
 
 .login-hero img {
-  width: min(920px, 100%);
+  width: 100%;
   height: auto;
-  margin: 0 auto;
   display: block;
   object-fit: contain;
+  background: transparent;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
+  .login-shell {
+    padding: 20px 16px 0;
+  }
+
   .login-main h1 {
     font-size: 22px;
   }
 
-  .login-top {
-    padding: 16px;
+  .login-contact {
+    font-size: 11px;
   }
 }

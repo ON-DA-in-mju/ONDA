@@ -25,6 +25,9 @@
   --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.06);
   --shadow-auth: 0 12px 40px rgba(37, 99, 235, 0.08);
   --font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --section-title-size: 17px;
+  --section-title-weight: 700;
+  --section-title-icon: 18px;
 }
 
 *,
@@ -114,8 +117,21 @@ table {
 
 .card-head h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--section-title-size);
+  font-weight: var(--section-title-weight);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #111827;
+}
+
+.card-head h3 svg {
+  width: var(--section-title-icon);
+  height: var(--section-title-icon);
+  color: #266ef4;
+  flex-shrink: 0;
 }
 
 .grid {

@@ -7,7 +7,7 @@ import { useAuth } from '../state/AuthContext'
 import heroImg from '../assets/auth-hero.png'
 import '../styles/login.css'
 
-/** ADM-00 관리자 로그인 — Figma 중앙 폼 + 하단 일러스트 */
+/** ADM-00 관리자 로그인 — Figma 중앙 컬럼(로고·문의·폼·일러스트 동일 폭) */
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -34,58 +34,62 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-top">
-        <Logo height={52} />
-        <span className="login-contact">계정 문의 : admin@mju.ac.kr</span>
-      </div>
+      <div className="login-shell">
+        <header className="login-top">
+          <Logo height={36} />
+          <p className="login-contact">
+            계정 문의 : <a href="mailto:admin@mju.ac.kr">admin@mju.ac.kr</a>
+          </p>
+        </header>
 
-      <div className="login-main">
-        <h1>셔틀버스 관리자 시스템</h1>
-        <p className="lead">
-          명지대학교 셔틀버스 서비스 관리를 위한
-          <br />
-          관리자 전용 시스템입니다.
-        </p>
+        <div className="login-main">
+          <h1>셔틀버스 관리자 시스템</h1>
+          <p className="lead">
+            명지대학교 셔틀버스 서비스 관리를 위한
+            <br />
+            관리자 전용 시스템입니다.
+          </p>
 
-        <form className="login-form" onSubmit={onSubmit}>
-          <Field label="관리자 ID" required>
-            <IconInput
-              leftIcon={<User size={16} />}
-              type="email"
-              placeholder="아이디를 입력하세요."
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="username"
-            />
-          </Field>
+          <form className="login-form" onSubmit={onSubmit}>
+            <Field label="관리자 ID" required>
+              <IconInput
+                leftIcon={<User size={16} />}
+                type="email"
+                placeholder="아이디를 입력하세요."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="username"
+              />
+            </Field>
 
-          <Field label="비밀번호" required>
-            <PasswordInput
-              leftIcon={<Lock size={16} />}
-              placeholder="비밀번호를 입력하세요."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </Field>
+            <Field label="비밀번호" required>
+              <PasswordInput
+                leftIcon={<Lock size={16} />}
+                placeholder="비밀번호를 입력하세요."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </Field>
 
-          {error ? <div className="alert alert-danger">{error}</div> : null}
+            {error ? <div className="alert alert-danger">{error}</div> : null}
 
-          <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
-            {loading ? '로그인 중...' : '로그인'}
-          </button>
-        </form>
+            <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
+              {loading ? '로그인 중...' : '로그인'}
+            </button>
+          </form>
 
-        <p className="login-links">
-          아직 계정이 없으신가요?
-          <Link to="/signup">회원가입</Link>
-        </p>
-      </div>
+          <p className="login-links">
+            아직 계정이 없으신가요?
+            <Link to="/signup">회원가입</Link>
+          </p>
+        </div>
 
-      <div className="login-hero" aria-hidden>
-        <img src={heroImg} alt="" />
+        <div className="login-hero" aria-hidden>
+          <img src={heroImg} alt="" />
+        </div>
       </div>
     </div>
   )
