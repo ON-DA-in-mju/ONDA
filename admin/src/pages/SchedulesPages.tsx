@@ -49,6 +49,7 @@ export function SchedulesPage() {
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
   const [weekday, setWeekday] = useState(() => new Date().getDay())
   const [routeFilter, setRouteFilter] = useState('')
+  const [timetableRoute, setTimetableRoute] = useState<string>(SCHEDULE_ROUTE_OPTIONS[0])
   const [assignments, setAssignments] = useState<TodayAssignment[]>([])
   const weekInputRef = useRef<HTMLInputElement>(null)
 
@@ -78,7 +79,10 @@ export function SchedulesPage() {
   }, [assignments, routeFilter])
 
   const totalRounds = listRows.reduce((sum, row) => sum + row.rounds, 0)
-  const focusRoute = listRows[0]?.route ?? SCHEDULE_ROUTE_OPTIONS[0]
+
+  useEffect(() => {
+    if (routeFilter) setTimetableRoute(routeFilter)
+  }, [routeFilter])
 
   const onPickWeekDate = (value: string) => {
     if (!value) return
@@ -303,13 +307,24 @@ export function SchedulesPage() {
           </section>
 
           <section className="card card-pad">
-            <div className="card-head">
-              <h3>
-                상세 시간표 ({WEEKDAY_LABELS[weekday]}요일 · {focusRoute})
-              </h3>
+            <div className="card-head" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>상세 시간표 ({WEEKDAY_LABELS[weekday]}요일)</h3>
+              <select
+                className="select"
+                style={{ width: 170 }}
+                value={timetableRoute}
+                onChange={(e) => setTimetableRoute(e.target.value)}
+                aria-label="상세 시간표 노선"
+              >
+                {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-2">
-              {[`${focusRoute} 왕편`, `${focusRoute} 복편`].map((title) => (
+              {[`${timetableRoute} 왕편`, `${timetableRoute} 복편`].map((title) => (
                 <div key={title}>
                   <strong style={{ fontSize: 13 }}>{title}</strong>
                   <table className="data-table">
@@ -322,7 +337,7 @@ export function SchedulesPage() {
                     </thead>
                     <tbody>
                       {assignments
-                        .filter((a) => a.routeName === focusRoute)
+                        .filter((a) => a.routeName === timetableRoute)
                         .map((a, idx) => (
                           <tr key={a.id}>
                             <td>{a.round || idx + 1}</td>
@@ -330,7 +345,7 @@ export function SchedulesPage() {
                             <td>{a.vehicleName}</td>
                           </tr>
                         ))}
-                      {assignments.filter((a) => a.routeName === focusRoute).length === 0 ? (
+                      {assignments.filter((a) => a.routeName === timetableRoute).length === 0 ? (
                         <tr>
                           <td colSpan={3} className="muted">
                             선택일 배차 없음

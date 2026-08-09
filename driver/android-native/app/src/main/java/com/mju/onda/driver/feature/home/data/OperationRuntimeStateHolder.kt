@@ -9,6 +9,7 @@ import com.mju.onda.driver.core.UserScopedPrefs
  */
 object OperationRuntimeStateHolder {
     private const val PREFS = "onda_operation_runtime"
+    private const val KEY_DAY = "runtime_day"
     private const val KEY_IN_PROGRESS = "in_progress_ids"
     private const val KEY_ENDED = "ended_ids"
     private const val KEY_STARTED_AT = "started_at"
@@ -34,6 +35,7 @@ object OperationRuntimeStateHolder {
         endedIds += prefs?.getStringSet(KEY_ENDED, emptySet()).orEmpty()
         startedAtById += decodeMillisMap(prefs?.getString(KEY_STARTED_AT, null))
         endedAtById += decodeMillisMap(prefs?.getString(KEY_ENDED_AT, null))
+        resetIfNewDay()
         com.mju.onda.driver.core.location.OperationLocationTracker.syncWithRuntime()
     }
 
@@ -148,17 +150,36 @@ object OperationRuntimeStateHolder {
         return ordered.take(index).all { isEnded(it.id) }
     }
 
-    fun withRuntimeStatus(operations: List<AssignedOperation>): List<AssignedOperation> =
-        operations.map { op ->
+    fun withRuntimeStatus(operations: List<AssignedOperation>): List<AssignedOperation> {
+        resetIfNewDay()
+        return operations.map { op ->
             when {
                 isInProgress(op.id) -> op.copy(status = OperationStatus.InProgress)
                 isEnded(op.id) -> op.copy(status = OperationStatus.Ended)
                 else -> op.copy(status = AssignmentStatusResolver.resolve(op))
             }
         }
+    }
+
+    /** 날짜가 바뀌면 전날 운행 시작/종료 상태를 지우고 운행 예정부터 다시 시작한다. */
+    fun resetIfNewDay() {
+        val today = com.mju.onda.driver.core.OndaDates.today().toString()
+        val stored = prefs?.getString(KEY_DAY, null)
+        if (stored == today) return
+        inProgressIds.clear()
+        endedIds.clear()
+        startedAtById.clear()
+        endedAtById.clear()
+        pendingStartId = null
+        prefs?.edit()?.putString(KEY_DAY, today)?.apply()
+        persist()
+        com.mju.onda.driver.core.location.OperationLocationTracker.stop()
+        TodayAssignmentsHolder.clearForNewDay()
+    }
 
     private fun persist() {
         prefs?.edit()
+            ?.putString(KEY_DAY, com.mju.onda.driver.core.OndaDates.today().toString())
             ?.putStringSet(KEY_IN_PROGRESS, inProgressIds.toSet())
             ?.putStringSet(KEY_ENDED, endedIds.toSet())
             ?.putString(KEY_STARTED_AT, encodeMillisMap(startedAtById))

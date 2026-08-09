@@ -12,6 +12,7 @@ import org.json.JSONObject
 object TodayAssignmentsHolder {
     private const val PREFS = "onda_today_assignments"
     private const val KEY_JSON = "assignments_json"
+    private const val KEY_DAY = "assignments_day"
 
     @Volatile
     private var cached: List<AssignedOperation>? = null
@@ -20,7 +21,13 @@ object TodayAssignmentsHolder {
 
     fun bindUser() {
         prefs = UserScopedPrefs.get(PREFS)
-        cached = readPrefs()
+        val today = com.mju.onda.driver.core.OndaDates.today().toString()
+        val storedDay = prefs?.getString(KEY_DAY, null)
+        if (storedDay != null && storedDay != today) {
+            clear()
+        } else {
+            cached = readPrefs()
+        }
     }
 
     fun unbindUser() {
@@ -31,6 +38,15 @@ object TodayAssignmentsHolder {
     fun clear() {
         cached = null
         prefs?.edit()?.clear()?.apply()
+    }
+
+    /** 날짜 변경 시 캐시만 비워 서버/ mock 을 다시 받게 한다. */
+    fun clearForNewDay() {
+        cached = null
+        prefs?.edit()?.remove(KEY_JSON)?.putString(
+            KEY_DAY,
+            com.mju.onda.driver.core.OndaDates.today().toString(),
+        )?.apply()
     }
 
     fun set(operations: List<AssignedOperation>) {
@@ -56,7 +72,10 @@ object TodayAssignmentsHolder {
                     .put("status", op.status.name),
             )
         }
-        prefs?.edit()?.putString(KEY_JSON, arr.toString())?.apply()
+        prefs?.edit()
+            ?.putString(KEY_JSON, arr.toString())
+            ?.putString(KEY_DAY, com.mju.onda.driver.core.OndaDates.today().toString())
+            ?.apply()
     }
 
     private fun readPrefs(): List<AssignedOperation>? {

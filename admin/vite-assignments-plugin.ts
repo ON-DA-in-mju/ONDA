@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite'
 import { withResolvedStatus } from './src/lib/assignmentStatus'
 import type { TodayAssignment } from './src/types/assignment'
-import { assignmentStore, todayKey } from './vite-dev-store'
+import { assignmentStore, ensureAssignmentsForDate, todayKey } from './vite-dev-store'
 
 function readBody(req: NodeJS.ReadableStream): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -49,7 +49,7 @@ export function assignmentsPlugin(): Plugin {
           if (req.method === 'GET' && pathname === '/api/assignments') {
             const date = parsed.searchParams.get('date') ?? todayKey()
             const driverId = parsed.searchParams.get('driverId')
-            let rows = assignmentStore.filter((a) => a.date === date)
+            let rows = ensureAssignmentsForDate(date)
             if (driverId) rows = rows.filter((a) => a.driverId === driverId)
             rows = [...rows]
               .sort((a, b) => a.departTime.localeCompare(b.departTime))

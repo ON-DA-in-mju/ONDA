@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { assignmentStore, liveByOp, todayKey, type LiveOpRow } from './vite-dev-store'
+import { assignmentStore, ensureAssignmentsForDate, liveByOp, todayKey, type LiveOpRow } from './vite-dev-store'
 
 export type LiveGpsKind = 'ok' | 'none' | 'error'
 
@@ -137,6 +137,7 @@ function enrich(row: LiveRow, now: number): LiveVehicle {
 /** 오늘 배정 건을 기본 대기(미수신)로 두고, heartbeat로 덮어쓴다 */
 function buildVehicles(liveByOp: Map<string, LiveRow>, now: number): LiveVehicle[] {
   const date = todayKey()
+  ensureAssignmentsForDate(date)
   const todays = assignmentStore.filter((a) => a.date === date)
   const merged = new Map<string, LiveRow>()
 
@@ -234,6 +235,7 @@ export function livePlugin(): Plugin {
               return
             }
             const now = Date.now()
+            ensureAssignmentsForDate(todayKey())
             const prev = liveByOp.get(operationId)
             const assigned = assignmentStore.find((a) => a.id === operationId)
             let status = body.status ?? 'in_progress'
