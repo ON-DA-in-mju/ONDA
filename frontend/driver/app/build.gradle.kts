@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -15,8 +17,24 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // 에뮬레이터 → 호스트 PC의 Vite(admin) 개발 서버. 실기기는 LAN IP로 오버라이드.
+
+        // 레거시 Vite mock URL (GPS/안전정차 등 아직 로컬 연동 구간)
         buildConfigField("String", "ADMIN_DEV_BASE_URL", "\"http://10.0.2.2:5173\"")
+
+        val localProps = Properties()
+        val rootLocal = rootProject.file("local.properties")
+        if (rootLocal.exists()) {
+            rootLocal.inputStream().use { localProps.load(it) }
+        }
+        val appLocal = file("local.properties")
+        if (appLocal.exists()) {
+            appLocal.inputStream().use { localProps.load(it) }
+        }
+        fun prop(key: String, fallback: String = ""): String =
+            (localProps.getProperty(key) ?: fallback).replace("\"", "\\\"")
+
+        buildConfigField("String", "SUPABASE_URL", "\"${prop("supabase.url")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${prop("supabase.anonKey")}\"")
     }
 
     buildTypes {

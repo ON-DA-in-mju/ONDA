@@ -214,6 +214,8 @@ object SessionStateHolder {
 
         assignmentsLoaded = false
 
+        com.mju.onda.driver.core.supabase.SupabaseClient.clearSession()
+
         prefs?.edit()
 
             ?.putBoolean(KEY_LOGGED_IN, false)

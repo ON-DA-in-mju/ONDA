@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import mapImg from '../assets/map.png'
 import { fetchLiveVehicles, type LiveSnapshot, type LiveVehicle } from '../lib/liveApi'
 import {
@@ -15,14 +16,39 @@ const empty: LiveSnapshot = {
   stats: { ok: 0, none: 0, error: 0, total: 0, rate: 0, inProgress: 0, ended: 0, idle: 0, stopped: 0 },
 }
 
-function useLiveSnapshot(pollMs = 5_000) {
+const LIVE_POLL_MS = 5_000
+
+function formatClock(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+function useLiveSnapshot(pollMs = LIVE_POLL_MS) {
   const [snapshot, setSnapshot] = useState<LiveSnapshot>(empty)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const applySnapshot = useCallback((data: LiveSnapshot) => {
+    setSnapshot(data)
+    setLastUpdatedAt(new Date())
+  }, [])
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const data = await fetchLiveVehicles()
+      applySnapshot(data)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [applySnapshot])
 
   useEffect(() => {
     let alive = true
     const load = async () => {
       const data = await fetchLiveVehicles()
-      if (alive) setSnapshot(data)
+      if (!alive) return
+      applySnapshot(data)
     }
     void load()
     const timer = window.setInterval(load, pollMs)
@@ -30,13 +56,13 @@ function useLiveSnapshot(pollMs = 5_000) {
       alive = false
       window.clearInterval(timer)
     }
-  }, [pollMs])
+  }, [pollMs, applySnapshot])
 
-  return snapshot
+  return { snapshot, lastUpdatedAt, refresh, refreshing }
 }
 
 export function LivePage() {
-  const snapshot = useLiveSnapshot()
+  const { snapshot, lastUpdatedAt, refresh, refreshing } = useLiveSnapshot()
   const [routeFilter, setRouteFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [query, setQuery] = useState('')
@@ -56,6 +82,34 @@ export function LivePage() {
 
   const { stats } = snapshot
   const staleAlert = snapshot.vehicles.filter((v) => v.gpsKind === 'error' || v.gpsKind === 'none')
+  const lastUpdatedLabel = lastUpdatedAt ? formatClock(lastUpdatedAt) : '--:--:--'
+
+  const gpsTotal = stats.ok + stats.none + stats.error
+  const gpsPct = (n: number) => (gpsTotal <= 0 ? 0 : Math.round((n / gpsTotal) * 1000) / 10)
+  const gpsOkPct = gpsPct(stats.ok)
+  const gpsNonePct = gpsPct(stats.none)
+  const gpsErrorPct = gpsPct(stats.error)
+  const gpsDonutBg =
+    gpsTotal <= 0
+      ? 'conic-gradient(#e5e7eb 0 100%)'
+      : `conic-gradient(#3fb46a 0 ${gpsOkPct}%, #fdac38 0 ${gpsOkPct + gpsNonePct}%, #eb4047 0 100%)`
+
+  const opRunning = stats.inProgress
+  /** 안전 정차 요청에서 기사가 정차 확인한 차량 */
+  const opSafeStopped = stats.stopped ?? 0
+  /** 운행 출발 전 대기 */
+  const opWaiting = stats.idle
+  const opEnded = stats.ended
+  const opTotal = opRunning + opSafeStopped + opWaiting + opEnded
+  const opPct = (n: number) => (opTotal <= 0 ? 0 : Math.round((n / opTotal) * 1000) / 10)
+  const opRunPct = opPct(opRunning)
+  const opStopPct = opPct(opSafeStopped)
+  const opWaitPct = opPct(opWaiting)
+  const opEndPct = opPct(opEnded)
+  const opDonutBg =
+    opTotal <= 0
+      ? 'conic-gradient(#e5e7eb 0 100%)'
+      : `conic-gradient(#3fb46a 0 ${opRunPct}%, #fdac38 0 ${opRunPct + opStopPct}%, #266ef4 0 ${opRunPct + opStopPct + opWaitPct}%, #c4c9d7 0 100%)`
 
   return (
     <div className="page">
@@ -108,18 +162,46 @@ export function LivePage() {
 
       <div className="grid" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
         <section className="card card-pad">
-          <div className="card-head">
-            <h3>실시간 차량 위치</h3>
-            <div className="toolbar" style={{ fontSize: 11 }}>
-              <StatusBadge tone="green">운행</StatusBadge>
-              <StatusBadge tone="blue">대기</StatusBadge>
-              <StatusBadge tone="orange">안전 정차</StatusBadge>
-              <StatusBadge tone="gray">종료</StatusBadge>
-              <StatusBadge tone="red">GPS 오류</StatusBadge>
+          <div className="live-map-block">
+            <h3 className="live-map-title">실시간 차량 위치</h3>
+            <div className="live-status-row">
+              <div className="live-status-legend" aria-label="차량 상태 범례">
+                <span className="live-status-item">
+                  <i style={{ background: '#3fb46a' }} />
+                  운행 중
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#266ef4' }} />
+                  정류장 정차
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#fdac38' }} />
+                  대기 중
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#8b849c' }} />
+                  운행 종료
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#eb4047' }} />
+                  장기간 미수신
+                </span>
+              </div>
+              <button
+                type="button"
+                className="live-update-meta"
+                onClick={() => void refresh()}
+                disabled={refreshing}
+                aria-label="실시간 위치 새로고침"
+                title="새로고침"
+              >
+                <span>마지막 업데이트 {lastUpdatedLabel}</span>
+                <RefreshCw size={14} className={refreshing ? 'is-spinning' : undefined} />
+              </button>
             </div>
-          </div>
-          <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #eef1f6' }}>
-            <img src={mapImg} alt="실시간 차량 위치" style={{ width: '100%', height: 320, objectFit: 'cover' }} />
+            <div className="live-map-frame">
+              <img src={mapImg} alt="실시간 차량 위치" />
+            </div>
           </div>
         </section>
 
@@ -168,26 +250,84 @@ export function LivePage() {
       </div>
 
       <div className="grid grid-3">
-        <section className="card card-pad">
-          <h3>GPS 정상율</h3>
-          <div style={{ fontSize: 32, fontWeight: 800, color: '#266ef4', margin: '12px 0' }}>
-            {stats.total === 0 ? '—' : `${stats.rate}%`}
+        <section className="card card-pad live-ratio-card">
+          <h3 className="live-map-title">GPS 정상률</h3>
+          <div className="live-ratio-body">
+            <div className="live-donut" style={{ background: gpsDonutBg }} aria-hidden>
+              <div className="live-donut-hole">
+                <span className="live-donut-kicker">전체</span>
+                <strong className="live-donut-value">
+                  {gpsTotal === 0 ? '—' : `${stats.rate}%`}
+                </strong>
+              </div>
+            </div>
+            <ul className="live-ratio-legend">
+              <li>
+                <i className="live-ratio-swatch is-ok" />
+                <span className="live-ratio-name">정상</span>
+                <span className="live-ratio-stat">
+                  {stats.ok}대 ({gpsOkPct}%)
+                </span>
+              </li>
+              <li>
+                <i className="live-ratio-swatch is-none" />
+                <span className="live-ratio-name">미수신</span>
+                <span className="live-ratio-stat">
+                  {stats.none}대 ({gpsNonePct}%)
+                </span>
+              </li>
+              <li>
+                <i className="live-ratio-swatch is-error" />
+                <span className="live-ratio-name">오류</span>
+                <span className="live-ratio-stat">
+                  {stats.error}대 ({gpsErrorPct}%)
+                </span>
+              </li>
+            </ul>
           </div>
-          <div className="toolbar" style={{ fontSize: 12, flexWrap: 'wrap', gap: 6 }}>
-            <StatusBadge tone="green">정상 {stats.ok}</StatusBadge>
-            <StatusBadge tone="gray">미수신 {stats.none}</StatusBadge>
-            <StatusBadge tone="red">오류 {stats.error}</StatusBadge>
-          </div>
+          <div className="live-ratio-foot">전체 {gpsTotal}대 기준</div>
         </section>
-        <section className="card card-pad">
-          <h3>운행 상태 비율</h3>
-          <div style={{ fontSize: 32, fontWeight: 800, margin: '12px 0' }}>{stats.total}대</div>
-          <div className="toolbar" style={{ fontSize: 12, flexWrap: 'wrap', gap: 6 }}>
-            <StatusBadge tone="green">운행 {stats.inProgress}</StatusBadge>
-            <StatusBadge tone="blue">대기 {stats.idle}</StatusBadge>
-            <StatusBadge tone="orange">안전 정차 {stats.stopped ?? 0}</StatusBadge>
-            <StatusBadge tone="gray">종료 {stats.ended}</StatusBadge>
+        <section className="card card-pad live-ratio-card">
+          <h3 className="live-map-title">운행 상태 비율</h3>
+          <div className="live-ratio-body">
+            <div className="live-donut" style={{ background: opDonutBg }} aria-hidden>
+              <div className="live-donut-hole">
+                <span className="live-donut-kicker">전체</span>
+                <strong className="live-donut-value">{opTotal}대</strong>
+              </div>
+            </div>
+            <ul className="live-ratio-legend">
+              <li>
+                <i className="live-ratio-swatch is-running" />
+                <span className="live-ratio-name">운행 중</span>
+                <span className="live-ratio-stat">
+                  {opRunning}대 ({opRunPct}%)
+                </span>
+              </li>
+              <li>
+                <i className="live-ratio-swatch is-at-stop" />
+                <span className="live-ratio-name">정차 중</span>
+                <span className="live-ratio-stat">
+                  {opSafeStopped}대 ({opStopPct}%)
+                </span>
+              </li>
+              <li>
+                <i className="live-ratio-swatch is-waiting" />
+                <span className="live-ratio-name">대기 중</span>
+                <span className="live-ratio-stat">
+                  {opWaiting}대 ({opWaitPct}%)
+                </span>
+              </li>
+              <li>
+                <i className="live-ratio-swatch is-ended" />
+                <span className="live-ratio-name">운행 종료</span>
+                <span className="live-ratio-stat">
+                  {opEnded}대 ({opEndPct}%)
+                </span>
+              </li>
+            </ul>
           </div>
+          <div className="live-ratio-foot">전체 {opTotal}대 기준</div>
         </section>
         <section className="card card-pad">
           <div className="card-head">
@@ -234,7 +374,7 @@ function LiveVehicleRow({ row }: { row: LiveVehicle }) {
 
 /** 오늘의 실시간 운행 목록 → 행 클릭 시 차량 상세 */
 export function LiveDetailPage() {
-  const snapshot = useLiveSnapshot()
+  const { snapshot } = useLiveSnapshot()
   const navigate = useNavigate()
 
   return (
@@ -308,7 +448,7 @@ export function LiveDetailPage() {
 export function LiveVehicleDetailPage() {
   const { operationId = '' } = useParams()
   const decodedId = decodeURIComponent(operationId)
-  const snapshot = useLiveSnapshot()
+  const { snapshot } = useLiveSnapshot()
   const navigate = useNavigate()
   const vehicle = snapshot.vehicles.find((v) => v.operationId === decodedId || v.id === decodedId)
 

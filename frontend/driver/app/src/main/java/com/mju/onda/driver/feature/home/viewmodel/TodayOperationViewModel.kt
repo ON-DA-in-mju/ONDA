@@ -144,7 +144,7 @@ class TodayOperationViewModel : ViewModel() {
         }
     }
 
-    /** 새로고침 → 관리자 로컬 API 배정 조회, 실패 시 mock 시드 (DRI-01-00A) */
+    /** 새로고침 → Supabase 오늘 배차 조회 (실패 시 빈 목록, mock 없음) */
     fun onRefresh() {
         if (_uiState.value.isRefreshing) return
 
@@ -158,8 +158,7 @@ class TodayOperationViewModel : ViewModel() {
             }) {
                 is TodayAssignmentsApi.Result.Ok -> TodayAssignmentsHolder.set(result.items)
                 TodayAssignmentsApi.Result.Failed -> {
-                    // API 불가 시 계정별 mock 시드 사용
-                    TodayAssignmentsHolder.set(MockTodayOperations.seedForUser(userId))
+                    TodayAssignmentsHolder.set(emptyList())
                 }
             }
             SessionStateHolder.markAssignmentsLoaded()

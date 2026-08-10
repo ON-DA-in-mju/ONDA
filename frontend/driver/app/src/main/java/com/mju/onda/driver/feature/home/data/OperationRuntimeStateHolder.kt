@@ -2,6 +2,9 @@ package com.mju.onda.driver.feature.home.data
 
 import android.content.SharedPreferences
 import com.mju.onda.driver.core.UserScopedPrefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * 화면 간 운행 상태·실제 시작/종료 시각 공유.
@@ -63,7 +66,7 @@ object OperationRuntimeStateHolder {
         pendingStartId
             ?: activeOperationId()
             ?: MockTodayOperations.assignedOperations.firstOrNull()?.id
-            ?: MockTodayOperations.forUser(null).first().id
+            ?: ""
 
     /** 시작 완료 시 호출. pending이 없으면 활성/기본 배차. */
     fun takePendingStartId(): String {
@@ -73,6 +76,7 @@ object OperationRuntimeStateHolder {
     }
 
     fun startOperation(operationId: String = resolveFocusedOperationId()) {
+        if (operationId.isBlank()) return
         endedIds.remove(operationId)
         endedAtById.remove(operationId)
         inProgressIds += operationId
@@ -81,9 +85,13 @@ object OperationRuntimeStateHolder {
         }
         persist()
         com.mju.onda.driver.core.location.OperationLocationTracker.startForOperation(operationId)
+        CoroutineScope(Dispatchers.IO).launch {
+            TodayAssignmentsApi.updateStatus(operationId, OperationStatus.InProgress)
+        }
     }
 
     fun endOperation(operationId: String) {
+        if (operationId.isBlank()) return
         inProgressIds.remove(operationId)
         endedIds += operationId
         if (operationId !in startedAtById) {
@@ -95,6 +103,9 @@ object OperationRuntimeStateHolder {
         persist()
         if (!hasActiveOperation()) {
             com.mju.onda.driver.core.location.OperationLocationTracker.stop()
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            TodayAssignmentsApi.updateStatus(operationId, OperationStatus.Ended)
         }
     }
 
