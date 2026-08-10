@@ -20,15 +20,15 @@ export const gpsAlerts = [
   { bus: '온다 8호기', route: '수원역 ↔ 캠퍼스', location: '영통 IC', issue: '통신 지연', time: '07:22', status: '조치 완료', tone: 'gray' as const },
 ]
 
-/** 노선 관리·기사 앱과 동일한 3개 노선 기준 운행 일정 */
+/** 노선 관리·기사 앱과 동일한 3개 노선 기준 운행 일정 (2026 mju_pier_ 공지) */
 export const schedules = [
   {
     no: 1,
     route: '기흥역 통학버스',
-    start: '07:00',
-    end: '22:30',
-    interval: '15분',
-    rounds: 0,
+    start: '08:15',
+    end: '19:15',
+    interval: '학기중 평일',
+    rounds: 14,
     status: '운행 예정',
     tone: 'blue' as const,
   },
@@ -36,19 +36,19 @@ export const schedules = [
     no: 2,
     route: '명지대역 셔틀',
     start: '08:00',
-    end: '21:00',
-    interval: '20분',
-    rounds: 0,
+    end: '19:30',
+    interval: '학기중 평일',
+    rounds: 54,
     status: '운행 예정',
     tone: 'blue' as const,
   },
   {
     no: 3,
     route: '시내 셔틀',
-    start: '07:30',
-    end: '20:30',
-    interval: '20분',
-    rounds: 0,
+    start: '08:05',
+    end: '20:00',
+    interval: '학기중·주말·방학',
+    rounds: 10,
     status: '운행 예정',
     tone: 'blue' as const,
   },
@@ -82,9 +82,36 @@ export const notices = [
 ]
 
 export const routes = [
-  { name: '기흥역 통학버스', stops: 8, buses: '8대', status: '운행 중', type: '통학', days: '월~금', hours: '07:00 ~ 22:30', desc: '기흥역과 명지대학교를 연결하는 통학 노선입니다.' },
-  { name: '명지대역 셔틀', stops: 6, buses: '5대', status: '운행 중', type: '셔틀', days: '월~금', hours: '08:00 ~ 21:00', desc: '명지대역과 교내 주요 건물을 연결하는 셔틀 노선입니다.' },
-  { name: '시내 셔틀', stops: 6, buses: '3대', status: '운행 중', type: '셔틀', days: '월~금', hours: '07:30 ~ 20:30', desc: '시내 주요 거점과 명지대학교를 연결하는 셔틀 노선입니다.' },
+  {
+    name: '기흥역 통학버스',
+    stops: 2,
+    buses: '5대',
+    status: '운행 중',
+    type: '통학',
+    days: '학기중 평일',
+    hours: '08:15 ~ 19:15',
+    desc: '학기 중 평일만 운행. 주말·공휴일·계절학기·방학 미운행. 캠퍼스 ↔ 기흥역 5번 출구.',
+  },
+  {
+    name: '명지대역 셔틀',
+    stops: 8,
+    buses: '4대',
+    status: '운행 중',
+    type: '셔틀',
+    days: '학기중 평일·계절학기',
+    hours: '08:00 ~ 19:30',
+    desc: '버스관리사무소 → 이마트·상공회의소 → 역북동 → 명지대역 → … → 제3공학관. 18시 이후 명진당까지.',
+  },
+  {
+    name: '시내 셔틀',
+    stops: 11,
+    buses: '1대',
+    status: '운행 중',
+    type: '셔틀',
+    days: '학기중·주말·방학',
+    hours: '08:05 ~ 20:00',
+    desc: '시내 순환. 주말·공휴일·방학은 생활관(명현관) 기점 10회 운행.',
+  },
 ]
 
 export const vehicles = [

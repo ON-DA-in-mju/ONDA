@@ -130,9 +130,8 @@ export function SignupPage() {
             required
           >
             <option value="">선택하세요</option>
-            <option value="ADMIN">총괄 관리자</option>
-            <option value="SCHOOL_ADMIN">학교 관리자</option>
-            <option value="COMPANY_ADMIN">운수회사 관리자</option>
+            <option value="ADMIN">관리자 (ADMIN)</option>
+            <option value="DRIVER">기사 (DRIVER)</option>
           </select>
         </Field>
 

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { SCHEDULE_ROUTE_OPTIONS, drivers, schedules } from '../data/mock'
+import {
+  MJU_TIMETABLE_PACKS,
+  type MjuRouteName,
+} from '../data/mjuTimetable'
 import { fetchAssignments } from '../lib/assignmentsApi'
+import { ensureMjuTimetableSynced, fetchSchedulesWithRoutes, type ScheduleWithRoute } from '../lib/seedMju'
+import { isSupabaseConfigured } from '../lib/supabase'
 import { resolveAssignmentStatus } from '../lib/assignmentStatus'
 import { todayDateKey } from '../types/assignment'
+import type { Weekday } from '../types/database'
 import {
   WEEKDAY_LABELS,
   addDays,
@@ -16,6 +23,12 @@ import {
 import { TodayAssignmentsPanel } from '../components/TodayAssignmentsPanel'
 import { StatusBadge } from '../components/ui/Form'
 import type { TodayAssignment } from '../types/assignment'
+
+const JS_TO_WEEKDAY: Weekday[] = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
+function formatTime(t: string) {
+  return t.slice(0, 5)
+}
 
 type ScheduleRowStatus = '운행 예정' | '곧 출발' | '운행 중' | '운행 종료'
 type ScheduleTone = 'blue' | 'orange' | 'green' | 'gray'
@@ -49,13 +62,77 @@ export function SchedulesPage() {
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
   const [weekday, setWeekday] = useState(() => new Date().getDay())
   const [routeFilter, setRouteFilter] = useState('')
-  const [timetableRoute, setTimetableRoute] = useState<string>(SCHEDULE_ROUTE_OPTIONS[0])
+  // 명지대역을 기본으로 — 기흥역은 방학 미운행이라 학기중만 보이기 쉬움
+  const [timetableRoute, setTimetableRoute] = useState<string>('명지대역 셔틀')
+  const [timetablePeriod, setTimetablePeriod] = useState<'SEMESTER' | 'VACATION'>('SEMESTER')
   const [assignments, setAssignments] = useState<TodayAssignment[]>([])
+  const [dbSchedules, setDbSchedules] = useState<ScheduleWithRoute[] | null>(null)
   const weekInputRef = useRef<HTMLInputElement>(null)
+  const syncTriedRef = useRef(false)
 
   const selectedDate = useMemo(() => addDays(weekStart, weekday), [weekStart, weekday])
   const selectedDateKey = toDateKey(selectedDate)
   const weekLabel = formatWeekRange(weekStart, weekEnd)
+  const selectedWeekday = JS_TO_WEEKDAY[weekday]
+
+  const mjuPack = useMemo(() => {
+    const route = timetableRoute as MjuRouteName
+    if (route === '기흥역 통학버스') {
+      return MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-giheung') ?? MJU_TIMETABLE_PACKS[0]
+    }
+    if (timetablePeriod === 'VACATION') {
+      if (route === '시내 셔틀' && (selectedWeekday === 'SAT' || selectedWeekday === 'SUN')) {
+        return MJU_TIMETABLE_PACKS.find((p) => p.id === 'weekend-vacation-city') ?? MJU_TIMETABLE_PACKS[0]
+      }
+      return MJU_TIMETABLE_PACKS.find((p) => p.id === 'seasonal-shuttle') ?? MJU_TIMETABLE_PACKS[0]
+    }
+    return MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-shuttle') ?? MJU_TIMETABLE_PACKS[0]
+  }, [timetableRoute, timetablePeriod, selectedWeekday])
+
+  const mjuTrips = useMemo(() => {
+    return mjuPack.trips.filter((t) => t.route === timetableRoute)
+  }, [mjuPack, timetableRoute])
+
+  const loadDbSchedules = useCallback(async () => {
+    const rows = await fetchSchedulesWithRoutes()
+    setDbSchedules(rows)
+  }, [])
+
+  useEffect(() => {
+    void loadDbSchedules()
+  }, [loadDbSchedules])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || syncTriedRef.current) return
+    syncTriedRef.current = true
+    void (async () => {
+      const res = await ensureMjuTimetableSynced()
+      if (res.changed) void loadDbSchedules()
+      else if (!res.ok) console.warn('[timetable sync]', res.message)
+    })()
+  }, [loadDbSchedules])
+
+  const dbTrips = useMemo(() => {
+    if (!dbSchedules) return []
+    return dbSchedules
+      .filter(
+        (s) =>
+          s.routes?.route_name === timetableRoute &&
+          s.weekday === selectedWeekday &&
+          s.semester === timetablePeriod,
+      )
+      .sort((a, b) => a.departure_time.localeCompare(b.departure_time))
+  }, [dbSchedules, timetableRoute, selectedWeekday, timetablePeriod])
+
+  const dbRouteSummary = useMemo(() => {
+    if (!dbSchedules) return null
+    const forRoute = dbSchedules.filter(
+      (s) => s.routes?.route_name === timetableRoute && s.semester === timetablePeriod && s.weekday === selectedWeekday,
+    )
+    if (!forRoute.length) return null
+    const times = forRoute.map((s) => formatTime(s.departure_time)).sort()
+    return { rounds: forRoute.length, start: times[0], end: times[times.length - 1] }
+  }, [dbSchedules, timetableRoute, timetablePeriod, selectedWeekday])
 
   const load = useCallback(async () => {
     const rows = await fetchAssignments({ date: selectedDateKey })
@@ -74,14 +151,38 @@ export function SchedulesPage() {
       .map((row) => {
         const routeItems = assignments.filter((a) => a.routeName === row.route)
         const derived = statusFromAssignments(routeItems)
-        return { ...row, ...derived }
+        const dbCount =
+          dbSchedules?.filter(
+            (s) =>
+              s.routes?.route_name === row.route &&
+              s.weekday === selectedWeekday &&
+              s.semester === timetablePeriod,
+          ).length ?? 0
+        return {
+          ...row,
+          ...derived,
+          rounds: derived.rounds || dbCount || row.rounds,
+          start:
+            dbSchedules
+              ?.filter((s) => s.routes?.route_name === row.route && s.weekday === selectedWeekday && s.semester === timetablePeriod)
+              .map((s) => formatTime(s.departure_time))
+              .sort()[0] ?? row.start,
+          end:
+            [...(dbSchedules ?? [])]
+              .filter((s) => s.routes?.route_name === row.route && s.weekday === selectedWeekday && s.semester === timetablePeriod)
+              .map((s) => formatTime(s.departure_time))
+              .sort()
+              .at(-1) ?? row.end,
+        }
       })
-  }, [assignments, routeFilter])
+  }, [assignments, routeFilter, dbSchedules, selectedWeekday, timetablePeriod])
 
   const totalRounds = listRows.reduce((sum, row) => sum + row.rounds, 0)
 
   useEffect(() => {
-    if (routeFilter) setTimetableRoute(routeFilter)
+    if (!routeFilter) return
+    setTimetableRoute(routeFilter)
+    if (routeFilter === '기흥역 통학버스') setTimetablePeriod('SEMESTER')
   }, [routeFilter])
 
   const onPickWeekDate = (value: string) => {
@@ -308,12 +409,18 @@ export function SchedulesPage() {
 
           <section className="card card-pad">
             <div className="card-head" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>상세 시간표 ({WEEKDAY_LABELS[weekday]}요일)</h3>
+              <h3 style={{ margin: 0 }}>공식 시간표</h3>
               <select
                 className="select"
                 style={{ width: 170 }}
                 value={timetableRoute}
-                onChange={(e) => setTimetableRoute(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setTimetableRoute(next)
+                  if (next === '기흥역 통학버스' && timetablePeriod === 'VACATION') {
+                    setTimetablePeriod('SEMESTER')
+                  }
+                }}
                 aria-label="상세 시간표 노선"
               >
                 {SCHEDULE_ROUTE_OPTIONS.map((name) => (
@@ -322,41 +429,120 @@ export function SchedulesPage() {
                   </option>
                 ))}
               </select>
+              <div className="toolbar" style={{ gap: 6 }}>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${timetablePeriod === 'SEMESTER' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setTimetablePeriod('SEMESTER')}
+                >
+                  학기 중
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${timetablePeriod === 'VACATION' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => {
+                    if (timetableRoute === '기흥역 통학버스') {
+                      setTimetableRoute('명지대역 셔틀')
+                    }
+                    setTimetablePeriod('VACATION')
+                  }}
+                >
+                  방학·계절학기
+                </button>
+              </div>
             </div>
-            <div className="grid grid-2">
-              {[`${timetableRoute} 왕편`, `${timetableRoute} 복편`].map((title) => (
-                <div key={title}>
-                  <strong style={{ fontSize: 13 }}>{title}</strong>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>회차</th>
-                        <th>출발</th>
-                        <th>차량</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignments
-                        .filter((a) => a.routeName === timetableRoute)
-                        .map((a, idx) => (
-                          <tr key={a.id}>
-                            <td>{a.round || idx + 1}</td>
-                            <td>{a.departTime}</td>
-                            <td>{a.vehicleName}</td>
-                          </tr>
-                        ))}
-                      {assignments.filter((a) => a.routeName === timetableRoute).length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="muted">
-                            선택일 배차 없음
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+              {timetablePeriod === 'SEMESTER' ? '학기 중' : '방학·계절학기'} · {WEEKDAY_LABELS[weekday]}요일 · {timetableRoute}
+              {dbRouteSummary
+                ? ` · ${dbRouteSummary.rounds}회 · ${dbRouteSummary.start}~${dbRouteSummary.end}`
+                : timetableRoute === '기흥역 통학버스' && timetablePeriod === 'VACATION'
+                  ? ' · 기흥역은 방학·계절학기 미운행'
+                  : ' · 해당 요일 일정 없음'}
+            </p>
+            <div style={{ maxHeight: 480, overflow: 'auto' }}>
+              <table className="data-table dense">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>노선</th>
+                    <th>출발</th>
+                    <th>요일</th>
+                    <th>구분</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(dbTrips.length
+                    ? dbTrips
+                    : mjuTrips.map((t, i) => ({
+                        id: `local-${i}`,
+                        departure_time: `${t.departure}:00`,
+                        weekday: selectedWeekday,
+                        semester: timetablePeriod,
+                        routes: { route_name: t.route },
+                      }))
+                  ).map((row, idx) => (
+                    <tr key={'id' in row && row.id ? String(row.id) : `row-${idx}`}>
+                      <td>{idx + 1}</td>
+                      <td>{('routes' in row && row.routes?.route_name) || timetableRoute}</td>
+                      <td style={{ fontWeight: 700 }}>
+                        {'departure_time' in row ? formatTime(String(row.departure_time)) : '-'}
+                      </td>
+                      <td>{'weekday' in row ? String(row.weekday) : selectedWeekday}</td>
+                      <td>
+                        {('semester' in row ? String(row.semester) : timetablePeriod) === 'VACATION'
+                          ? '방학·계절학기'
+                          : '학기 중'}
+                      </td>
+                    </tr>
+                  ))}
+                  {!dbTrips.length && !mjuTrips.length ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        {timetableRoute === '기흥역 통학버스' && timetablePeriod === 'VACATION'
+                          ? '기흥역 통학버스는 방학·계절학기·주말에 운행하지 않습니다.'
+                          : '해당 조건 시간표가 없습니다. 노선·학기중/방학·요일을 바꿔 보세요.'}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
             </div>
+          </section>
+
+          <section className="card card-pad">
+            <div className="card-head">
+              <h3>선택일 배차 (기사 앱 연동)</h3>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {timetableRoute}
+              </span>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>회차</th>
+                  <th>출발</th>
+                  <th>차량</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments
+                  .filter((a) => a.routeName === timetableRoute)
+                  .map((a, idx) => (
+                    <tr key={a.id}>
+                      <td>{a.round || idx + 1}</td>
+                      <td>{a.departTime}</td>
+                      <td>{a.vehicleName}</td>
+                    </tr>
+                  ))}
+                {assignments.filter((a) => a.routeName === timetableRoute).length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      선택일 배차 없음 · 위 공식 시간표 참고
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </section>
 
           <section className="card card-pad">

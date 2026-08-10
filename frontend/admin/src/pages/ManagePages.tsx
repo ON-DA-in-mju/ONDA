@@ -2,24 +2,56 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, Eye, Megaphone } from 'lucide-react'
 import { maintenances, notices, reports, routes, systemLogs, users } from '../data/mock'
+import {
+  createNotice,
+  fetchNotices,
+  fetchReports,
+  fetchRoutes,
+  fetchUsers,
+  type NoticeRow,
+  type ReportRow,
+  type RouteRow,
+  type UserRow,
+} from '../lib/api'
 import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
+import { isSupabaseConfigured } from '../lib/supabase'
+import { useAuth } from '../state/AuthContext'
 import { StatusBadge } from '../components/ui/Form'
 import '../styles/figma-pages.css'
+
+const reportStatusKo: Record<string, string> = {
+  PENDING: '처리 대기',
+  PROCESSING: '검토 중',
+  COMPLETED: '처리 완료',
+}
 
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
   const [selected, setSelected] = useState(0)
-  const item = reports[selected]
+  const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
+
+  useEffect(() => {
+    void fetchReports().then((data) => {
+      if (data) setDbReports(data)
+    })
+  }, [])
+
+  const usingDb = Boolean(dbReports && dbReports.length >= 0 && isSupabaseConfigured && dbReports !== null)
+  const item = usingDb && dbReports?.[selected] ? dbReports[selected] : null
+  const mockItem = reports[selected]
 
   return (
     <div className="page">
-      <p className="page-subtitle">학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.</p>
+      <p className="page-subtitle">
+        학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
+        {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
+      </p>
       <div className="grid grid-4">
         {[
-          ['오늘 제보 수', '38건', '+8 전일 대비', 'blue'],
-          ['처리 대기', '12건', '+3 전일 대비', 'orange'],
-          ['자동 완료 예정', '4건', '24시간 이내', 'green'],
-          ['비활성 처리', '26건', '누적', 'gray'],
+          ['오늘 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '+8 전일 대비', 'blue'],
+          ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
+          ['처리 중', `${dbReports?.filter((r) => r.status === 'PROCESSING').length ?? 4}건`, 'PROCESSING', 'green'],
+          ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
         ].map(([t, v, s, tone]) => (
           <div key={t} className="card card-pad">
             <div className="muted" style={{ fontSize: 12 }}>
@@ -36,41 +68,51 @@ export function ReportsPage() {
           <div className="card-head">
             <h3>제보 목록</h3>
           </div>
-          <div className="toolbar" style={{ marginBottom: 10 }}>
-            <select className="select" style={{ width: 140 }}>
-              <option>유형 전체</option>
-            </select>
-            <input className="input" style={{ width: 200 }} defaultValue="2026-07-01 ~ 2026-07-08" />
-            <input className="input" style={{ flex: 1 }} placeholder="검색어 입력 (제보, 노선, 정류장)" />
-          </div>
           <table className="data-table">
             <thead>
               <tr>
-                <th>유형</th>
-                <th>대상</th>
+                <th>{dbReports ? '제목' : '유형'}</th>
+                <th>{dbReports ? '상태' : '대상'}</th>
                 <th>시간</th>
-                <th>좋아요</th>
-                <th>상태</th>
+                {!dbReports ? <th>좋아요</th> : null}
+                {!dbReports ? <th>상태</th> : null}
                 <th />
               </tr>
             </thead>
             <tbody>
-              {reports.map((row, idx) => (
-                <tr key={row.type + row.time} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
-                  <td>{row.type}</td>
-                  <td>{row.target}</td>
-                  <td>{row.time}</td>
-                  <td>{row.likes}</td>
-                  <td>
-                    <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                  </td>
-                  <td>
-                    <button className="btn btn-outline" type="button" style={{ height: 28 }} onClick={() => setSelected(idx)}>
-                      상세
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {dbReports
+                ? dbReports.map((row, idx) => (
+                    <tr key={row.id} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
+                      <td style={{ fontWeight: 700 }}>{row.title}</td>
+                      <td>
+                        <StatusBadge tone={row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'}>
+                          {reportStatusKo[row.status] ?? row.status}
+                        </StatusBadge>
+                      </td>
+                      <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
+                      <td>
+                        <button className="btn btn-outline" type="button" style={{ height: 28 }} onClick={() => setSelected(idx)}>
+                          상세
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                : reports.map((row, idx) => (
+                    <tr key={row.type + row.time} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
+                      <td>{row.type}</td>
+                      <td>{row.target}</td>
+                      <td>{row.time}</td>
+                      <td>{row.likes}</td>
+                      <td>
+                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      </td>
+                      <td>
+                        <button className="btn btn-outline" type="button" style={{ height: 28 }} onClick={() => setSelected(idx)}>
+                          상세
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
             </tbody>
           </table>
         </section>
@@ -78,35 +120,26 @@ export function ReportsPage() {
         <section className="card card-pad">
           <div className="card-head">
             <h3>제보 상세</h3>
-            <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
+            {item ? (
+              <StatusBadge tone={item.status === 'PENDING' ? 'orange' : item.status === 'PROCESSING' ? 'blue' : 'green'}>
+                {reportStatusKo[item.status] ?? item.status}
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone={mockItem.tone}>{mockItem.status}</StatusBadge>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
             <div>
-              <strong>{item.type}</strong>
-              <div className="muted">{item.time} · student_1024</div>
+              <strong>{item?.title ?? mockItem.type}</strong>
+              <div className="muted">
+                {item
+                  ? `${item.created_at ? new Date(item.created_at).toLocaleString('ko-KR') : '-'} · ${item.user_id.slice(0, 8)}`
+                  : `${mockItem.time} · student_1024`}
+              </div>
             </div>
-            <div className="card card-pad" style={{ boxShadow: 'none', background: '#fafbff' }}>
-              버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.
-            </div>
-            <div className="muted">첨부/위치 · Android/Chrome · 반경 30m</div>
-            <div className="field">
-              <label>내부 메모</label>
-              <textarea className="textarea" defaultValue="버스 운행 기록 확인 결과, 해당 시간대에 정상 운행." />
-              <span className="field-hint">21/200</span>
-            </div>
-            <div className="toolbar">
-              <button className="btn btn-outline" type="button">
-                비활성화
-              </button>
-              <button className="btn btn-danger" type="button">
-                삭제
-              </button>
-              <button className="btn btn-primary" type="button">
-                만료 처리
-              </button>
-            </div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              24시간 후 자동 만료 예정
+            <div className="card card-pad" style={{ boxShadow: 'none', background: '#fafbff', whiteSpace: 'pre-wrap' }}>
+              {item?.content ??
+                '버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.'}
             </div>
           </div>
         </section>
@@ -117,22 +150,51 @@ export function ReportsPage() {
 
 /** ADM-06 공지·긴급 알림 관리 — Figma 430:19126 */
 export function NoticesPage() {
+  const { user } = useAuth()
+  const [dbNotices, setDbNotices] = useState<NoticeRow[] | null>(null)
   const [noticeType, setNoticeType] = useState('긴급')
   const [push, setPush] = useState(true)
   const [title, setTitle] = useState('폭설로 인한 운행 지연 안내')
   const [body, setBody] = useState(
     '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.\n자세한 내용은 노선별 운행 정보에서 확인해 주세요.\n이용에 불편을 드려 죄송합니다.',
   )
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState('')
+
+  useEffect(() => {
+    void fetchNotices().then((data) => {
+      if (data) setDbNotices(data)
+    })
+  }, [])
+
+  const onCreate = async () => {
+    setSaving(true)
+    setFlash('')
+    const res = await createNotice({
+      title: `[${noticeType}] ${title.trim()}`,
+      content: body.trim(),
+      author_id: user?.id ?? null,
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '등록 실패')
+      return
+    }
+    setFlash('공지 등록 완료 (notices.title/content)')
+    const data = await fetchNotices()
+    if (data) setDbNotices(data)
+  }
 
   const kpis = [
-    { label: '전체 공지', value: '128건', hint: '최근 30일 기준', tone: 'blue', icon: <Megaphone size={18} /> },
-    { label: '긴급 공지', value: '8건', hint: '최근 30일 기준', tone: 'red', icon: <Megaphone size={18} /> },
+    { label: '전체 공지', value: `${dbNotices?.length ?? 128}건`, hint: dbNotices ? 'Supabase notices' : '최근 30일 기준', tone: 'blue', icon: <Megaphone size={18} /> },
+    { label: '긴급 공지', value: `${dbNotices?.filter((n) => n.title.includes('긴급')).length ?? 8}건`, hint: '최근 30일 기준', tone: 'red', icon: <Megaphone size={18} /> },
     { label: '예약 공지', value: '15건', hint: '개시 예정', tone: 'orange', icon: <CalendarDays size={18} /> },
     { label: '최근 조회수', value: '23,450회', hint: '최근 30일 기준', tone: 'gray', icon: <Eye size={18} /> },
   ] as const
 
   return (
     <div className="page">
+      {flash ? <div className="alert alert-info">{flash}</div> : null}
       <div className="figma-kpis">
         {kpis.map((k) => (
           <div key={k.label} className="figma-kpi">
@@ -179,7 +241,29 @@ export function NoticesPage() {
               </tr>
             </thead>
             <tbody>
-              {notices.map((row) => (
+              {dbNotices
+                ? dbNotices.map((row) => (
+                    <tr
+                      key={row.id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setTitle(row.title.replace(/^\[.*?\]\s*/, ''))
+                        setBody(row.content)
+                      }}
+                    >
+                      <td colSpan={2} style={{ fontWeight: 700 }}>
+                        {row.title}
+                      </td>
+                      <td colSpan={3} style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.content}
+                      </td>
+                      <td>{row.created_at ? new Date(row.created_at).toLocaleDateString('ko-KR') : '-'}</td>
+                      <td>
+                        <StatusBadge tone="blue">DB</StatusBadge>
+                      </td>
+                    </tr>
+                  ))
+                : notices.map((row) => (
                 <tr key={row.no}>
                   <td>{row.no}</td>
                   <td>
@@ -193,7 +277,7 @@ export function NoticesPage() {
                     <StatusBadge tone={row.status === '게시중' ? 'red' : 'gray'}>{row.status}</StatusBadge>
                   </td>
                 </tr>
-              ))}
+                  ))}
             </tbody>
           </table>
           <div className="pagination">
@@ -226,8 +310,8 @@ export function NoticesPage() {
               <button className="btn btn-outline btn-xs" type="button">
                 수정
               </button>
-              <button className="btn btn-primary btn-xs" type="button">
-                공지 등록
+              <button className="btn btn-primary btn-xs" type="button" disabled={saving} onClick={() => void onCreate()}>
+                {saving ? '등록 중...' : '공지 등록'}
               </button>
               <button className="btn btn-danger btn-xs" type="button">
                 긴급 공지 발송
@@ -343,11 +427,34 @@ export function NoticesPage() {
 
 /** ADM-04 노선·운행 관리 — Figma 430:18166 */
 export function RoutesPage() {
-  const [selected, setSelected] = useState(2)
-  const detail = routes[selected]
+  const [selected, setSelected] = useState(0)
+  const [dbRoutes, setDbRoutes] = useState<RouteRow[] | null>(null)
+
+  useEffect(() => {
+    void fetchRoutes().then((data) => {
+      if (data) setDbRoutes(data)
+    })
+  }, [])
+
+  const list = dbRoutes?.length
+    ? dbRoutes.map((r) => ({
+        name: r.route_name,
+        status: r.is_active ? '운행 중' : '중지',
+        buses: '-',
+        type: r.direction ?? '노선',
+        days: '-',
+        hours: '-',
+        desc: r.description ?? `${r.start_location ?? ''} → ${r.end_location ?? ''}`,
+      }))
+    : routes
+
+  const detail = list[selected] ?? list[0]
 
   return (
     <div className="page">
+      <p className="page-subtitle" style={{ marginTop: 0 }}>
+        {dbRoutes ? `Supabase routes ${dbRoutes.length}건` : 'mock 노선'}
+      </p>
       <div className="split-11">
         <section className="card card-pad">
           <div className="card-head">
@@ -366,9 +473,9 @@ export function RoutesPage() {
               </tr>
             </thead>
             <tbody>
-              {routes.map((row, idx) => (
+              {list.map((row, idx) => (
                 <tr
-                  key={row.name}
+                  key={row.name + idx}
                   style={idx === selected ? { background: '#f5f8ff' } : undefined}
                   onClick={() => setSelected(idx)}
                 >
@@ -919,7 +1026,26 @@ export function DriversPage() {
 export function UsersPage() {
   const [selected, setSelected] = useState(0)
   const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([])
-  const user = users[selected]
+  const [dbUsers, setDbUsers] = useState<UserRow[] | null>(null)
+
+  useEffect(() => {
+    void fetchUsers().then((data) => {
+      if (data) setDbUsers(data)
+    })
+  }, [])
+
+  const list = dbUsers?.length
+    ? dbUsers.map((u) => ({
+        id: u.email ?? u.id.slice(0, 8),
+        name: u.name,
+        email: u.email ?? '-',
+        role: u.role === 'ADMIN' ? '관리자' : u.role === 'DRIVER' ? '기사' : '일반 사용자',
+        lastLogin: u.updated_at ? new Date(u.updated_at).toLocaleString('ko-KR') : '-',
+        status: '활성',
+      }))
+    : users
+
+  const user = list[selected] ?? list[0]
 
   useEffect(() => {
     let alive = true
@@ -947,10 +1073,10 @@ export function UsersPage() {
     <div className="page">
       <div className="figma-kpis">
         {[
-          { label: '전체 사용자', value: '36명', hint: '활성 사용자 32명', tone: 'blue' },
-          { label: '관리자', value: '5명', hint: '전체의 13.9%', tone: 'purple' },
-          { label: '운영자', value: '12명', hint: '전체의 33.3%', tone: 'orange' },
-          { label: '일반 사용자', value: '19명', hint: '전체의 52.8%', tone: 'gray' },
+          { label: '전체 사용자', value: `${list.length}명`, hint: dbUsers ? 'Supabase users' : 'mock', tone: 'blue' },
+          { label: '관리자', value: `${list.filter((u) => u.role.includes('관리')).length}명`, hint: 'ADMIN', tone: 'purple' },
+          { label: '기사', value: `${list.filter((u) => u.role.includes('기사')).length}명`, hint: 'DRIVER', tone: 'orange' },
+          { label: '일반 사용자', value: `${list.filter((u) => u.role.includes('일반')).length}명`, hint: 'STUDENT', tone: 'gray' },
         ].map((k) => (
           <div key={k.label} className="figma-kpi">
             <div>
@@ -966,7 +1092,7 @@ export function UsersPage() {
         <section className="figma-panel">
           <div className="figma-panel-head">
             <h3>
-              사용자 목록 <span className="muted">(36명)</span>
+              사용자 목록 <span className="muted">({list.length}명{dbUsers ? ' · DB' : ''})</span>
             </h3>
           </div>
           <div className="toolbar" style={{ marginBottom: 8 }}>
@@ -994,7 +1120,7 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((row, idx) => (
+              {list.map((row, idx) => (
                 <tr key={row.id} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
                   <td>{row.id}</td>
                   <td>{row.name}</td>
