@@ -1,10 +1,11 @@
-/**
- * 2026학년도 명지대 자연캠 통학·셔틀 — mju_pier_ 공지 기반
- */
 import type { Weekday, SemesterType } from '../types/database'
+import { resolveOperationalRouteName } from '../lib/routeVariants'
 
 export const MJU_ROUTE_NAMES = ['기흥역 통학버스', '명지대역 셔틀', '시내 셔틀'] as const
 export type MjuRouteName = (typeof MJU_ROUTE_NAMES)[number]
+
+/** schedules에 저장되는 실제 노선명(변형 포함) */
+export type ScheduleRouteName = string
 
 export type MjuTrip = {
   no: number
@@ -296,14 +297,15 @@ export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
 ]
 
 /** schedules 테이블 insert용 — 노선별 출발시각 × 요일 × semester */
+/** schedules insert용 — 18시 이후·주말/방학 시내를 변형 노선으로 분리 */
 export function expandScheduleRows(): {
-  routeName: MjuRouteName
+  routeName: ScheduleRouteName
   departure_time: string
   weekday: Weekday
   semester: SemesterType
 }[] {
   const out: {
-    routeName: MjuRouteName
+    routeName: ScheduleRouteName
     departure_time: string
     weekday: Weekday
     semester: SemesterType
@@ -313,9 +315,15 @@ export function expandScheduleRows(): {
     for (const t of trips) {
       if (routeFilter && t.route !== routeFilter) continue
       for (const wd of weekdays) {
+        const departure_time = `${t.departure}:00`
         out.push({
-          routeName: t.route,
-          departure_time: `${t.departure}:00`,
+          routeName: resolveOperationalRouteName({
+            baseRouteName: t.route,
+            departureTime: departure_time,
+            weekday: wd,
+            semester,
+          }),
+          departure_time,
           weekday: wd,
           semester,
         })
@@ -326,10 +334,10 @@ export function expandScheduleRows(): {
   push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER', '기흥역 통학버스')
   push(SEMESTER_SHUTTLE, WEEKDAYS, 'SEMESTER')
   push(SEASONAL_SHUTTLE, WEEKDAYS, 'VACATION')
-  // 학기중 주말도 시내 운행
+  // 학기중 주말도 시내 운행 → 시내 셔틀 (주말·공휴일·방학)
   push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', '시내 셔틀')
   push(WEEKEND_VACATION_CITY, WEEKEND, 'VACATION', '시내 셔틀')
-  // 방학 평일 시내
+  // 방학 평일 시내 → 시내 셔틀 (주말·공휴일·방학)
   push(WEEKEND_VACATION_CITY, WEEKDAYS, 'VACATION', '시내 셔틀')
 
   return out

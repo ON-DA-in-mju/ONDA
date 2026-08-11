@@ -18,6 +18,8 @@ enum class OperationStatus {
 
     Ended, // 운행 종료
 
+    Unavailable, // 운행 불가 (관리자 중단, CANCELLED)
+
 }
 
 
@@ -76,6 +78,8 @@ object MockTodayOperations {
 
     const val ENDED_BADGE = "운행 종료"
 
+    const val UNAVAILABLE_BADGE = "운행 불가"
+
     const val DETAIL_BUTTON = "운행 상세 보기"
 
     const val LIST_SECTION_TITLE = "오늘 배정된 운행"
@@ -122,9 +126,6 @@ object MockTodayOperations {
 
     // 테스트용 — 알림 배너 표시 로직은 ViewModel에 유지 (서버 연동 시 사용)
 
-    const val DEMO_RESET_BUTTON = "운행 상태 초기화"
-
-    const val DEMO_RESET_TOAST = "이 계정의 상태를 초기화했습니다. 다시 로그인해 주세요."
 
 
 
@@ -312,6 +313,8 @@ object MockTodayOperations {
         OperationStatus.Scheduled -> SCHEDULED_BADGE
 
         OperationStatus.Ended -> ENDED_BADGE
+
+        OperationStatus.Unavailable -> UNAVAILABLE_BADGE
 
     }
 

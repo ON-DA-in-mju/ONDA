@@ -38,7 +38,7 @@ type HeartbeatBody = {
 
 type LiveRow = LiveOpRow
 
-const STALE_MS = 45_000
+const STALE_MS = 90_000
 const ACCURACY_ERROR_M = 80
 
 function readBody(req: NodeJS.ReadableStream): Promise<string> {

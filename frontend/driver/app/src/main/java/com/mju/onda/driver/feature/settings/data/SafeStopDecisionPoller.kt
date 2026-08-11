@@ -1,6 +1,7 @@
 package com.mju.onda.driver.feature.settings.data
 
 import android.util.Log
+import com.mju.onda.driver.core.supabase.SupabaseClient
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * 확인 대기 중인 안전 정차 요청을 주기적으로 서버와 동기화한다.
+ * 확인 대기 중인 안전 정차 요청을 주기적으로 Supabase와 동기화한다.
  * 관리자 결정이 오면 로컬 이력을 갱신하고 [updates]로 알린다.
  */
 object SafeStopDecisionPoller {
@@ -48,14 +49,16 @@ object SafeStopDecisionPoller {
     }
 
     suspend fun pollOnce(): List<Update> {
-        val driverId = SessionStateHolder.currentUserId ?: return emptyList()
+        val driverKey = SupabaseClient.userUuid
+            ?: SessionStateHolder.currentUserId
+            ?: return emptyList()
         val pendingIds = SafeStopHistoryHolder.all()
             .filter { it.reviewStatus == SafeStopReviewStatus.Pending }
             .map { it.id }
             .toSet()
         if (pendingIds.isEmpty()) return emptyList()
 
-        return when (val result = SafeStopApi.fetchForDriver(driverId)) {
+        return when (val result = SafeStopApi.fetchForDriver(driverKey)) {
             is SafeStopApi.FetchResult.Ok -> {
                 val decided = result.items
                     .filter { it.id in pendingIds }

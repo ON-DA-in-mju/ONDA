@@ -2,8 +2,12 @@ package com.mju.onda.driver.feature.home.data
 
 import android.content.SharedPreferences
 import com.mju.onda.driver.core.UserScopedPrefs
+import com.mju.onda.driver.core.location.LatestLocationHolder
+import com.mju.onda.driver.core.system.SystemLogsApi
+import com.mju.onda.driver.feature.settings.data.AccountInfoStateHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -17,6 +21,9 @@ object OperationRuntimeStateHolder {
     private const val KEY_ENDED = "ended_ids"
     private const val KEY_STARTED_AT = "started_at"
     private const val KEY_ENDED_AT = "ended_at"
+
+    /** DB sync / system_logs 기록용 (앱 프로세스 동안 유지) */
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var prefs: SharedPreferences? = null
     private val inProgressIds = linkedSetOf<String>()
@@ -85,12 +92,34 @@ object OperationRuntimeStateHolder {
         }
         persist()
         com.mju.onda.driver.core.location.OperationLocationTracker.startForOperation(operationId)
-        CoroutineScope(Dispatchers.IO).launch {
-            TodayAssignmentsApi.updateStatus(operationId, OperationStatus.InProgress)
+        // system_logs 를 operations PATCH 와 분리 — PATCH 지연/실패해도 로그는 남긴다.
+        ioScope.launch {
+            android.util.Log.i("OpRuntime", "start → system_logs op=$operationId")
+            logStatusChange(operationId, statusLabel = "운행 중", success = true)
+        }
+        ioScope.launch {
+            val ok = runCatching {
+                TodayAssignmentsApi.updateStatus(operationId, OperationStatus.InProgress)
+            }.getOrDefault(false)
+            android.util.Log.i("OpRuntime", "start → operations PATCH dbOk=$ok op=$operationId")
         }
     }
 
     fun endOperation(operationId: String) {
+        // EndProcessing → EndComplete 로 두 번 호출되는 경우 중복 기록 방지
+        if (operationId.isNotBlank() && isEnded(operationId) && !isInProgress(operationId)) {
+            android.util.Log.i("OpRuntime", "end skipped (already ended) op=$operationId")
+            return
+        }
+        endOperationInternal(operationId, syncDb = true)
+    }
+
+    /** 관리자 강제 종료 등: DB는 이미 CANCELLED인 경우 로컬만 종료 */
+    fun endOperationLocally(operationId: String) {
+        endOperationInternal(operationId, syncDb = false)
+    }
+
+    private fun endOperationInternal(operationId: String, syncDb: Boolean) {
         if (operationId.isBlank()) return
         inProgressIds.remove(operationId)
         endedIds += operationId
@@ -104,8 +133,56 @@ object OperationRuntimeStateHolder {
         if (!hasActiveOperation()) {
             com.mju.onda.driver.core.location.OperationLocationTracker.stop()
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            TodayAssignmentsApi.updateStatus(operationId, OperationStatus.Ended)
+        if (syncDb) {
+            ioScope.launch {
+                android.util.Log.i("OpRuntime", "end → system_logs op=$operationId")
+                logStatusChange(operationId, statusLabel = "운행 종료", success = true)
+            }
+            ioScope.launch {
+                val ok = runCatching {
+                    TodayAssignmentsApi.updateStatus(operationId, OperationStatus.Ended)
+                }.getOrDefault(false)
+                android.util.Log.i("OpRuntime", "end → operations PATCH dbOk=$ok op=$operationId")
+            }
+        }
+    }
+
+    private suspend fun logStatusChange(
+        operationId: String,
+        statusLabel: String,
+        success: Boolean,
+    ) {
+        val op = MockTodayOperations.findById(operationId)
+        val account = AccountInfoStateHolder.get()
+        val vehicle = op?.vehicleName?.takeIf { it.isNotBlank() }
+            ?: account.vehicleName.takeIf { it.isNotBlank() }
+            ?: "미정"
+        val actor = account.driverName.takeIf { it.isNotBlank() } ?: "기사님"
+        val fix = LatestLocationHolder.latest
+        val gpsIp = fix?.let {
+            String.format(java.util.Locale.US, "%.6f,%.6f", it.latitude, it.longitude)
+        }
+        val logged = runCatching {
+            SystemLogsApi.logOperationStatusChange(
+                vehicleName = vehicle,
+                statusLabel = statusLabel,
+                actor = actor,
+                success = success,
+                gpsIp = gpsIp,
+            )
+        }.onFailure {
+            android.util.Log.e("OpRuntime", "system_logs insert exception: ${it.message}", it)
+        }.getOrDefault(false)
+        if (logged) {
+            android.util.Log.i(
+                "OpRuntime",
+                "system_logs OK op=$operationId status=$statusLabel result=${if (success) "성공" else "실패"} vehicle=$vehicle",
+            )
+        } else {
+            android.util.Log.e(
+                "OpRuntime",
+                "system_logs FAIL op=$operationId status=$statusLabel dbOk=$success vehicle=$vehicle actor=$actor",
+            )
         }
     }
 
@@ -126,6 +203,54 @@ object OperationRuntimeStateHolder {
     fun hasActiveOperation(): Boolean = inProgressIds.isNotEmpty()
 
     fun activeOperationId(): String? = inProgressIds.firstOrNull()
+
+    /**
+     * 서버 오늘 배차 동기화 성공 후 호출.
+     * 목록에 없는(또는 이미 종료된) 로컬 "운행 중" 유령 상태를 제거해
+     * 홈이 비었는데 로그아웃만 막히는 상황을 방지한다.
+     */
+    fun reconcileWithFetchedAssignments(operations: List<AssignedOperation>) {
+        val ids = operations.map { it.id }.toSet()
+        var changed = false
+        val stale = inProgressIds.filter { it !in ids }
+        if (stale.isNotEmpty()) {
+            inProgressIds.removeAll(stale.toSet())
+            changed = true
+        }
+        operations.forEach { op ->
+            if (
+                (op.status == OperationStatus.Ended || op.status == OperationStatus.Unavailable) &&
+                inProgressIds.remove(op.id)
+            ) {
+                endedIds += op.id
+                changed = true
+            }
+        }
+        if (changed) {
+            if (!hasActiveOperation()) {
+                com.mju.onda.driver.core.location.OperationLocationTracker.stop()
+            }
+            persist()
+            android.util.Log.i(
+                "OpRuntime",
+                "reconcile: removed stale in-progress, active=${hasActiveOperation()} ops=${operations.size}",
+            )
+        }
+    }
+
+    /** 배차 화면과 불일치하는 운행중 플래그만 강제 해제 (로그아웃 탈출용) */
+    fun clearOrphanedActiveOperations() {
+        val validIds = MockTodayOperations.assignedOperations.map { it.id }.toSet()
+        if (validIds.isEmpty()) {
+            if (inProgressIds.isNotEmpty()) {
+                inProgressIds.clear()
+                persist()
+                com.mju.onda.driver.core.location.OperationLocationTracker.stop()
+            }
+            return
+        }
+        reconcileWithFetchedAssignments(MockTodayOperations.assignedOperations)
+    }
 
     fun startedAtMillis(operationId: String): Long? =
         startedAtById[operationId]?.takeIf { it > 0L }
@@ -154,11 +279,16 @@ object OperationRuntimeStateHolder {
      */
     fun canStartOperation(operationId: String): Boolean {
         if (isEnded(operationId)) return false
-        if (hasActiveOperation()) return false
         val ordered = MockTodayOperations.assignedOperations
+        val target = ordered.find { it.id == operationId } ?: return false
+        if (target.status == OperationStatus.Unavailable) return false
+        if (hasActiveOperation()) return false
         val index = ordered.indexOfFirst { it.id == operationId }
         if (index < 0) return false
-        return ordered.take(index).all { isEnded(it.id) }
+        // 앞선 운행이 종료됐거나 운행 불가면 다음 배차 시작 가능
+        return ordered.take(index).all {
+            isEnded(it.id) || it.status == OperationStatus.Unavailable
+        }
     }
 
     fun withRuntimeStatus(operations: List<AssignedOperation>): List<AssignedOperation> {
@@ -167,6 +297,7 @@ object OperationRuntimeStateHolder {
             when {
                 isInProgress(op.id) -> op.copy(status = OperationStatus.InProgress)
                 isEnded(op.id) -> op.copy(status = OperationStatus.Ended)
+                op.status == OperationStatus.Unavailable -> op
                 else -> op.copy(status = AssignmentStatusResolver.resolve(op))
             }
         }

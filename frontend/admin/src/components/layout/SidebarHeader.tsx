@@ -24,7 +24,10 @@ export function Sidebar({ items, activePath, onNavigate, onLogout }: SidebarProp
 
       <nav className="nav-list" aria-label="관리자 메뉴">
         {items.map((item) => {
-          const active = activePath === item.to || activePath.startsWith(`${item.to}/`)
+          // `/live`가 `/live/detail`에만 매칭되도록 exact 우선, 하위는 prefix
+          const active =
+            activePath === item.to ||
+            (item.to !== '/dashboard' && activePath.startsWith(`${item.to}/`))
           return (
             <button
               key={item.to}

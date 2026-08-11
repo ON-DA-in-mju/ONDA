@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createAssignment, deleteAssignment, fetchAssignments } from '../lib/assignmentsApi'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  assignDriverToOperation,
+  fetchAssignments,
+  fetchDriverOptions,
+  type DriverOption,
+} from '../lib/assignmentsApi'
 import { resolveAssignmentStatus } from '../lib/assignmentStatus'
 import { StatusBadge } from './ui/Form'
 import { SCHEDULE_ROUTE_OPTIONS } from '../data/mock'
-import { DRIVER_OPTIONS, todayDateKey, type TodayAssignment } from '../types/assignment'
+import { todayDateKey, type TodayAssignment } from '../types/assignment'
 
 const statusLabel: Record<TodayAssignment['status'], string> = {
   waiting: '운행 대기',
@@ -21,21 +26,22 @@ const statusTone: Record<TodayAssignment['status'], 'gray' | 'orange' | 'blue' |
   ended: 'gray',
 }
 
-/** 관리자 → Supabase `operations` 오늘 배차 관리 */
+/**
+ * 기사 배정 — DB에 이미 있는 배차(operations) 목록을 나열하고
+ * 오른쪽에서 기사만 선택·변경한다.
+ */
 export function TodayAssignmentsPanel() {
   const [date, setDate] = useState(todayDateKey())
   const [rows, setRows] = useState<TodayAssignment[]>([])
+  const [drivers, setDrivers] = useState<DriverOption[]>([])
   const [filterDriver, setFilterDriver] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [filterRoute, setFilterRoute] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const [driverId, setDriverId] = useState('user01')
-  const [routeName, setRouteName] = useState('기흥역 통학버스')
-  const [vehicleName, setVehicleName] = useState('2호차')
-  const [departTime, setDepartTime] = useState('15:00')
-  const [expectedEndTime, setExpectedEndTime] = useState('15:30')
-  const [origin, setOrigin] = useState('채플관 앞')
-  const [destination, setDestination] = useState('기흥역 5번 출구')
+  const loadDrivers = useCallback(async () => {
+    setDrivers(await fetchDriverOptions())
+  }, [])
 
   const load = useCallback(async () => {
     const data = await fetchAssignments({
@@ -45,66 +51,57 @@ export function TodayAssignmentsPanel() {
     setRows(data)
   }, [date, filterDriver])
 
+  const inFlightRef = useRef(false)
+
   useEffect(() => {
-    void load()
-    const timer = window.setInterval(() => void load(), 5_000)
-    return () => window.clearInterval(timer)
+    void loadDrivers()
+  }, [loadDrivers])
+
+  useEffect(() => {
+    let alive = true
+    const tick = async () => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      try {
+        if (!alive) return
+        await load()
+      } finally {
+        inFlightRef.current = false
+      }
+    }
+    void tick()
+    const timer = window.setInterval(() => void tick(), 15_000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
   }, [load])
 
-  /** 시계 진행에 따라 「곧 출발」 배지 갱신 */
+  /** 「곧 출발」 배지 갱신 */
   const [, setTick] = useState(0)
   useEffect(() => {
     const timer = window.setInterval(() => setTick((n) => n + 1), 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
-  const driverName = useMemo(
-    () => DRIVER_OPTIONS.find((d) => d.id === driverId)?.name ?? driverId,
-    [driverId],
-  )
+  const visibleRows = useMemo(() => {
+    if (!filterRoute) return rows
+    return rows.filter((r) => r.routeName === filterRoute)
+  }, [rows, filterRoute])
 
-  const onAdd = async () => {
-    setBusy(true)
+  const onAssignDriver = async (row: TodayAssignment, nextDriverId: string) => {
+    if (!nextDriverId || nextDriverId === row.driverId) return
+    setBusyId(row.id)
     setMessage(null)
-    const result = await createAssignment({
-      date,
-      driverId,
-      driverName,
-      routeName,
-      vehicleName,
-      departTime,
-      expectedEndTime,
-      origin,
-      destination,
-      round: 1,
-      status: 'scheduled',
-    })
-    setBusy(false)
+    const result = await assignDriverToOperation(row.id, nextDriverId)
+    setBusyId(null)
     if (!result.ok) {
-      setMessage(result.message || '추가 실패')
+      setMessage(result.message || '기사 배정 실패')
       return
     }
-    setMessage(`배정 추가됨 · ${driverName} (${driverId}) · ${date}`)
+    const name = drivers.find((d) => d.id === nextDriverId)?.name ?? nextDriverId
+    setMessage(`${row.departTime} ${row.routeName} · ${name} 배정됨`)
     await load()
-  }
-
-  const onDelete = async (id: string) => {
-    setBusy(true)
-    await deleteAssignment(id)
-    setBusy(false)
-    await load()
-  }
-
-  const onSave = async () => {
-    setBusy(true)
-    setMessage(null)
-    const data = await fetchAssignments({
-      date,
-      driverId: filterDriver || undefined,
-    })
-    setRows(data)
-    setBusy(false)
-    setMessage(`${date} 기사 배정이 저장되었습니다. (${data.length}건)`)
   }
 
   return (
@@ -112,28 +109,23 @@ export function TodayAssignmentsPanel() {
       <div className="card-head">
         <h3>기사 배정</h3>
         <div className="toolbar" style={{ gap: 8 }}>
-          <button className="btn btn-outline btn-xs" type="button" onClick={() => void load()} disabled={busy}>
+          <button
+            className="btn btn-outline btn-xs"
+            type="button"
+            onClick={() => void load()}
+            disabled={busyId != null}
+          >
             새로고침
-          </button>
-          <button className="btn btn-primary btn-xs" type="button" onClick={() => void onSave()} disabled={busy}>
-            저장
           </button>
         </div>
       </div>
+
+      <p className="muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 12 }}>
+        선택한 날짜의 배차 목록입니다. schedules 시간표를 날짜별 operations로 펼친 것이며, 노선·호차·시간은
+        고정이고 오른쪽에서 기사만 지정·변경합니다.
+      </p>
+
       <div className="toolbar" style={{ marginBottom: 10, flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        <select
-          className="select"
-          style={{ width: 180, height: 32 }}
-          value={filterDriver}
-          onChange={(e) => setFilterDriver(e.target.value)}
-        >
-          <option value="">전체 기사</option>
-          {DRIVER_OPTIONS.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name} ({d.id})
-            </option>
-          ))}
-        </select>
         <input
           className="input"
           type="date"
@@ -142,8 +134,37 @@ export function TodayAssignmentsPanel() {
           onChange={(e) => setDate(e.target.value || todayDateKey())}
           aria-label="배정 날짜"
         />
+        <select
+          className="select"
+          style={{ width: 180, height: 32 }}
+          value={filterRoute}
+          onChange={(e) => setFilterRoute(e.target.value)}
+          aria-label="노선 필터"
+        >
+          <option value="">노선 전체</option>
+          {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="select"
+          style={{ width: 180, height: 32 }}
+          value={filterDriver}
+          onChange={(e) => setFilterDriver(e.target.value)}
+          aria-label="기사 필터"
+        >
+          <option value="">전체 기사</option>
+          {drivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name} ({d.id})
+            </option>
+          ))}
+        </select>
         <span className="muted" style={{ fontSize: 12 }}>
-          {rows.length}건
+          {visibleRows.length}건
+          {filterRoute || filterDriver ? ` / 전체 ${rows.length}건` : ''}
         </span>
         {message ? (
           <span className="muted" style={{ fontSize: 12 }}>
@@ -152,151 +173,79 @@ export function TodayAssignmentsPanel() {
         ) : null}
       </div>
 
-      <table className="data-table dense">
-        <thead>
-          <tr>
-            <th>기사</th>
-            <th>노선</th>
-            <th>차량</th>
-            <th>출발</th>
-            <th>종료</th>
-            <th>구간</th>
-            <th>상태</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
+      <div style={{ overflowX: 'auto' }}>
+        <table className="data-table dense">
+          <thead>
             <tr>
-              <td colSpan={8} className="muted">
-                선택한 날짜에 배정이 없습니다. 아래에서 추가해 주세요.
-              </td>
+              <th style={{ width: 48 }}>#</th>
+              <th>노선</th>
+              <th>호차</th>
+              <th>출발</th>
+              <th>종료</th>
+              <th>구간</th>
+              <th>상태</th>
+              <th style={{ minWidth: 180 }}>기사</th>
             </tr>
-          ) : (
-            rows.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{row.driverName}</div>
-                  <div className="muted" style={{ fontSize: 10 }}>
-                    {row.driverId}
-                  </div>
-                </td>
-                <td>{row.routeName}</td>
-                <td>{row.vehicleName}</td>
-                <td>{row.departTime}</td>
-                <td>{row.expectedEndTime}</td>
-                <td>
-                  {row.origin} → {row.destination}
-                </td>
-                <td>
-                  {(() => {
-                    const status = resolveAssignmentStatus(row)
-                    return <StatusBadge tone={statusTone[status]}>{statusLabel[status]}</StatusBadge>
-                  })()}
-                </td>
-                <td>
-                  <button
-                    className="btn btn-outline btn-xs"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void onDelete(row.id)}
-                  >
-                    삭제
-                  </button>
+          </thead>
+          <tbody>
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="muted">
+                  선택한 날짜에 배차가 없습니다. Supabase `operations`에 해당 일자 행이 있는지 확인해 주세요.
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-
-      <div style={{ marginTop: 14, borderTop: '1px solid #e8eef7', paddingTop: 12 }}>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 8, fontWeight: 600 }}>
-          배정 추가 · {date}
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(180px, 1.1fr) minmax(200px, 1.4fr) minmax(120px, 0.8fr) 110px 110px minmax(140px, 1fr) minmax(140px, 1fr) auto',
-            gap: 8,
-            alignItems: 'center',
-          }}
-        >
-          <select className="select" style={{ width: '100%', height: 36 }} value={driverId} onChange={(e) => setDriverId(e.target.value)}>
-            {DRIVER_OPTIONS.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name} ({d.id})
-              </option>
-            ))}
-          </select>
-          <select
-            className="select"
-            style={{ width: '100%', height: 36 }}
-            value={routeName}
-            onChange={(e) => setRouteName(e.target.value)}
-          >
-            {SCHEDULE_ROUTE_OPTIONS.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="input"
-            style={{ width: '100%', height: 36 }}
-            value={vehicleName}
-            onChange={(e) => setVehicleName(e.target.value)}
-            placeholder="차량"
-          />
-          <input
-            className="input"
-            style={{ width: '100%', height: 36 }}
-            value={departTime}
-            onChange={(e) => setDepartTime(e.target.value)}
-            placeholder="출발 HH:mm"
-          />
-          <input
-            className="input"
-            style={{ width: '100%', height: 36 }}
-            value={expectedEndTime}
-            onChange={(e) => setExpectedEndTime(e.target.value)}
-            placeholder="종료 HH:mm"
-          />
-          <input
-            className="input"
-            style={{ width: '100%', height: 36 }}
-            value={origin}
-            onChange={(e) => setOrigin(e.target.value)}
-            placeholder="출발지"
-          />
-          <input
-            className="input"
-            style={{ width: '100%', height: 36 }}
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="도착지"
-          />
-          <button
-            className="btn btn-outline"
-            type="button"
-            style={{ height: 36, whiteSpace: 'nowrap' }}
-            disabled={busy}
-            onClick={() => void onAdd()}
-          >
-            배정 추가
-          </button>
-        </div>
-        <div className="toolbar" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
-          <button
-            className="btn btn-primary"
-            type="button"
-            style={{ height: 36, minWidth: 96 }}
-            disabled={busy}
-            onClick={() => void onSave()}
-          >
-            저장
-          </button>
-        </div>
+            ) : (
+              visibleRows.map((row, idx) => {
+                const status = resolveAssignmentStatus(row)
+                const assigning = busyId === row.id
+                const driverInList = drivers.some((d) => d.id === row.driverId)
+                return (
+                  <tr key={row.id}>
+                    <td>{idx + 1}</td>
+                    <td>{row.routeName}</td>
+                    <td style={{ fontWeight: 600 }}>{row.vehicleName}</td>
+                    <td style={{ fontWeight: 700 }}>{row.departTime}</td>
+                    <td>{row.expectedEndTime || '—'}</td>
+                    <td>
+                      {row.origin && row.destination
+                        ? `${row.origin} → ${row.destination}`
+                        : '—'}
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone[status]}>{statusLabel[status]}</StatusBadge>
+                    </td>
+                    <td>
+                      <select
+                        className="select"
+                        style={{ width: '100%', minWidth: 160, height: 32 }}
+                        value={row.driverId}
+                        disabled={assigning || status === 'in_progress' || status === 'ended'}
+                        onChange={(e) => void onAssignDriver(row, e.target.value)}
+                        aria-label={`${row.routeName} ${row.departTime} 기사 선택`}
+                      >
+                        {!driverInList && row.driverId ? (
+                          <option value={row.driverId}>
+                            {row.driverName || row.driverId} ({row.driverId})
+                          </option>
+                        ) : null}
+                        {drivers.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({d.id})
+                          </option>
+                        ))}
+                      </select>
+                      {assigning ? (
+                        <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>
+                          저장 중…
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   )

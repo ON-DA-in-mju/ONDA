@@ -38,10 +38,10 @@ class AdminForceEndViewModel : ViewModel() {
 
     fun load(operationId: String) {
         this.operationId = operationId
-        OperationRuntimeStateHolder.endOperation(operationId)
+        OperationRuntimeStateHolder.endOperationLocally(operationId)
         HistoryRuntimeStateHolder.recordAdminEnd(operationId)
         _uiState.value = AdminForceEndUiState(
-            info = MockAdminForceEnd.forOperationId(operationId),
+            info = MockAdminForceEnd.forOperationId(operationId).copy(reason = "관리자 운행 중단"),
         )
     }
 

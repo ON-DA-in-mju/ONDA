@@ -52,7 +52,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mju.onda.driver.R
 import com.mju.onda.driver.core.theme.OndaColors
 import com.mju.onda.driver.core.theme.OndaTypography
-import com.mju.onda.driver.core.ui.components.OndaPrimaryButton
 import com.mju.onda.driver.core.ui.components.OndaTopBar
 import com.mju.onda.driver.feature.settings.data.AccountInfo
 import com.mju.onda.driver.feature.settings.data.MockAccountInfo
@@ -66,7 +65,6 @@ private val IconSoftBg = Color(0xFFEDF4FE)
 fun AccountInfoScreen(
     onBack: () -> Unit,
     onGoToSettings: () -> Unit,
-    onOpenEdit: () -> Unit,
     viewModel: AccountInfoViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,7 +85,6 @@ fun AccountInfoScreen(
             when (event) {
                 AccountInfoEvent.NavigateBack -> onBack()
                 AccountInfoEvent.GoToSettings -> onGoToSettings()
-                AccountInfoEvent.OpenEdit -> onOpenEdit()
             }
         }
     }
@@ -137,16 +134,6 @@ fun AccountInfoScreen(
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
-
-                OndaPrimaryButton(
-                    label = MockAccountInfo.EDIT_LABEL,
-                    onClick = viewModel::onEdit,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    height = 48.dp,
-                    fontSize = 15.sp,
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedButton(
                     onClick = viewModel::onGoToSettings,
@@ -235,8 +222,6 @@ private fun AccountInfoCard(
         InfoRow(label = info.driverIdLabel, value = info.driverId, valueFontSize = 17.sp)
         HorizontalDivider(color = OndaColors.Border)
         InfoRow(label = info.orgLabel, value = info.organization)
-        HorizontalDivider(color = OndaColors.Border)
-        InfoRow(label = info.vehicleLabel, value = info.vehicleName)
         HorizontalDivider(color = OndaColors.Border)
         InfoRow(label = info.contactLabel, value = info.contactStatus)
     }

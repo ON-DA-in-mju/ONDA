@@ -104,11 +104,64 @@ object SafeStopHistoryHolder {
         persist()
     }
 
-    /**
-     * 관리자 API 결정(continue/stop)을 로컬 이력에 반영한다.
-     * Pending 항목만 Confirmed로 올리며, 이미 조치 완료된 항목은 건드리지 않는다.
-     * @return 새로 반영된 건수
-     */
+    /** 서버가 발급한 uuid로 로컬 이력 id를 맞춘다 (폴링·취소 연동용) */
+    fun remapId(oldId: String, newId: String) {
+        if (oldId == newId || newId.isBlank()) return
+        val index = items.indexOfFirst { it.id == oldId }
+        if (index < 0) return
+        items[index] = items[index].copy(id = newId)
+        if (selectedId == oldId) selectedId = newId
+        persist()
+    }
+
+    /** DB 조회 결과를 로컬 이력에 병합 */
+    fun mergeRemote(remote: List<SafeStopApi.RemoteRequest>) {
+        var changed = 0
+        for (r in remote) {
+            val index = items.indexOfFirst { it.id == r.id }
+            val status = when (r.decision) {
+                "continue" -> SafeStopReviewStatus.Confirmed to SafeStopOutcome.ContinueOperation
+                "stop" -> SafeStopReviewStatus.Confirmed to SafeStopOutcome.Approved
+                "cancelled" -> SafeStopReviewStatus.Cancelled to null
+                else -> SafeStopReviewStatus.Pending to null
+            }
+            if (index < 0) {
+                val dateLabel = if (r.date.length >= 10 && r.date[4] == '-') {
+                    val p = r.date.split("-")
+                    "${p[1].toInt()}월 ${p[2].toInt()}일"
+                } else {
+                    MockSafeStopHistory.TODAY_DATE_LABEL
+                }
+                items.add(
+                    SafeStopHistoryItem(
+                        id = r.id,
+                        reason = r.reason.ifBlank { "안전 정차 요청" },
+                        requestedAt = r.requestedAt.ifBlank { "--:--" },
+                        routeName = r.routeName,
+                        vehicleName = r.vehicleName,
+                        dateLabel = dateLabel,
+                        reviewStatus = status.first,
+                        outcome = status.second,
+                    ),
+                )
+                changed++
+            } else if (items[index].reviewStatus == SafeStopReviewStatus.Pending &&
+                status.first != SafeStopReviewStatus.Pending
+            ) {
+                val cur = items[index]
+                items[index] = cur.copy(
+                    reviewStatus = status.first,
+                    outcome = status.second,
+                    reason = r.reason.ifBlank { cur.reason },
+                    routeName = r.routeName.ifBlank { cur.routeName },
+                    vehicleName = r.vehicleName.ifBlank { cur.vehicleName },
+                )
+                changed++
+            }
+        }
+        if (changed > 0) persist()
+    }
+
     /**
      * 관리자/원격 결정 반영.
      * @param remoteById id → "continue" | "stop" | "cancelled"

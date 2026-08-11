@@ -1,14 +1,40 @@
 package com.mju.onda.driver.core.navigation
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.mju.onda.driver.feature.adminforceend.data.AdminForceEndPoller
 import com.mju.onda.driver.feature.adminforceend.ui.AdminForceEndScreen
 import com.mju.onda.driver.feature.alarm.ui.OperationAlarmListScreen
 import com.mju.onda.driver.feature.assignment.ui.AssignmentChangeScreen
@@ -28,14 +54,13 @@ import com.mju.onda.driver.feature.history.ui.OperationHistoryScreen
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.home.ui.TodayOperationHomeScreen
 import com.mju.onda.driver.feature.inoperation.ui.InOperationDetailStatusScreen
-import com.mju.onda.driver.feature.inoperation.ui.InOperationMinimalScreen
+import com.mju.onda.driver.feature.inoperation.ui.StopRouteProgressScreen
 import com.mju.onda.driver.feature.operation.ui.OperationDetailScreen
 import com.mju.onda.driver.feature.permission.ui.PermissionCompleteScreen
 import com.mju.onda.driver.feature.permission.ui.PermissionGuideScreen
 import com.mju.onda.driver.feature.precheck.ui.PreCheckCompleteScreen
 import com.mju.onda.driver.feature.precheck.ui.PreOperationCheckScreen
 import com.mju.onda.driver.feature.recovery.ui.OperationRecoveryScreen
-import com.mju.onda.driver.feature.settings.ui.AccountEditScreen
 import com.mju.onda.driver.feature.settings.ui.AlarmSettingsScreen
 import com.mju.onda.driver.feature.settings.ui.DevicePermissionScreen
 import com.mju.onda.driver.feature.settings.ui.ContactAdminScreen
@@ -59,13 +84,22 @@ import com.mju.onda.driver.feature.startcomplete.ui.StartCompleteScreen
 import com.mju.onda.driver.feature.startconfirm.ui.StartConfirmScreen
 import com.mju.onda.driver.feature.startprocessing.ui.StartProcessingScreen
 import com.mju.onda.driver.feature.vehicle.ui.VehicleChangeScreen
+import kotlinx.coroutines.delay
 
-/** 메인은 항상 오늘의 운행 홈 (운행 복구 화면은 연결 해제) */
+/** 메인은 항상 오늘의 운행 홈. 운행 복구는 화면 꺼짐→켜짐 시에만 표시. */
 private fun NavHostController.navigateToDriverHome(clearLoginStack: Boolean = true) {
     navigate(Routes.TODAY_OPERATION) {
         if (clearLoginStack) {
             popUpTo(Routes.LOGIN) { inclusive = true }
         }
+        launchSingleTop = true
+    }
+}
+
+/** 운행 중 화면 = 상세 상태 (최소 화면 제거) */
+private fun NavHostController.navigateToInOperation(operationId: String) {
+    navigate(Routes.inOperationDetailStatus(operationId)) {
+        popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
         launchSingleTop = true
     }
 }
@@ -83,11 +117,86 @@ private fun NavHostController.navigateToLoginAfterLogout() {
     }
 }
 
+private fun NavHostController.navigateToOperationRecoveryIfNeeded() {
+    val route = currentDestination?.route
+    if (route == Routes.OPERATION_RECOVERY) return
+    if (!OperationRuntimeStateHolder.hasActiveOperation()) return
+    navigate(Routes.OPERATION_RECOVERY) {
+        launchSingleTop = true
+    }
+}
+
 @Composable
 fun OndaNavHost() {
     val navController = rememberNavController()
     val context = LocalContext.current
 
+    var forceEndOpId by remember { mutableStateOf<String?>(null) }
+    var forceEndSeconds by remember { mutableIntStateOf(5) }
+
+    LaunchedEffect(Unit) {
+        AdminForceEndPoller.pending.collect { pending ->
+            if (forceEndOpId == null) {
+                forceEndOpId = pending.operationId
+                forceEndSeconds = 5
+                Toast.makeText(
+                    context,
+                    "관리자에 의해 운행이 곧 종료됩니다.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    LaunchedEffect(forceEndOpId) {
+        val opId = forceEndOpId ?: return@LaunchedEffect
+        forceEndSeconds = 5
+        while (forceEndSeconds > 0) {
+            delay(1_000)
+            forceEndSeconds -= 1
+        }
+        navController.navigate(Routes.adminForceEnd(opId)) {
+            launchSingleTop = true
+        }
+        forceEndOpId = null
+    }
+
+    // 운행 중 화면이 꺼졌다가 다시 켜지면 운행 복구 화면 표시
+    DisposableEffect(navController) {
+        var sawScreenOffWhileOperating = false
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_OFF -> {
+                        if (OperationRuntimeStateHolder.hasActiveOperation()) {
+                            sawScreenOffWhileOperating = true
+                        }
+                    }
+                    Intent.ACTION_SCREEN_ON -> {
+                        if (sawScreenOffWhileOperating) {
+                            sawScreenOffWhileOperating = false
+                            navController.navigateToOperationRecoveryIfNeeded()
+                        }
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED,
+        )
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
@@ -174,9 +283,9 @@ fun OndaNavHost() {
                 onOpenOperationDetail = { operationId ->
                     navController.navigate(Routes.operationDetail(operationId))
                 },
-                onOpenInOperation = { _ ->
-                    // 운행 중 배차 → 운행 복구 (DRI-01-03F)
-                    navController.navigate(Routes.OPERATION_RECOVERY)
+                onOpenInOperation = { operationId ->
+                    // 운행 중 배차 → 상세 상태 (복구는 화면 꺼짐→켜짐 시에만)
+                    navController.navigateToInOperation(operationId)
                 },
                 onOpenHistory = {
                     navController.navigate(Routes.OPERATION_HISTORY) {
@@ -184,9 +293,6 @@ fun OndaNavHost() {
                     }
                 },
                 onOpenSettings = { navController.navigateToSettings() },
-                onResetToLogin = {
-                    navController.navigateToLoginAfterLogout()
-                },
             )
         }
 
@@ -246,13 +352,18 @@ fun OndaNavHost() {
             LogoutRestrictedScreen(
                 onBack = { navController.popBackStack() },
                 onGoToOperation = { operationId ->
-                    navController.navigate(Routes.inOperationMinimal(operationId)) {
+                    navController.navigate(Routes.inOperationDetailStatus(operationId)) {
                         popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
                         launchSingleTop = true
                     }
                 },
                 onContactAdmin = {
                     navController.navigate(Routes.CONTACT_ADMIN)
+                },
+                onClearedStaleForLogout = {
+                    navController.navigate(Routes.LOGOUT_CONFIRM) {
+                        popUpTo(Routes.LOGOUT_RESTRICTED) { inclusive = true }
+                    }
                 },
             )
         }
@@ -285,16 +396,6 @@ fun OndaNavHost() {
                         }
                     }
                 },
-                onOpenEdit = {
-                    navController.navigate(Routes.ACCOUNT_EDIT)
-                },
-            )
-        }
-
-        composable(Routes.ACCOUNT_EDIT) {
-            AccountEditScreen(
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() },
             )
         }
 
@@ -337,7 +438,7 @@ fun OndaNavHost() {
                 },
                 onReturnToOperation = { operationId ->
                     if (operationId != null) {
-                        navController.navigate(Routes.inOperationMinimal(operationId)) {
+                        navController.navigate(Routes.inOperationDetailStatus(operationId)) {
                             popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
                             launchSingleTop = true
                         }
@@ -477,7 +578,7 @@ fun OndaNavHost() {
                 onContinue = {
                     val operationId = OperationRuntimeStateHolder.activeOperationId()
                     if (operationId != null) {
-                        navController.navigate(Routes.inOperationMinimal(operationId)) {
+                        navController.navigate(Routes.inOperationDetailStatus(operationId)) {
                             popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
                             launchSingleTop = true
                         }
@@ -583,34 +684,7 @@ fun OndaNavHost() {
                 onGoToOperation = {
                     val operationId = OperationRuntimeStateHolder.activeOperationId()
                         ?: OperationRuntimeStateHolder.resolveFocusedOperationId()
-                    navController.navigate(Routes.inOperationMinimal(operationId)) {
-                        popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
-                    }
-                },
-            )
-        }
-
-        composable(
-            route = Routes.IN_OPERATION_MINIMAL,
-            arguments = listOf(
-                navArgument("operationId") { type = NavType.StringType },
-            ),
-        ) { entry ->
-            val operationId = entry.arguments?.getString("operationId").orEmpty()
-            InOperationMinimalScreen(
-                operationId = operationId,
-                onBack = { navController.popBackStack() },
-                onHome = {
-                    navController.navigate(Routes.TODAY_OPERATION) {
-                        popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
-                        launchSingleTop = true
-                    }
-                },
-                onOpenDetailStatus = {
-                    navController.navigate(Routes.inOperationDetailStatus(operationId))
-                },
-                onEndOperation = {
-                    navController.navigate(Routes.endOperationConfirm(operationId))
+                    navController.navigateToInOperation(operationId)
                 },
             )
         }
@@ -637,6 +711,22 @@ fun OndaNavHost() {
                 onSuspendRequest = {
                     navController.navigate(Routes.SAFE_STOP_CONFIRM)
                 },
+                onOpenStopRoute = {
+                    navController.navigate(Routes.stopRouteProgress(operationId))
+                },
+            )
+        }
+
+        composable(
+            route = Routes.STOP_ROUTE_PROGRESS,
+            arguments = listOf(
+                navArgument("operationId") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            val operationId = entry.arguments?.getString("operationId").orEmpty()
+            StopRouteProgressScreen(
+                operationId = operationId,
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -669,7 +759,7 @@ fun OndaNavHost() {
                 operationId = operationId,
                 onBack = { navController.popBackStack() },
                 onContinue = {
-                    navController.navigate(Routes.inOperationMinimal(operationId)) {
+                    navController.navigate(Routes.inOperationDetailStatus(operationId)) {
                         popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
                         launchSingleTop = true
                     }
@@ -741,7 +831,7 @@ fun OndaNavHost() {
             )
         }
 
-        // DRI-01-03F: 홈에서 운행 중 배차 탭 시 진입
+        // 화면 꺼짐→켜짐 시에만 진입 (홈 탭에서는 상세 상태로 직행)
         composable(Routes.OPERATION_RECOVERY) {
             OperationRecoveryScreen(
                 onBack = {
@@ -752,8 +842,7 @@ fun OndaNavHost() {
                     }
                 },
                 onGoToOperation = { operationId ->
-                    // 운행 화면으로 이동 → DRI-01-03D 운행 중 최소
-                    navController.navigate(Routes.inOperationMinimal(operationId))
+                    navController.navigateToInOperation(operationId)
                 },
                 onGoToToday = {
                     if (!navController.popBackStack(Routes.TODAY_OPERATION, inclusive = false)) {
@@ -867,6 +956,38 @@ fun OndaNavHost() {
                         navController.navigate(Routes.OPERATION_ALARMS) {
                             launchSingleTop = true
                         }
+                    }
+                },
+            )
+        }
+    }
+
+        if (forceEndOpId != null) {
+            AlertDialog(
+                onDismissRequest = { /* 강제 종료 카운트다운은 닫을 수 없음 */ },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                ),
+                title = {
+                    Text(
+                        text = "운행이 곧 종료됩니다",
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "관리자에 의해 운행이 종료됩니다.\n${forceEndSeconds}초 후 자동으로 중단됩니다.",
+                            textAlign = TextAlign.Center,
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { /* no-op */ }, enabled = false) {
+                        Text("${forceEndSeconds}초")
                     }
                 },
             )

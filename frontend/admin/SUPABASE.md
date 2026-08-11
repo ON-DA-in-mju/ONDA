@@ -8,6 +8,16 @@
 ```env
 VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_...   # 또는 eyJ... anon JWT
+
+# 네이버 지도 (대시보드 / 실시간 운행)
+# 네이버 클라우드 콘솔 → Maps → Web Dynamic Map 인증키
+VITE_NAVER_MAP_CLIENT_ID=YOUR_NAVER_MAP_KEY
+# 신규 콘솔: ncpKeyId (기본) / 구 콘솔: ncpClientId
+# VITE_NAVER_MAP_KEY_PARAM=ncpKeyId
+# 웹 서비스 URL 예: http://localhost:5173
+
+# 자동차 길찾기(Directions 5) — Vite 서버 전용 (브라우저에 노출되지 않음)
+# NAVER_MAP_CLIENT_SECRET=YOUR_CLIENT_SECRET
 ```
 
 ※ `service_role` 키는 프론트에 넣지 마세요.

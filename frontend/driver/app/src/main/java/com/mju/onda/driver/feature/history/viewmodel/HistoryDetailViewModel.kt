@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.history.data.HistoryDetailInfo
+import com.mju.onda.driver.feature.history.data.HistoryOperationsApi
+import com.mju.onda.driver.feature.history.data.HistoryRecord
 import com.mju.onda.driver.feature.history.data.MockHistoryDetail
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +38,16 @@ class HistoryDetailViewModel(
 
     private val _events = MutableSharedFlow<HistoryDetailEvent>()
     val events: SharedFlow<HistoryDetailEvent> = _events.asSharedFlow()
+
+    init {
+        // DB 기반 이력이면 origin/destination/scheduledDepart 등은 우선 임시값(placeholder)으로 렌더링한다.
+        viewModelScope.launch {
+            val record: HistoryRecord? = HistoryOperationsApi.fetchHistoryDetailById(recordId)
+            if (record != null) {
+                _uiState.value = _uiState.value.copy(detail = MockHistoryDetail.fromRecord(record))
+            }
+        }
+    }
 
     fun onBack() {
         viewModelScope.launch { _events.emit(HistoryDetailEvent.NavigateBack) }

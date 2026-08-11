@@ -1,11 +1,51 @@
 import { isSupabaseConfigured, supabase } from './supabase'
 import { expandScheduleRows, MJU_ROUTES } from '../data/mjuTimetable'
+import { OPERATIONAL_ROUTE_NAMES, VARIANT_ROUTE_DEFS } from './routeVariants'
+import {
+  CITY_SHUTTLE_ROUTE_NAME,
+  CITY_SHUTTLE_VACATION_ROUTE_NAME,
+  MYONGJI_STATION_AFTER18_ROUTE_NAME,
+  MYONGJI_STATION_ROUTE_NAME,
+} from '../data/cityShuttleStops'
 import type { Database, SemesterType, Weekday } from '../types/database'
 
 type RouteRow = Database['public']['Tables']['routes']['Row']
 type ScheduleRow = Database['public']['Tables']['schedules']['Row']
 
-const TARGET_NAMES = MJU_ROUTES.map((r) => r.name)
+const TARGET_NAMES = [...OPERATIONAL_ROUTE_NAMES]
+const BASE_AND_VARIANT_DEFS = [
+  ...MJU_ROUTES.map((r) => ({
+    name: r.name,
+    direction: r.direction,
+    description: r.description,
+    start_location: r.start_location,
+    end_location: r.end_location,
+  })),
+  ...VARIANT_ROUTE_DEFS.map((r) => ({
+    name: r.name,
+    direction: r.direction,
+    description: r.description,
+    start_location: r.start_location,
+    end_location: r.end_location,
+  })),
+]
+
+/** UI에서 기본 노선 선택 시 변형 노선도 함께 조회 */
+export function routeNamesForFilter(routeName?: string): string[] {
+  if (!routeName) return [...TARGET_NAMES]
+  if (routeName === MYONGJI_STATION_ROUTE_NAME) {
+    return [MYONGJI_STATION_ROUTE_NAME, MYONGJI_STATION_AFTER18_ROUTE_NAME]
+  }
+  if (routeName === CITY_SHUTTLE_ROUTE_NAME) {
+    return [CITY_SHUTTLE_ROUTE_NAME, CITY_SHUTTLE_VACATION_ROUTE_NAME]
+  }
+  return [routeName]
+}
+
+export function routeMatchesFilter(actualName: string | null | undefined, filterName: string): boolean {
+  if (!actualName) return false
+  return routeNamesForFilter(filterName).includes(actualName)
+}
 
 export type ScheduleWithRoute = ScheduleRow & {
   routes: Pick<RouteRow, 'id' | 'route_name' | 'direction' | 'description' | 'is_active' | 'start_location' | 'end_location'> | null
@@ -22,7 +62,7 @@ export async function fetchSchedulesWithRoutes(params?: {
   const { data: routeRows, error: routeErr } = await supabase
     .from('routes')
     .select('id, route_name')
-    .in('route_name', params?.routeName ? [params.routeName] : [...TARGET_NAMES])
+    .in('route_name', routeNamesForFilter(params?.routeName))
 
   if (routeErr) {
     console.error('[routes]', routeErr.message)
@@ -66,8 +106,8 @@ export async function seedMjuTimetableToDb(): Promise<{ ok: boolean; message: st
     return { ok: false, message: '로그인이 필요합니다. ADMIN 계정으로 로그인한 뒤 다시 시도하세요.' }
   }
 
-  // 1) routes upsert by name
-  for (const r of MJU_ROUTES) {
+  // 1) routes upsert by name (기본 3 + 변형 2)
+  for (const r of BASE_AND_VARIANT_DEFS) {
     const { data: existing, error: findErr } = await supabase
       .from('routes')
       .select('id')

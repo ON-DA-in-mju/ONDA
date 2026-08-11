@@ -72,6 +72,7 @@ fun InOperationDetailStatusScreen(
     onHome: () -> Unit = {},
     onEndOperation: () -> Unit = {},
     onSuspendRequest: () -> Unit = {},
+    onOpenStopRoute: () -> Unit = {},
     viewModel: InOperationDetailStatusViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,6 +88,7 @@ fun InOperationDetailStatusScreen(
                 InOperationDetailStatusEvent.GoHome -> onHome()
                 InOperationDetailStatusEvent.EndOperation -> onEndOperation()
                 InOperationDetailStatusEvent.SuspendRequest -> onSuspendRequest()
+                InOperationDetailStatusEvent.OpenStopRoute -> onOpenStopRoute()
             }
         }
     }
@@ -138,6 +140,12 @@ fun InOperationDetailStatusScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 SafetyCard()
                 Spacer(modifier = Modifier.height(20.dp))
+                OndaOutlinedButton(
+                    label = MockInOperationDetailStatus.STOP_ROUTE_LABEL,
+                    onClick = viewModel::onOpenStopRoute,
+                    height = 48.dp,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 OndaPrimaryButton(
                     label = MockInOperationDetailStatus.END_OPERATION_LABEL,
                     onClick = viewModel::onEndOperation,

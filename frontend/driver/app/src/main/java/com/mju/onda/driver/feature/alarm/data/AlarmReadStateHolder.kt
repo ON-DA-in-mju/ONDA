@@ -31,35 +31,9 @@ object AlarmReadStateHolder {
 
 
     fun bindUser() {
-
         prefs = UserScopedPrefs.get(PREFS)
-
         readIds.clear()
-
-        val initialized = prefs?.getBoolean(KEY_INITIALIZED, false) == true
-
-        if (initialized) {
-
-            readIds += prefs?.getStringSet(KEY_READ_IDS, emptySet()).orEmpty()
-
-        } else {
-
-            readIds += MockOperationAlarms.seedItems
-
-                .filter { !it.isUnread }
-
-                .map { it.id }
-
-            prefs?.edit()
-
-                ?.putBoolean(KEY_INITIALIZED, true)
-
-                ?.putStringSet(KEY_READ_IDS, readIds.toSet())
-
-                ?.apply()
-
-        }
-
+        readIds += prefs?.getStringSet(KEY_READ_IDS, emptySet()).orEmpty()
     }
 
 
@@ -87,14 +61,10 @@ object AlarmReadStateHolder {
 
 
     fun isUnread(alarmId: String): Boolean = alarmId !in readIds &&
-
-        MockOperationAlarms.seedItems.any { it.id == alarmId }
-
-
+        LocalAlarmStore.getAll().any { it.id == alarmId }
 
     fun unreadCount(): Int =
-
-        MockOperationAlarms.seedItems.count { it.id !in readIds }
+        LocalAlarmStore.getAll().count { it.id !in readIds }
 
 
 
@@ -103,23 +73,8 @@ object AlarmReadStateHolder {
 
 
     fun clearAll() {
-
         readIds.clear()
-
-        readIds += MockOperationAlarms.seedItems
-
-            .filter { !it.isUnread }
-
-            .map { it.id }
-
-        prefs?.edit()
-
-            ?.putBoolean(KEY_INITIALIZED, true)
-
-            ?.putStringSet(KEY_READ_IDS, readIds.toSet())
-
-            ?.apply()
-
+        prefs?.edit()?.putStringSet(KEY_READ_IDS, emptySet())?.apply()
     }
 
 
