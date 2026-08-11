@@ -119,18 +119,36 @@ class StopRequestConfirmViewModel : ViewModel() {
             SafeStopHistoryHolder.select(requestId)
 
             if (driverId.isNotBlank()) {
-                SafeStopApi.postRequest(
-                    id = requestId,
-                    driverId = driverId,
-                    driverName = driverName.ifBlank { driverId },
-                    vehicleName = vehicleName.ifBlank { "미정" },
-                    routeName = routeName.ifBlank { "-" },
-                    operationId = operationId,
-                    reason = reason,
-                    detailReason = detailReason,
-                    requestedAt = requestedAt,
-                    date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
-                )
+                when (
+                    val posted = SafeStopApi.postRequest(
+                        id = requestId,
+                        driverId = driverId,
+                        driverName = driverName.ifBlank { driverId },
+                        vehicleName = vehicleName.ifBlank { "미정" },
+                        routeName = routeName.ifBlank { "-" },
+                        operationId = operationId,
+                        reason = reason,
+                        detailReason = detailReason,
+                        requestedAt = requestedAt,
+                        date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
+                    )
+                ) {
+                    is SafeStopApi.PostResult.Ok -> {
+                        val serverId = posted.id
+                        if (serverId != requestId) {
+                            SafeStopHistoryHolder.remapId(requestId, serverId)
+                            StopRequestReceivedHolder.set(
+                                StopRequestReceivedInfo(
+                                    requestId = serverId,
+                                    reason = reason,
+                                    requestedAt = requestedAt,
+                                ),
+                            )
+                            SafeStopHistoryHolder.select(serverId)
+                        }
+                    }
+                    SafeStopApi.PostResult.Failed -> Unit
+                }
             }
 
             StopRequestDraftHolder.clear()

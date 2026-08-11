@@ -31,6 +31,8 @@ export function NotificationsPage() {
 
   const onOpen = async (item: AdminNotification) => {
     if (!item.read) await markNotificationRead(item.id)
+    // 종 뱃지 즉시 반영을 위해 목록 다시 로드 (AdminLayout은 3초 폴링)
+    await load()
     navigate(item.href || '/live/suspend')
   }
 

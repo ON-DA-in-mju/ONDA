@@ -113,22 +113,9 @@ object MockHistoryDetail {
                 return TripMeta(op.departTime, op.origin, op.destination)
             }
         }
-        return when {
-            record.routeName.contains("수원") ->
-                TripMeta("08:40", "제2공학관", "수원역 로데오거리")
-            record.routeName.contains("영통") ->
-                TripMeta("11:10", "자연캠퍼스", "영통역 8번 출구")
-            record.routeName.contains("보정") ->
-                TripMeta("14:20", "채플관 앞", "보정역")
-            record.routeName.contains("기흥") ->
-                TripMeta("09:05", "채플관 앞", "기흥역 5번 출구")
-            record.routeName.contains("명지") ->
-                TripMeta("10:00", "자연캠퍼스", "명지대역")
-            record.routeName.contains("시내") ->
-                TripMeta("14:00", "채플관 앞", "용인시청")
-            else ->
-                TripMeta(record.actualDepart, "-", "-")
-        }
+        // DB 기반 상세에서는 origin/destination/scheduledDepart를 우선 placeholder로 표시한다.
+        // 목록 화면(완료 운행 표시) 우선 완성 후, 필요 시 추가 컬럼/조인을 통해 고도화할 수 있다.
+        return TripMeta("-", "-", "-")
     }
 
     private fun defaultRecord(): HistoryRecord =

@@ -1,62 +1,166 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
-import mapImg from '../assets/map.png'
-import { fetchLiveVehicles, type LiveSnapshot, type LiveVehicle } from '../lib/liveApi'
+import {
+  fetchLiveVehiclesList,
+  enrichLiveVehiclesGps,
+  applyLocationPatch,
+  subscribeLiveUpdates,
+  type LiveSnapshot,
+  type LiveVehicle,
+} from '../lib/liveApi'
 import {
   decideSafeStop,
   fetchSafeStopRequests,
   type SafeStopRequest,
 } from '../lib/safeStopApi'
-import { SCHEDULE_ROUTE_OPTIONS } from '../data/mock'
+import { markNotificationRead } from '../lib/adminNotificationsApi'
+import { LiveVehiclesMap } from '../components/LiveVehiclesMap'
+import { LIVE_MAP_ROUTES } from '../data/cityShuttleStops'
 import { StatusBadge } from '../components/ui/Form'
+
+/** "명지대역 셔틀 (18시 이후)" → base + suffix 두 줄 표시용 */
+function splitRouteName(routeName: string): { base: string; suffix: string | null } {
+  const m = routeName.trim().match(/^(.*?)\s*(\([^)]+\))\s*$/)
+  if (!m) return { base: routeName, suffix: null }
+  return { base: m[1].trim() || routeName, suffix: m[2] }
+}
+
+function RouteNameCell({ name }: { name: string }) {
+  const { base, suffix } = splitRouteName(name)
+  if (!suffix) return <>{base || '-'}</>
+  return (
+    <span className="live-route-name">
+      <span className="live-route-name-base">{base}</span>
+      <span className="live-route-name-suffix">{suffix}</span>
+    </span>
+  )
+}
+
+const LIVE_ROUTE_FILTER_OPTIONS = LIVE_MAP_ROUTES.map((r) => r.name)
 
 const empty: LiveSnapshot = {
   vehicles: [],
   stats: { ok: 0, none: 0, error: 0, total: 0, rate: 0, inProgress: 0, ended: 0, idle: 0, stopped: 0 },
 }
 
-const LIVE_POLL_MS = 5_000
+const LIVE_POLL_MS = 30_000
+const LIVE_LIST_PAGE_SIZE = 7
+/** 페이지 번호 버튼에 한 번에 보이는 개수 */
+const LIVE_PAGE_WINDOW = 10
 
 function formatClock(d: Date) {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
+function liveFingerprint(data: LiveSnapshot): string {
+  const s = data.stats
+  return [
+    s.total,
+    s.inProgress,
+    s.idle,
+    s.ended,
+    s.stopped ?? 0,
+    s.ok,
+    s.none,
+    s.error,
+    data.vehicles.length,
+    // updatedAt/last 는 시간이 지나며 바뀌므로 제외 — 매 폴링 전체 리렌더 방지
+    data.vehicles
+      .map(
+        (v) =>
+          `${v.id}:${v.status}:${v.gpsKind}:${v.lat ?? ''}:${v.lng ?? ''}:${v.routeName}`,
+      )
+      .join('|'),
+  ].join('~')
+}
+
 function useLiveSnapshot(pollMs = LIVE_POLL_MS) {
   const [snapshot, setSnapshot] = useState<LiveSnapshot>(empty)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const fingerprintRef = useRef('')
+  /** Strict Mode remount / 연속 요청 시 최신 결과만 반영 */
+  const requestIdRef = useRef(0)
 
   const applySnapshot = useCallback((data: LiveSnapshot) => {
-    setSnapshot(data)
+    const next = liveFingerprint(data)
+    if (fingerprintRef.current !== next) {
+      fingerprintRef.current = next
+      setSnapshot(data)
+    }
     setLastUpdatedAt(new Date())
   }, [])
+
+  const loadListThenGps = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+    // 1) 목록·비율은 operations만으로 즉시
+    const list = await fetchLiveVehiclesList()
+    if (requestId !== requestIdRef.current) return
+    applySnapshot(list)
+    // 2) GPS는 이후에 붙임 (지도 마커) — 목록 표시를 막지 않음
+    const enriched = await enrichLiveVehiclesGps(list)
+    if (requestId !== requestIdRef.current) return
+    applySnapshot(enriched)
+  }, [applySnapshot])
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      const data = await fetchLiveVehicles()
-      applySnapshot(data)
+      await loadListThenGps()
     } finally {
       setRefreshing(false)
     }
-  }, [applySnapshot])
+  }, [loadListThenGps])
 
   useEffect(() => {
     let alive = true
+    let statusDebounce: number | null = null
+
     const load = async () => {
-      const data = await fetchLiveVehicles()
       if (!alive) return
-      applySnapshot(data)
+      try {
+        await loadListThenGps()
+      } catch (e) {
+        console.warn('[live] load', e)
+      }
     }
+
     void load()
-    const timer = window.setInterval(load, pollMs)
+
+    const unsub = subscribeLiveUpdates({
+      onLocation: (row) => {
+        if (!alive) return
+        setSnapshot((prev) => {
+          const next = applyLocationPatch(prev, row)
+          if (next === prev) return prev
+          fingerprintRef.current = liveFingerprint(next)
+          return next
+        })
+        setLastUpdatedAt(new Date())
+      },
+      onOperationChange: () => {
+        if (statusDebounce != null) window.clearTimeout(statusDebounce)
+        statusDebounce = window.setTimeout(() => {
+          void load()
+        }, 700)
+      },
+    })
+
+    const timer = window.setInterval(() => {
+      void load()
+    }, pollMs)
+
     return () => {
       alive = false
+      // 진행 중 요청 무효화 — Strict Mode에서 첫 요청이 두 번째 mount를 막지 않음
+      requestIdRef.current += 1
+      unsub()
       window.clearInterval(timer)
+      if (statusDebounce != null) window.clearTimeout(statusDebounce)
     }
-  }, [pollMs, applySnapshot])
+  }, [pollMs, loadListThenGps])
 
   return { snapshot, lastUpdatedAt, refresh, refreshing }
 }
@@ -66,6 +170,9 @@ export function LivePage() {
   const [routeFilter, setRouteFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [query, setQuery] = useState('')
+  const [listPage, setListPage] = useState(1)
+  /** 목록에서 선택한 차량 — 지도에 해당 노선만 표시 (재클릭 시 해제) */
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null)
 
   const vehicles = useMemo(() => {
     return snapshot.vehicles.filter((row) => {
@@ -80,8 +187,86 @@ export function LivePage() {
     })
   }, [snapshot.vehicles, routeFilter, statusFilter, query])
 
+  const selectedVehicle = useMemo(
+    () => (selectedVehicleId ? vehicles.find((v) => v.id === selectedVehicleId) ?? null : null),
+    [vehicles, selectedVehicleId],
+  )
+
+  useEffect(() => {
+    if (selectedVehicleId && !vehicles.some((v) => v.id === selectedVehicleId)) {
+      setSelectedVehicleId(null)
+    }
+  }, [vehicles, selectedVehicleId])
+
+  const mapRoutes = useMemo(() => {
+    if (!selectedVehicle?.routeName) return LIVE_MAP_ROUTES
+    const matched = LIVE_MAP_ROUTES.filter((r) => r.name === selectedVehicle.routeName)
+    return matched.length ? matched : LIVE_MAP_ROUTES
+  }, [selectedVehicle])
+
+  const mapVehicles = useMemo(() => {
+    if (!selectedVehicle) return vehicles
+    return vehicles.filter((v) => v.id === selectedVehicle.id)
+  }, [vehicles, selectedVehicle])
+
+  const toggleVehicleSelect = useCallback((id: string) => {
+    setSelectedVehicleId((prev) => (prev === id ? null : id))
+  }, [])
+
+  const listPageCount = Math.max(1, Math.ceil(vehicles.length / LIVE_LIST_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, listPageCount)
+  const pagedVehicles = useMemo(() => {
+    const start = (safeListPage - 1) * LIVE_LIST_PAGE_SIZE
+    return vehicles.slice(start, start + LIVE_LIST_PAGE_SIZE)
+  }, [vehicles, safeListPage])
+
+  const pageRangeLabel = useMemo(() => {
+    if (vehicles.length === 0) return '0-0'
+    const start = (safeListPage - 1) * LIVE_LIST_PAGE_SIZE + 1
+    const end = Math.min(safeListPage * LIVE_LIST_PAGE_SIZE, vehicles.length)
+    return `${start}-${end}`
+  }, [vehicles.length, safeListPage])
+
+  const visiblePageNumbers = useMemo(() => {
+    if (listPageCount <= LIVE_PAGE_WINDOW) {
+      return Array.from({ length: listPageCount }, (_, i) => i + 1)
+    }
+    let start = Math.max(1, safeListPage - Math.floor(LIVE_PAGE_WINDOW / 2))
+    let end = start + LIVE_PAGE_WINDOW - 1
+    if (end > listPageCount) {
+      end = listPageCount
+      start = end - LIVE_PAGE_WINDOW + 1
+    }
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  }, [listPageCount, safeListPage])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [routeFilter, statusFilter, query])
+
+  useEffect(() => {
+    if (listPage > listPageCount) setListPage(listPageCount)
+  }, [listPage, listPageCount])
+
   const { stats } = snapshot
-  const staleAlert = snapshot.vehicles.filter((v) => v.gpsKind === 'error' || v.gpsKind === 'none')
+  const staleAlert = useMemo(
+    () => snapshot.vehicles.filter((v) => v.gpsKind === 'error' || v.gpsKind === 'none'),
+    [snapshot.vehicles],
+  )
+  const majorAlerts = useMemo(() => {
+    return [...staleAlert]
+      .sort((a, b) => {
+        // 운행 중 이상 우선 → GPS 오류 우선 → 최근 갱신순
+        const aRun = a.status === 'in_progress' ? 1 : 0
+        const bRun = b.status === 'in_progress' ? 1 : 0
+        if (aRun !== bRun) return bRun - aRun
+        const aErr = a.gpsKind === 'error' ? 1 : 0
+        const bErr = b.gpsKind === 'error' ? 1 : 0
+        if (aErr !== bErr) return bErr - aErr
+        return b.updatedAt - a.updatedAt
+      })
+      .slice(0, 3)
+  }, [staleAlert])
   const lastUpdatedLabel = lastUpdatedAt ? formatClock(lastUpdatedAt) : '--:--:--'
 
   const gpsTotal = stats.ok + stats.none + stats.error
@@ -122,7 +307,7 @@ export function LivePage() {
             onChange={(e) => setRouteFilter(e.target.value)}
           >
             <option value="">노선 전체</option>
-            {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+            {LIVE_ROUTE_FILTER_OPTIONS.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -160,31 +345,27 @@ export function LivePage() {
         </div>
       </section>
 
-      <div className="grid" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
-        <section className="card card-pad">
+      <div className="grid live-map-list-grid" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
+        <section className="card card-pad live-map-card">
           <div className="live-map-block">
             <h3 className="live-map-title">실시간 차량 위치</h3>
             <div className="live-status-row">
               <div className="live-status-legend" aria-label="차량 상태 범례">
                 <span className="live-status-item">
-                  <i style={{ background: '#3fb46a' }} />
-                  운행 중
-                </span>
-                <span className="live-status-item">
-                  <i style={{ background: '#266ef4' }} />
-                  정류장 정차
-                </span>
-                <span className="live-status-item">
-                  <i style={{ background: '#fdac38' }} />
-                  대기 중
-                </span>
-                <span className="live-status-item">
-                  <i style={{ background: '#8b849c' }} />
-                  운행 종료
+                  <i style={{ background: '#22c55e' }} />
+                  GPS 정상(초록)
                 </span>
                 <span className="live-status-item">
                   <i style={{ background: '#eb4047' }} />
-                  장기간 미수신
+                  GPS 끊김(빨간·최근좌표 있을 때)
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#266ef4' }} />
+                  안전 정차
+                </span>
+                <span className="live-status-item">
+                  <i style={{ background: '#fdac38' }} />
+                  대기
                 </span>
               </div>
               <button
@@ -200,12 +381,20 @@ export function LivePage() {
               </button>
             </div>
             <div className="live-map-frame">
-              <img src={mapImg} alt="실시간 차량 위치" />
+              <LiveVehiclesMap vehicles={mapVehicles} routes={mapRoutes} height={400} />
+            </div>
+            <div className="live-route-legend" aria-label="노선 범례">
+              {mapRoutes.map((route) => (
+                <span key={route.id} className="live-route-legend-item">
+                  <span className="live-route-legend-line" style={{ background: route.color }} />
+                  {route.name}
+                </span>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className="card card-pad">
+        <section className="card card-pad live-vehicle-list-card">
           <div className="card-head">
             <h3>실시간 차량 목록</h3>
           </div>
@@ -216,9 +405,10 @@ export function LivePage() {
             <StatusBadge tone="orange">안전 정차 {stats.stopped ?? 0}</StatusBadge>
             <StatusBadge tone="gray">종료 {stats.ended}</StatusBadge>
           </div>
-          <table className="data-table">
+          <table className="data-table live-vehicle-table">
             <thead>
               <tr>
+                <th>순번</th>
                 <th>차량</th>
                 <th>기사</th>
                 <th>노선</th>
@@ -231,21 +421,99 @@ export function LivePage() {
             <tbody>
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="muted">
-                    수신된 실시간 운행이 없습니다. 기사 앱에서 운행을 시작하면 여기에 표시됩니다.
+                  <td colSpan={8} className="muted">
+                    오늘 운행 데이터가 없습니다. operations에 당일 배차가 있으면 목록과 아래 비율이
+                    자동으로 갱신됩니다.
                   </td>
                 </tr>
               ) : (
-                vehicles.map((row) => <LiveVehicleRow key={row.id} row={row} />)
+                <>
+                  {pagedVehicles.map((row, idx) => (
+                    <LiveVehicleRow
+                      key={row.id}
+                      row={row}
+                      no={(safeListPage - 1) * LIVE_LIST_PAGE_SIZE + idx + 1}
+                      selected={row.id === selectedVehicleId}
+                      onSelect={() => toggleVehicleSelect(row.id)}
+                    />
+                  ))}
+                  {Array.from({
+                    length: Math.max(0, LIVE_LIST_PAGE_SIZE - pagedVehicles.length),
+                  }).map((_, i) => (
+                    <tr key={`pad-${i}`} className="live-vehicle-row-pad" aria-hidden>
+                      <td colSpan={8}>&nbsp;</td>
+                    </tr>
+                  ))}
+                </>
               )}
             </tbody>
           </table>
-          {staleAlert.length > 0 ? (
-            <div className="alert alert-danger" style={{ marginTop: 12 }}>
-              GPS 미수신·오류 차량: {staleAlert[0].vehicleName} ({staleAlert[0].driverName})
-              {staleAlert.length > 1 ? ` 외 ${staleAlert.length - 1}대` : ''}
-            </div>
-          ) : null}
+          <div className="live-list-footer">
+            {vehicles.length > 0 ? (
+              <div className="live-list-pagination">
+                <div className="live-list-pagination-meta">
+                  총 {vehicles.length}건 · {pageRangeLabel}
+                </div>
+                <div className="live-list-pagination-pages" role="navigation" aria-label="목록 페이지">
+                  <button
+                    type="button"
+                    className="page-chip"
+                    disabled={safeListPage <= 1}
+                    onClick={() => setListPage(1)}
+                    aria-label="첫 페이지"
+                  >
+                    «
+                  </button>
+                  <button
+                    type="button"
+                    className="page-chip"
+                    disabled={safeListPage <= 1}
+                    onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                    aria-label="이전 페이지"
+                  >
+                    ‹
+                  </button>
+                  {visiblePageNumbers.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`page-chip${n === safeListPage ? ' active' : ''}`}
+                      onClick={() => setListPage(n)}
+                      aria-current={n === safeListPage ? 'page' : undefined}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="page-chip"
+                    disabled={safeListPage >= listPageCount}
+                    onClick={() => setListPage((p) => Math.min(listPageCount, p + 1))}
+                    aria-label="다음 페이지"
+                  >
+                    ›
+                  </button>
+                  <button
+                    type="button"
+                    className="page-chip"
+                    disabled={safeListPage >= listPageCount}
+                    onClick={() => setListPage(listPageCount)}
+                    aria-label="마지막 페이지"
+                  >
+                    »
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {staleAlert.length > 0 ? (
+              <div className="alert alert-danger live-list-gps-alert">
+                GPS 미수신·오류 차량: {staleAlert[0].vehicleName} ({staleAlert[0].driverName})
+                {staleAlert.length > 1 ? ` 외 ${staleAlert.length - 1}대` : ''}
+              </div>
+            ) : (
+              <div className="live-list-gps-alert-slot" aria-hidden />
+            )}
+          </div>
         </section>
       </div>
 
@@ -334,13 +602,13 @@ export function LivePage() {
             <h3>주요 알림</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {staleAlert.slice(0, 3).map((v) => (
+            {majorAlerts.map((v) => (
               <div key={v.id} className={v.gpsKind === 'error' ? 'alert alert-danger' : 'alert alert-warning'}>
                 {v.vehicleName} · {v.driverName} · GPS {v.gps} · {v.last}
               </div>
             ))}
-            {staleAlert.length === 0 ? (
-              <div className="alert alert-info">현재 GPS 이상 알림이 없습니다.</div>
+            {majorAlerts.length === 0 ? (
+              <div className="alert alert-success">현재 GPS 이상 알림이 없습니다.</div>
             ) : null}
           </div>
         </section>
@@ -349,19 +617,37 @@ export function LivePage() {
   )
 }
 
-function LiveVehicleRow({ row }: { row: LiveVehicle }) {
+function LiveVehicleRow({
+  row,
+  no,
+  selected,
+  onSelect,
+}: {
+  row: LiveVehicle
+  no: number
+  selected?: boolean
+  onSelect?: () => void
+}) {
   return (
-    <tr style={row.gpsKind === 'error' ? { background: '#fff5f5' } : undefined}>
-      <td>{row.vehicleName}</td>
-      <td>
+    <tr
+      className={`live-vehicle-row${selected ? ' is-selected' : ''}${row.gpsKind === 'error' ? ' is-gps-error' : ''}`}
+      onClick={onSelect}
+      aria-selected={selected || undefined}
+      title={selected ? '다시 클릭하면 노선 필터 해제' : '클릭하면 해당 노선만 지도에 표시'}
+    >
+      <td>{no}</td>
+      <td title={row.vehicleName}>{row.vehicleName}</td>
+      <td title={`${row.driverName} ${row.driverId}`}>
         {row.driverName}
-        <div className="muted" style={{ fontSize: 10 }}>
+        <div className="muted" style={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {row.driverId}
         </div>
       </td>
-      <td>{row.routeName}</td>
-      <td>{row.stop}</td>
-      <td>
+      <td title={row.routeName} className="col-route">
+        <RouteNameCell name={row.routeName} />
+      </td>
+      <td title={row.stop}>{row.stop}</td>
+      <td className="col-status">
         <StatusBadge tone={row.tone}>{row.statusLabel}</StatusBadge>
       </td>
       <td>{row.gps}</td>
@@ -502,8 +788,10 @@ export function LiveVehicleDetailPage() {
 
 export function LiveSuspendPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const focusId = searchParams.get('id')
   const [requests, setRequests] = useState<SafeStopRequest[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(focusId)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -511,8 +799,10 @@ export function LiveSuspendPage() {
     const rows = await fetchSafeStopRequests()
     setRequests(rows)
     setSelectedId((prev) => {
-      if (prev && rows.some((r) => r.id === prev)) return prev
-      return rows[0]?.id ?? null
+      const preferred = focusId || prev
+      if (preferred && rows.some((r) => r.id === preferred)) return preferred
+      const firstPending = rows.find((r) => r.decision === 'pending')
+      return firstPending?.id ?? rows[0]?.id ?? null
     })
   }
 
@@ -520,7 +810,11 @@ export function LiveSuspendPage() {
     void load()
     const timer = window.setInterval(() => void load(), 5_000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [focusId])
+
+  useEffect(() => {
+    if (focusId) setSelectedId(focusId)
+  }, [focusId])
 
   const selected = requests.find((r) => r.id === selectedId) ?? null
 
@@ -534,6 +828,8 @@ export function LiveSuspendPage() {
       setMessage(result.message || '처리 실패')
       return
     }
+    // 알림 뱃지에서도 읽음 처리
+    void markNotificationRead(`safe-stop-${selected.id}`)
     setMessage(decision === 'continue' ? '계속 운행으로 처리했습니다.' : '운행 중단(안전 정차)으로 처리했습니다.')
     await load()
   }

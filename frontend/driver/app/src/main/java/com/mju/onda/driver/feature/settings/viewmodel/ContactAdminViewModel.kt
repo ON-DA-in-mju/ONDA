@@ -3,7 +3,6 @@ package com.mju.onda.driver.feature.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.settings.data.ContactInfoRow
-import com.mju.onda.driver.feature.settings.data.InquiryTypeItem
 import com.mju.onda.driver.feature.settings.data.MockContactAdmin
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,14 +14,12 @@ import kotlinx.coroutines.launch
 
 data class ContactAdminUiState(
     val contactRows: List<ContactInfoRow> = MockContactAdmin.contactRows,
-    val inquiryTypes: List<InquiryTypeItem> = MockContactAdmin.inquiryTypes,
 )
 
 sealed interface ContactAdminEvent {
     data object NavigateBack : ContactAdminEvent
     data object CallAdmin : ContactAdminEvent
     data object EmailInquiry : ContactAdminEvent
-    data class InquiryTypeSelected(val label: String) : ContactAdminEvent
 }
 
 class ContactAdminViewModel : ViewModel() {
@@ -43,11 +40,5 @@ class ContactAdminViewModel : ViewModel() {
 
     fun onEmailInquiry() {
         viewModelScope.launch { _events.emit(ContactAdminEvent.EmailInquiry) }
-    }
-
-    fun onInquiryTypeClick(item: InquiryTypeItem) {
-        viewModelScope.launch {
-            _events.emit(ContactAdminEvent.InquiryTypeSelected(item.label))
-        }
     }
 }

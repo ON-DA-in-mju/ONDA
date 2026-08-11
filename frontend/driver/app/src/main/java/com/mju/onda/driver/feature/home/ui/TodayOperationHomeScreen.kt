@@ -93,7 +93,6 @@ fun TodayOperationHomeScreen(
     onOpenInOperation: (String) -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    onResetToLogin: () -> Unit = {},
     viewModel: TodayOperationViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -132,14 +131,6 @@ fun TodayOperationHomeScreen(
                     }
                     context.startActivity(intent)
                 }
-                TodayOperationEvent.ShowResetDone -> {
-                    Toast.makeText(
-                        context,
-                        MockTodayOperations.DEMO_RESET_TOAST,
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-                TodayOperationEvent.NavigateToLoginAfterReset -> onResetToLogin()
             }
         }
     }
@@ -190,12 +181,30 @@ fun TodayOperationHomeScreen(
                 GreetingHeader()
                 Spacer(modifier = Modifier.height(18.dp))
 
+                val loadError = uiState.loadError
+                if (!loadError.isNullOrBlank()) {
+                    Text(
+                        text = loadError,
+                        style = OndaTypography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            color = OndaColors.Error,
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                    )
+                }
+
                 if (uiState.hasAssignments) {
                     AssignedContent(
                         uiState = uiState,
                         onDetail = { operationId ->
                             viewModel.onDetailClick(context, operationId)
                         },
+                    )
+                    HomeActionSection(
+                        isRefreshing = uiState.isRefreshing,
+                        onRefresh = viewModel::onRefresh,
                     )
                 } else {
                     EmptyAssignmentContent(
@@ -204,12 +213,6 @@ fun TodayOperationHomeScreen(
                         onContactAdmin = viewModel::onContactAdminClick,
                     )
                 }
-
-                HomeActionSection(
-                    isRefreshing = uiState.isRefreshing,
-                    onRefresh = viewModel::onRefresh,
-                    onReset = viewModel::onResetDemoState,
-                )
             }
         }
     }
@@ -549,7 +552,6 @@ private fun DepartureAlertBanner(alert: DepartureHomeAlert) {
 private fun HomeActionSection(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
-    onReset: () -> Unit,
 ) {
     Spacer(modifier = Modifier.height(28.dp))
     androidx.compose.material3.Button(
@@ -586,13 +588,6 @@ private fun HomeActionSection(
             )
         }
     }
-    Spacer(modifier = Modifier.height(10.dp))
-    OndaOutlinedButton(
-        label = MockTodayOperations.DEMO_RESET_BUTTON,
-        onClick = onReset,
-        enabled = !isRefreshing,
-        height = 44.dp,
-    )
 }
 
 @Composable
@@ -785,7 +780,9 @@ private fun NextOperationCard(
                     OperationStatus.DepartingSoon,
                     OperationStatus.Waiting,
                     -> OndaColors.SuccessSoft
-                    OperationStatus.Ended -> OndaColors.ErrorSoft
+                    OperationStatus.Ended,
+                    OperationStatus.Unavailable,
+                    -> OndaColors.ErrorSoft
                     else -> OndaColors.PrimarySoft
                 },
                 foregroundColor = when (operation.status) {
@@ -793,7 +790,9 @@ private fun NextOperationCard(
                     OperationStatus.DepartingSoon,
                     OperationStatus.Waiting,
                     -> OndaColors.SuccessText
-                    OperationStatus.Ended -> OndaColors.Error
+                    OperationStatus.Ended,
+                    OperationStatus.Unavailable,
+                    -> OndaColors.Error
                     else -> OndaColors.Primary
                 },
             )
@@ -968,7 +967,9 @@ private fun OperationListTile(
         OperationStatus.DepartingSoon,
         OperationStatus.Waiting,
         -> OndaColors.SuccessSoft
-        OperationStatus.Ended -> OndaColors.ErrorSoft
+        OperationStatus.Ended,
+        OperationStatus.Unavailable,
+        -> OndaColors.ErrorSoft
         else -> OndaColors.PrimarySoft
     }
     val badgeFg = when (operation.status) {
@@ -976,7 +977,9 @@ private fun OperationListTile(
         OperationStatus.DepartingSoon,
         OperationStatus.Waiting,
         -> OndaColors.SuccessText
-        OperationStatus.Ended -> OndaColors.Error
+        OperationStatus.Ended,
+        OperationStatus.Unavailable,
+        -> OndaColors.Error
         else -> OndaColors.Primary
     }
 

@@ -18,4 +18,7 @@ object MockLogoutRestricted {
 
     const val GO_OPERATION_LABEL = "운행 화면으로"
     const val CONTACT_ADMIN_LABEL = "관리자에게 문의하기"
+    const val CLEAR_STALE_LABEL = "운행 상태 초기화 후 로그아웃"
+    const val CLEAR_STALE_HINT =
+        "화면에 운행이 없는데도 로그아웃이 막히면 아래 버튼을 눌러 주세요."
 }

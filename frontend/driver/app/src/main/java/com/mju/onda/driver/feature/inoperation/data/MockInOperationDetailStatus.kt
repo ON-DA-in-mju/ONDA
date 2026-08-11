@@ -40,6 +40,7 @@ object MockInOperationDetailStatus {
     const val SAFETY_BODY = "안전을 위해 운전중에는 화면을 조작하지 마세요."
 
     const val END_OPERATION_LABEL = "운행 종료"
+    const val STOP_ROUTE_LABEL = "정류장 노선 보기"
     const val SUSPEND_REQUEST_LABEL = "운행 중단 요청"
     const val END_PENDING_TOAST = "운행 종료 화면은 다음 단계에서 연결합니다."
     const val SUSPEND_PENDING_TOAST = "운행 중단 요청 화면은 다음 단계에서 연결합니다."

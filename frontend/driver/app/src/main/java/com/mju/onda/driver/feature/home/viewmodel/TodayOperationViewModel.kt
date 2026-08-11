@@ -3,7 +3,7 @@ package com.mju.onda.driver.feature.home.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mju.onda.driver.core.DemoReset
+import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
 import com.mju.onda.driver.feature.alarm.data.MockOperationAlarms
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 import com.mju.onda.driver.feature.home.data.AssignedOperation
@@ -35,6 +35,8 @@ data class TodayOperationUiState(
     val unreadAlarmCount: Int = MockOperationAlarms.unreadCount(),
     val isRefreshing: Boolean = false,
     val showPermissionRequiredDialog: Boolean = false,
+    /** 배차 API 실패 시 안내 (빈 목록과 구분) */
+    val loadError: String? = null,
     /** 기본 None — 하단 테스트 버튼으로만 표시 */
     val departureAlert: DepartureHomeAlert = DepartureHomeAlert.None,
 ) {
@@ -46,7 +48,9 @@ data class TodayOperationUiState(
     /** 운행 중·종료 항목은 제외하고, 가장 가까운 예정 운행을 다음 운행으로 표시 */
     val nextOperation: AssignedOperation?
         get() = operations.firstOrNull {
-            it.status != OperationStatus.InProgress && it.status != OperationStatus.Ended
+            it.status != OperationStatus.InProgress &&
+                it.status != OperationStatus.Ended &&
+                it.status != OperationStatus.Unavailable
         }
 }
 
@@ -64,8 +68,6 @@ sealed interface TodayOperationEvent {
     data object OpenSettings : TodayOperationEvent
     data object ContactAdmin : TodayOperationEvent
     data object OpenAppPermissionSettings : TodayOperationEvent
-    data object ShowResetDone : TodayOperationEvent
-    data object NavigateToLoginAfterReset : TodayOperationEvent
 }
 
 class TodayOperationViewModel : ViewModel() {
@@ -79,6 +81,8 @@ class TodayOperationViewModel : ViewModel() {
     val events: SharedFlow<TodayOperationEvent> = _events.asSharedFlow()
 
     init {
+        // 홈 진입 시 DB 오늘 배차 자동 조회
+        onRefresh()
         viewModelScope.launch {
             while (isActive) {
                 delay(30_000)
@@ -144,28 +148,51 @@ class TodayOperationViewModel : ViewModel() {
         }
     }
 
-    /** 새로고침 → Supabase 오늘 배차 조회 (실패 시 빈 목록, mock 없음) */
+    /** 새로고침 → Supabase 오늘 배차 조회 (실패 시 mock 없음, 오류 메시지 표시) */
     fun onRefresh() {
         if (_uiState.value.isRefreshing) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true) }
+            _uiState.update { it.copy(isRefreshing = true, loadError = null) }
+            val previousOps = _uiState.value.operations
+            val cachedBefore = TodayAssignmentsHolder.getOrNull().orEmpty()
             val userId = SessionStateHolder.currentUserId
-            when (val result = if (userId != null) {
-                TodayAssignmentsApi.fetchForDriver(userId)
-            } else {
-                TodayAssignmentsApi.Result.Failed
-            }) {
-                is TodayAssignmentsApi.Result.Ok -> TodayAssignmentsHolder.set(result.items)
-                TodayAssignmentsApi.Result.Failed -> {
-                    TodayAssignmentsHolder.set(emptyList())
+            var loadError: String? = null
+            when (
+                val result = if (userId != null) {
+                    TodayAssignmentsApi.fetchForDriver(userId)
+                } else {
+                    TodayAssignmentsApi.Result.Failed("로그인 정보 없음")
+                }
+            ) {
+                is TodayAssignmentsApi.Result.Ok -> {
+                    if (result.items.isEmpty() && cachedBefore.isNotEmpty()) {
+                        // 서버가 일시적으로 0건이어도 기존 목록을 지우지 않음
+                        loadError =
+                            "서버에서 오늘 배차 0건이 내려왔습니다. 이전 목록을 유지합니다. (DB 시드/날짜를 확인하세요)"
+                    } else if (result.items.isEmpty()) {
+                        TodayAssignmentsHolder.set(emptyList())
+                        loadError =
+                            "오늘 배차가 DB에 없습니다. 관리자에게 배차 등록(시드)을 요청하세요."
+                    } else {
+                        TodayAssignmentsHolder.set(result.items)
+                        OperationRuntimeStateHolder.reconcileWithFetchedAssignments(result.items)
+                    }
+                }
+                is TodayAssignmentsApi.Result.Failed -> {
+                    // 실패 시 기존 목록은 유지하고 안내만 표시
+                    loadError = result.reason
                 }
             }
             SessionStateHolder.markAssignmentsLoaded()
+            val newOps = restoredHomeOperations()
+            AlarmGenerator.checkDepartureOverdue(newOps)
+            AlarmGenerator.checkNewAssignments(previousOps, newOps)
             _uiState.update {
                 it.copy(
                     isRefreshing = false,
-                    operations = restoredHomeOperations(),
+                    operations = newOps,
+                    loadError = loadError,
                     unreadAlarmCount = MockOperationAlarms.unreadCount(),
                 )
             }
@@ -176,9 +203,11 @@ class TodayOperationViewModel : ViewModel() {
     fun syncRuntimeStatus() {
         if (!SessionStateHolder.assignmentsLoaded) return
         val base = MockTodayOperations.assignedOperations
+        val ops = OperationRuntimeStateHolder.withRuntimeStatus(base)
+        AlarmGenerator.checkDepartureOverdue(ops)
         _uiState.update {
             it.copy(
-                operations = OperationRuntimeStateHolder.withRuntimeStatus(base),
+                operations = ops,
                 unreadAlarmCount = MockOperationAlarms.unreadCount(),
             )
         }
@@ -196,21 +225,5 @@ class TodayOperationViewModel : ViewModel() {
 
     fun onDemoHideDepartureAlert() {
         _uiState.update { it.copy(departureAlert = DepartureHomeAlert.None) }
-    }
-
-    /**
-     * 테스트용: 현재 계정 상태만 초기화 → 로그인 화면.
-     * 다른 계정 데이터는 유지된다.
-     */
-    fun onResetDemoState() {
-        DemoReset.resetCurrentUser()
-        _uiState.value = TodayOperationUiState(
-            operations = emptyList(),
-            departureAlert = DepartureHomeAlert.None,
-        )
-        viewModelScope.launch {
-            _events.emit(TodayOperationEvent.ShowResetDone)
-            _events.emit(TodayOperationEvent.NavigateToLoginAfterReset)
-        }
     }
 }

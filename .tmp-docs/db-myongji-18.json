@@ -1,0 +1,505 @@
+{
+    "all":  {
+                "value":  [
+                              {
+                                  "stop_order":  1,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222202",
+                                                "latitude":  37.22405,
+                                                "longitude":  127.18735,
+                                                "stop_name":  "버스관리사무소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  1,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222210",
+                                                "latitude":  37.22015,
+                                                "longitude":  127.18515,
+                                                "stop_name":  "생활관(명현관)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  1,
+                                  "routes":  {
+                                                 "route_name":  "기흥역 통학버스"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222211",
+                                                "latitude":  37.22415,
+                                                "longitude":  127.18705,
+                                                "stop_name":  "채플관 앞"
+                                            }
+                              },
+                              {
+                                  "stop_order":  1,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222202",
+                                                "latitude":  37.22405,
+                                                "longitude":  127.18735,
+                                                "stop_name":  "버스관리사무소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  2,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222215",
+                                                "latitude":  37.2318,
+                                                "longitude":  127.1894,
+                                                "stop_name":  "상공회의소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  2,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222221",
+                                                "latitude":  37.22135,
+                                                "longitude":  127.18555,
+                                                "stop_name":  "함박관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  2,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222215",
+                                                "latitude":  37.2318,
+                                                "longitude":  127.1894,
+                                                "stop_name":  "상공회의소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  2,
+                                  "routes":  {
+                                                 "route_name":  "기흥역 통학버스"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222201",
+                                                "latitude":  37.27597,
+                                                "longitude":  127.11669,
+                                                "stop_name":  "기흥역 5번 출구"
+                                            }
+                              },
+                              {
+                                  "stop_order":  3,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222223",
+                                                "latitude":  37.22455,
+                                                "longitude":  127.18875,
+                                                "stop_name":  "정문"
+                                            }
+                              },
+                              {
+                                  "stop_order":  3,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222217",
+                                                "latitude":  37.2362,
+                                                "longitude":  127.1915,
+                                                "stop_name":  "진입로(럭스나인 앞)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  3,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222217",
+                                                "latitude":  37.2362,
+                                                "longitude":  127.1915,
+                                                "stop_name":  "진입로(럭스나인 앞)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  3,
+                                  "routes":  {
+                                                 "route_name":  "기흥역 통학버스"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222211",
+                                                "latitude":  37.22415,
+                                                "longitude":  127.18705,
+                                                "stop_name":  "채플관 앞"
+                                            }
+                              },
+                              {
+                                  "stop_order":  4,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222218",
+                                                "latitude":  37.2349,
+                                                "longitude":  127.1988,
+                                                "stop_name":  "동부경찰서 중앙지구대"
+                                            }
+                              },
+                              {
+                                  "stop_order":  4,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222205",
+                                                "latitude":  37.23811,
+                                                "longitude":  127.19057,
+                                                "stop_name":  "경전철 명지대역"
+                                            }
+                              },
+                              {
+                                  "stop_order":  4,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222215",
+                                                "latitude":  37.2318,
+                                                "longitude":  127.1894,
+                                                "stop_name":  "상공회의소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  5,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222217",
+                                                "latitude":  37.2362,
+                                                "longitude":  127.1915,
+                                                "stop_name":  "진입로(럭스나인 앞)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  5,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222219",
+                                                "latitude":  37.23755,
+                                                "longitude":  127.19185,
+                                                "stop_name":  "명지대역 사거리 정류장"
+                                            }
+                              },
+                              {
+                                  "stop_order":  5,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222206",
+                                                "latitude":  37.23509,
+                                                "longitude":  127.20561,
+                                                "stop_name":  "용인CGV"
+                                            }
+                              },
+                              {
+                                  "stop_order":  6,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222207",
+                                                "latitude":  37.23455,
+                                                "longitude":  127.2072,
+                                                "stop_name":  "중앙공영주차장"
+                                            }
+                              },
+                              {
+                                  "stop_order":  6,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222204",
+                                                "latitude":  37.23446,
+                                                "longitude":  127.1883,
+                                                "stop_name":  "진입로(역북동 주민센터)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  6,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222218",
+                                                "latitude":  37.2349,
+                                                "longitude":  127.1988,
+                                                "stop_name":  "동부경찰서 중앙지구대"
+                                            }
+                              },
+                              {
+                                  "stop_order":  7,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222216",
+                                                "latitude":  37.23143,
+                                                "longitude":  127.18916,
+                                                "stop_name":  "이마트"
+                                            }
+                              },
+                              {
+                                  "stop_order":  7,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222204",
+                                                "latitude":  37.23446,
+                                                "longitude":  127.1883,
+                                                "stop_name":  "진입로(역북동 주민센터)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  7,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222206",
+                                                "latitude":  37.23509,
+                                                "longitude":  127.20561,
+                                                "stop_name":  "용인CGV"
+                                            }
+                              },
+                              {
+                                  "stop_order":  8,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222208",
+                                                "latitude":  37.22255,
+                                                "longitude":  127.18695,
+                                                "stop_name":  "명진당"
+                                            }
+                              },
+                              {
+                                  "stop_order":  8,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222216",
+                                                "latitude":  37.23143,
+                                                "longitude":  127.18916,
+                                                "stop_name":  "이마트"
+                                            }
+                              },
+                              {
+                                  "stop_order":  8,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222207",
+                                                "latitude":  37.23455,
+                                                "longitude":  127.2072,
+                                                "stop_name":  "중앙공영주차장"
+                                            }
+                              },
+                              {
+                                  "stop_order":  9,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222220",
+                                                "latitude":  37.22185,
+                                                "longitude":  127.18615,
+                                                "stop_name":  "제1공학관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  9,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222205",
+                                                "latitude":  37.23811,
+                                                "longitude":  127.19057,
+                                                "stop_name":  "경전철 명지대역"
+                                            }
+                              },
+                              {
+                                  "stop_order":  9,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222209",
+                                                "latitude":  37.22125,
+                                                "longitude":  127.18675,
+                                                "stop_name":  "제3공학관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  10,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222221",
+                                                "latitude":  37.22135,
+                                                "longitude":  127.18555,
+                                                "stop_name":  "함박관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  10,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222204",
+                                                "latitude":  37.23446,
+                                                "longitude":  127.1883,
+                                                "stop_name":  "진입로(역북동 주민센터)"
+                                            }
+                              },
+                              {
+                                  "stop_order":  10,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222209",
+                                                "latitude":  37.22125,
+                                                "longitude":  127.18675,
+                                                "stop_name":  "제3공학관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  11,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222222",
+                                                "latitude":  37.22305,
+                                                "longitude":  127.18665,
+                                                "stop_name":  "창조관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  11,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222221",
+                                                "latitude":  37.22135,
+                                                "longitude":  127.18555,
+                                                "stop_name":  "함박관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  11,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222216",
+                                                "latitude":  37.23143,
+                                                "longitude":  127.18916,
+                                                "stop_name":  "이마트"
+                                            }
+                              },
+                              {
+                                  "stop_order":  12,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222222",
+                                                "latitude":  37.22305,
+                                                "longitude":  127.18665,
+                                                "stop_name":  "창조관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  12,
+                                  "routes":  {
+                                                 "route_name":  "명지대역 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222202",
+                                                "latitude":  37.22405,
+                                                "longitude":  127.18735,
+                                                "stop_name":  "버스관리사무소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  12,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222220",
+                                                "latitude":  37.22185,
+                                                "longitude":  127.18615,
+                                                "stop_name":  "제1공학관"
+                                            }
+                              },
+                              {
+                                  "stop_order":  13,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222202",
+                                                "latitude":  37.22405,
+                                                "longitude":  127.18735,
+                                                "stop_name":  "버스관리사무소"
+                                            }
+                              },
+                              {
+                                  "stop_order":  13,
+                                  "routes":  {
+                                                 "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                             },
+                                  "stops":  {
+                                                "id":  "22222222-2222-2222-2222-222222222210",
+                                                "latitude":  37.22015,
+                                                "longitude":  127.18515,
+                                                "stop_name":  "생활관(명현관)"
+                                            }
+                              }
+                          ],
+                "Count":  41
+            },
+    "after18":  {
+                    "value":  [
+
+                              ],
+                    "Count":  0
+                }
+}

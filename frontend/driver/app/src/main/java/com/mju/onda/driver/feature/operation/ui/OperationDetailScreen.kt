@@ -73,7 +73,9 @@ private fun statusBadgeColors(status: OperationStatus): Pair<Color, Color> = whe
     OperationStatus.Waiting,
     OperationStatus.DepartingSoon,
     -> OndaColors.SuccessSoft to OndaColors.SuccessText
-    OperationStatus.Ended -> OndaColors.ErrorSoft to OndaColors.Error
+    OperationStatus.Ended,
+    OperationStatus.Unavailable,
+    -> OndaColors.ErrorSoft to OndaColors.Error
     OperationStatus.InProgress,
     OperationStatus.Scheduled,
     -> OndaColors.PrimarySoft to OndaColors.Primary

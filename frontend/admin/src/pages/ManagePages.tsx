@@ -1,7 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Eye, Megaphone } from 'lucide-react'
-import { maintenances, notices, reports, routes, systemLogs, users } from '../data/mock'
+import {
+  AlertTriangle,
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  CalendarDays,
+  Eye,
+  Image as ImageIcon,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Megaphone,
+  Underline,
+} from 'lucide-react'
+import { maintenances, notices, reports, routes, systemLogs as mockSystemLogs, users } from '../data/mock'
 import {
   createNotice,
   fetchNotices,
@@ -14,7 +30,9 @@ import {
   type UserRow,
 } from '../lib/api'
 import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
+import { fetchGpsReceiveLogs, GPS_LOGS_MAX, type GpsReceiveLog } from '../lib/gpsLogsApi'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { fetchSystemLogs, type SystemLogRow } from '../lib/systemLogsApi'
 import { useAuth } from '../state/AuthContext'
 import { StatusBadge } from '../components/ui/Form'
 import '../styles/figma-pages.css'
@@ -23,6 +41,36 @@ const reportStatusKo: Record<string, string> = {
   PENDING: '처리 대기',
   PROCESSING: '검토 중',
   COMPLETED: '처리 완료',
+}
+
+const NOTICE_BODY_MAX = 2000
+
+const DEFAULT_NOTICE_BODY = [
+  '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.',
+  '자세한 내용은 노선별 운행 정보에서 확인해 주세요.',
+  '이용에 불편을 드려 죄송합니다.',
+].join('\n')
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+function plainTextToEditorHtml(text: string): string {
+  if (!text.trim()) return ''
+  return text
+    .split('\n')
+    .map((line) => `<div>${line ? escapeHtml(line) : '<br>'}</div>`)
+    .join('')
+}
+
+function htmlToPlainText(html: string): string {
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return el.innerText.replace(/\u00a0/g, ' ')
 }
 
 /** ADM-05 커뮤니티 제보 관리 */
@@ -155,11 +203,81 @@ export function NoticesPage() {
   const [noticeType, setNoticeType] = useState('긴급')
   const [push, setPush] = useState(true)
   const [title, setTitle] = useState('폭설로 인한 운행 지연 안내')
-  const [body, setBody] = useState(
-    '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.\n자세한 내용은 노선별 운행 정보에서 확인해 주세요.\n이용에 불편을 드려 죄송합니다.',
-  )
+  const [bodyHtml, setBodyHtml] = useState(() => plainTextToEditorHtml(DEFAULT_NOTICE_BODY))
+  const [bodyLen, setBodyLen] = useState(() => DEFAULT_NOTICE_BODY.length)
+  const [targetStudent, setTargetStudent] = useState(true)
+  const [targetDriver, setTargetDriver] = useState(false)
+  const [permanent, setPermanent] = useState(false)
+  const [startDate, setStartDate] = useState('2024-05-20')
+  const [startHour, setStartHour] = useState('00')
+  const [startMinute, setStartMinute] = useState('00')
+  const [endDate, setEndDate] = useState('2024-05-20')
+  const [endHour, setEndHour] = useState('23')
+  const [endMinute, setEndMinute] = useState('59')
   const [saving, setSaving] = useState(false)
   const [flash, setFlash] = useState('')
+  const editorRef = useRef<HTMLDivElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+
+  const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), [])
+  const minuteOptions = useMemo(() => Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')), [])
+
+  const syncEditorState = () => {
+    const el = editorRef.current
+    if (!el) return
+    const plain = htmlToPlainText(el.innerHTML)
+    if (plain.length > NOTICE_BODY_MAX) {
+      // 초과 시 마지막 입력을 되돌림
+      document.execCommand('undo')
+      return
+    }
+    setBodyHtml(el.innerHTML)
+    setBodyLen(plain.replace(/\n$/g, '').length)
+  }
+
+  const setEditorContent = (htmlOrPlain: string, asHtml = false) => {
+    const html = asHtml ? htmlOrPlain : plainTextToEditorHtml(htmlOrPlain)
+    if (editorRef.current) editorRef.current.innerHTML = html || ''
+    setBodyHtml(html)
+    setBodyLen(htmlToPlainText(html).replace(/\n$/g, '').length)
+  }
+
+  const runEditorCommand = (command: string, value?: string) => {
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    document.execCommand(command, false, value)
+    syncEditorState()
+  }
+
+  const onInsertLink = () => {
+    const url = window.prompt('링크 URL을 입력하세요.', 'https://')
+    if (!url?.trim()) return
+    runEditorCommand('createLink', url.trim())
+  }
+
+  const onInsertImage = () => {
+    imageInputRef.current?.click()
+  }
+
+  const onImageFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const src = typeof reader.result === 'string' ? reader.result : ''
+      if (!src) return
+      runEditorCommand('insertImage', src)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = plainTextToEditorHtml(DEFAULT_NOTICE_BODY)
+    }
+  }, [])
 
   useEffect(() => {
     void fetchNotices().then((data) => {
@@ -170,9 +288,10 @@ export function NoticesPage() {
   const onCreate = async () => {
     setSaving(true)
     setFlash('')
+    const contentPlain = htmlToPlainText(editorRef.current?.innerHTML ?? bodyHtml).trim()
     const res = await createNotice({
       title: `[${noticeType}] ${title.trim()}`,
-      content: body.trim(),
+      content: contentPlain,
       author_id: user?.id ?? null,
     })
     setSaving(false)
@@ -185,21 +304,64 @@ export function NoticesPage() {
     if (data) setDbNotices(data)
   }
 
+  const noticeKpis = useMemo(() => {
+    const rows = dbNotices ?? []
+    const now = Date.now()
+    const day30 = 30 * 24 * 60 * 60 * 1000
+    const recent = rows.filter((n) => {
+      if (!n.created_at) return true
+      const t = Date.parse(n.created_at)
+      return Number.isFinite(t) && now - t <= day30
+    })
+    const urgent = recent.filter((n) => /긴급|\[URGENT\]/i.test(n.title)).length
+    // type/starts_at/views 컬럼 전까지: 예약·조회수는 DB에 없으므로 0
+    return {
+      total: recent.length,
+      urgent,
+      scheduled: 0,
+      views: 0,
+    }
+  }, [dbNotices])
+
   const kpis = [
-    { label: '전체 공지', value: `${dbNotices?.length ?? 128}건`, hint: dbNotices ? 'Supabase notices' : '최근 30일 기준', tone: 'blue', icon: <Megaphone size={18} /> },
-    { label: '긴급 공지', value: `${dbNotices?.filter((n) => n.title.includes('긴급')).length ?? 8}건`, hint: '최근 30일 기준', tone: 'red', icon: <Megaphone size={18} /> },
-    { label: '예약 공지', value: '15건', hint: '개시 예정', tone: 'orange', icon: <CalendarDays size={18} /> },
-    { label: '최근 조회수', value: '23,450회', hint: '최근 30일 기준', tone: 'gray', icon: <Eye size={18} /> },
+    {
+      label: '전체 공지',
+      value: `${noticeKpis.total.toLocaleString('ko-KR')}건`,
+      hint: '최근 30일 기준',
+      tone: 'blue',
+      icon: <Megaphone size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '긴급 공지',
+      value: `${noticeKpis.urgent.toLocaleString('ko-KR')}건`,
+      hint: '최근 30일 기준',
+      tone: 'red',
+      icon: <AlertTriangle size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '예약 공지',
+      value: `${noticeKpis.scheduled.toLocaleString('ko-KR')}건`,
+      hint: '게시 예정',
+      tone: 'orange',
+      icon: <CalendarDays size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '최근 조회수',
+      value: `${noticeKpis.views.toLocaleString('ko-KR')}회`,
+      hint: '최근 30일 기준',
+      tone: 'purple',
+      icon: <Eye size={40} strokeWidth={2.8} />,
+    },
   ] as const
 
   return (
     <div className="page">
       {flash ? <div className="alert alert-info">{flash}</div> : null}
-      <div className="figma-kpis">
+      <div className="figma-kpis notice-kpis">
         {kpis.map((k) => (
           <div key={k.label} className="figma-kpi">
             <div className={`figma-kpi-icon ${k.tone}`}>{k.icon}</div>
-            <div>
+            <div className="figma-kpi-text">
               <div className="label">{k.label}</div>
               <div className="value">{k.value}</div>
               <div className="hint">{k.hint}</div>
@@ -212,7 +374,8 @@ export function NoticesPage() {
         <section className="figma-panel">
           <div className="figma-panel-head">
             <h3>
-              공지 목록 <span className="muted">(전체 128건)</span>
+              공지 목록{' '}
+              <span className="muted">(전체 {(dbNotices?.length ?? 0).toLocaleString('ko-KR')}건)</span>
             </h3>
           </div>
           <div className="toolbar" style={{ marginBottom: 8 }}>
@@ -248,7 +411,7 @@ export function NoticesPage() {
                       style={{ cursor: 'pointer' }}
                       onClick={() => {
                         setTitle(row.title.replace(/^\[.*?\]\s*/, ''))
-                        setBody(row.content)
+                        setEditorContent(row.content)
                       }}
                     >
                       <td colSpan={2} style={{ fontWeight: 700 }}>
@@ -297,30 +460,28 @@ export function NoticesPage() {
           </p>
         </section>
 
-        <section className="figma-panel">
+        <section className="figma-panel notice-edit-panel">
           <div className="figma-panel-head">
             <h3>공지 등록/수정</h3>
-            <div className="figma-actions">
-              <button className="btn btn-outline btn-xs" type="button">
-                <Eye size={12} /> 미리보기
-              </button>
-              <button className="btn btn-outline btn-xs" type="button">
-                삭제
-              </button>
-              <button className="btn btn-outline btn-xs" type="button">
-                수정
-              </button>
-              <button className="btn btn-primary btn-xs" type="button" disabled={saving} onClick={() => void onCreate()}>
-                {saving ? '등록 중...' : '공지 등록'}
-              </button>
-              <button className="btn btn-danger btn-xs" type="button">
-                긴급 공지 발송
-              </button>
-            </div>
           </div>
 
           <div className="notice-form-grid">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="notice-form-main">
+              <div className="notice-form-actions">
+                <button className="btn btn-outline btn-xs" type="button">
+                  <Eye size={12} /> 미리보기
+                </button>
+                <button className="btn btn-outline btn-xs" type="button">
+                  삭제
+                </button>
+                <button className="btn btn-outline btn-xs" type="button">
+                  수정
+                </button>
+                <button className="btn btn-primary btn-xs" type="button" disabled={saving} onClick={() => void onCreate()}>
+                  {saving ? '등록 중...' : '공지 등록'}
+                </button>
+              </div>
+
               <div className="field">
                 <label>공지 유형</label>
                 <div className="type-pills">
@@ -343,59 +504,208 @@ export function NoticesPage() {
                   ))}
                 </div>
               </div>
+
               <div className="field">
-                <label>제목</label>
-                <input className="input" style={{ height: 32 }} value={title} onChange={(e) => setTitle(e.target.value)} />
-                <span className="field-hint">{title.length}/100</span>
+                <div className="field-label-row">
+                  <label>제목</label>
+                  <span className="field-hint">{title.length}/100</span>
+                </div>
+                <input
+                  className="input"
+                  style={{ height: 36 }}
+                  maxLength={100}
+                  placeholder="제목을 입력하세요."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </div>
+
               <div className="field">
                 <label>내용</label>
-                <div className="toolbar" style={{ marginBottom: 4 }}>
-                  {['B', 'I', 'U'].map((t) => (
-                    <button key={t} type="button" className="btn btn-outline btn-xs" style={{ width: 28, padding: 0 }}>
-                      {t}
-                    </button>
-                  ))}
+                <div className="notice-editor">
+                  <div className="notice-editor-toolbar" role="toolbar" aria-label="본문 서식">
+                    <div className="notice-editor-group">
+                      <button type="button" className="notice-editor-btn" title="굵게" aria-label="굵게" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('bold')}>
+                        <Bold size={14} strokeWidth={2.5} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="기울임" aria-label="기울임" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('italic')}>
+                        <Italic size={14} strokeWidth={2.5} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="밑줄" aria-label="밑줄" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('underline')}>
+                        <Underline size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button type="button" className="notice-editor-btn" title="글머리 기호" aria-label="글머리 기호" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertUnorderedList')}>
+                        <List size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="번호 목록" aria-label="번호 목록" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertOrderedList')}>
+                        <ListOrdered size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button type="button" className="notice-editor-btn" title="왼쪽 정렬" aria-label="왼쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyLeft')}>
+                        <AlignLeft size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="가운데 정렬" aria-label="가운데 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyCenter')}>
+                        <AlignCenter size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="오른쪽 정렬" aria-label="오른쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyRight')}>
+                        <AlignRight size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="양쪽 정렬" aria-label="양쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyFull')}>
+                        <AlignJustify size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button type="button" className="notice-editor-btn is-chip" title="링크" aria-label="링크" onMouseDown={(e) => e.preventDefault()} onClick={onInsertLink}>
+                        <Link2 size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className="notice-editor-btn" title="이미지" aria-label="이미지" onMouseDown={(e) => e.preventDefault()} onClick={onInsertImage}>
+                        <ImageIcon size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={onImageFileChange}
+                  />
+                  <div
+                    ref={editorRef}
+                    className={`notice-editor-body${bodyLen === 0 ? ' is-empty' : ''}`}
+                    contentEditable
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label="공지 내용"
+                    data-placeholder="공지 내용을 입력하세요."
+                    suppressContentEditableWarning
+                    onInput={syncEditorState}
+                  />
+                  <div className="notice-editor-foot">
+                    <span>
+                      {bodyLen}/{NOTICE_BODY_MAX}
+                    </span>
+                  </div>
                 </div>
-                <textarea className="textarea" style={{ minHeight: 90 }} value={body} onChange={(e) => setBody(e.target.value)} />
-                <span className="field-hint">{body.length}/2000</span>
               </div>
+
               <div className="field">
                 <label>대상</label>
-                <div className="toolbar">
-                  <button type="button" className="type-pill active">
-                    전체 학생
+                <div className="notice-target-line">
+                  <button
+                    type="button"
+                    className={`type-pill${targetStudent ? ' active' : ''}`}
+                    onClick={() => setTargetStudent((v) => !v)}
+                  >
+                    학생
                   </button>
-                  <button type="button" className="type-pill">
-                    특정 노선 선택
+                  <button
+                    type="button"
+                    className={`type-pill${targetDriver ? ' active' : ''}`}
+                    onClick={() => setTargetDriver((v) => !v)}
+                  >
+                    기사
                   </button>
+                  <label className="check-row notice-inline-check">
+                    <input type="checkbox" checked={permanent} onChange={(e) => setPermanent(e.target.checked)} />
+                    게시 기간 없음 (상시 게시)
+                  </label>
+                  <label className="check-row notice-inline-check">
+                    <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
+                    푸시 알림 동시 발송
+                  </label>
                 </div>
-                <input className="input" style={{ height: 32, marginTop: 6 }} placeholder="노선을 선택하세요." disabled />
-                <span className="field-hint">여러 노선 선택 가능</span>
+                {push ? (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    ONDA 셔틀 앱 푸시 알림으로 즉시 발송됩니다.
+                  </div>
+                ) : null}
               </div>
-              <div className="grid grid-2">
+
+              <div className={`notice-datetime-stack${permanent ? ' is-disabled' : ''}`}>
                 <div className="field">
                   <label>시작일</label>
-                  <input className="input" style={{ height: 32 }} defaultValue="2024.05.20 00:00" />
+                  <div className="notice-datetime">
+                    <input
+                      className="input notice-date-input"
+                      type="date"
+                      value={startDate}
+                      disabled={permanent}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                    <select
+                      className="select notice-time-select"
+                      value={startHour}
+                      disabled={permanent}
+                      onChange={(e) => setStartHour(e.target.value)}
+                      aria-label="시작 시"
+                    >
+                      {hourOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {h}시
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="select notice-time-select"
+                      value={startMinute}
+                      disabled={permanent}
+                      onChange={(e) => setStartMinute(e.target.value)}
+                      aria-label="시작 분"
+                    >
+                      {minuteOptions.map((m) => (
+                        <option key={m} value={m}>
+                          {m}분
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="field">
                   <label>종료일</label>
-                  <input className="input" style={{ height: 32 }} defaultValue="2024.05.20 23:59" />
+                  <div className="notice-datetime">
+                    <input
+                      className="input notice-date-input"
+                      type="date"
+                      value={endDate}
+                      disabled={permanent}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                    <select
+                      className="select notice-time-select"
+                      value={endHour}
+                      disabled={permanent}
+                      onChange={(e) => setEndHour(e.target.value)}
+                      aria-label="종료 시"
+                    >
+                      {hourOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {h}시
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="select notice-time-select"
+                      value={endMinute}
+                      disabled={permanent}
+                      onChange={(e) => setEndMinute(e.target.value)}
+                      aria-label="종료 분"
+                    >
+                      {minuteOptions.map((m) => (
+                        <option key={m} value={m}>
+                          {m}분
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <label className="check-row">
-                <input type="checkbox" defaultChecked />
-                게시 기간 없음 (상시 게시)
-              </label>
-              <label className="check-row">
-                <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
-                푸시 알림 동시 발송
-              </label>
-              {push ? (
-                <div className="muted" style={{ fontSize: 11 }}>
-                  ONDA 셔틀 앱 푸시 알림으로 즉시 발송됩니다.
-                </div>
-              ) : null}
             </div>
 
             <aside className="phone-preview">
@@ -404,10 +714,19 @@ export function NoticesPage() {
                 <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
                   공지사항
                 </div>
-                <span className="tag">긴급 공지</span>
+                <span className="tag">{noticeType === '긴급' || noticeType === '일반' ? `${noticeType} 공지` : noticeType}</span>
                 <strong>{title || '제목'}</strong>
-                <div className="time">2024.05.20 09:30</div>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{body}</p>
+                <div className="time">
+                  {permanent
+                    ? '상시 게시'
+                    : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
+                </div>
+                <div
+                  className="notice-preview-body"
+                  dangerouslySetInnerHTML={{
+                    __html: bodyLen > 0 ? bodyHtml : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
+                  }}
+                />
                 <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
                   오늘 하루 보지 않기
                 </div>
@@ -415,7 +734,9 @@ export function NoticesPage() {
               <div className="push">
                 <span className="app">ONDA 셔틀</span>
                 <span className="when">지금</span>
-                <div className="body">일부 노선의 운행이 지연되고 있습니다.</div>
+                <div className="body">
+                  {htmlToPlainText(bodyHtml).trim().split('\n')[0] || '푸시 미리보기'}
+                </div>
               </div>
             </aside>
           </div>
@@ -576,8 +897,9 @@ export function RouteDetailPage() {
 
   return (
     <div className="page">
-      <section className="card card-pad">
-        <div className="card-head">
+      <div className="split-14">
+        <section className="card card-pad">
+          <div className="card-head">
           <h3>
             시내 셔틀 <StatusBadge tone="green">운행 중</StatusBadge>
           </h3>
@@ -738,7 +1060,9 @@ export function RouteDetailPage() {
             저장
           </button>
         </div>
-      </section>
+        </section>
+        <div className="stack" />
+      </div>
     </div>
   )
 }
@@ -1239,6 +1563,97 @@ export function UsersPage() {
 
 /** ADM-09 시스템 기록 조회 — Figma 430:20246 */
 export function SystemPage() {
+  const [gpsLogs, setGpsLogs] = useState<GpsReceiveLog[]>([])
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [gpsUpdatedAt, setGpsUpdatedAt] = useState<string | null>(null)
+  const [gpsPage, setGpsPage] = useState(0)
+  const GPS_PAGE_SIZE = 10
+
+  const [dbSystemLogs, setDbSystemLogs] = useState<SystemLogRow[]>([])
+  const [systemLogsStatus, setSystemLogsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [systemLogsPage, setSystemLogsPage] = useState(0)
+  const SYSTEM_LOGS_PAGE_SIZE = 5
+  const systemLogsToShow: SystemLogRow[] = isSupabaseConfigured
+    ? dbSystemLogs
+    : (mockSystemLogs as SystemLogRow[])
+
+  const [selectedSystemLog, setSelectedSystemLog] = useState<SystemLogRow | null>(null)
+  const [selectedGpsLog, setSelectedGpsLog] = useState<GpsReceiveLog | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setGpsLogs([])
+          setGpsStatus('idle')
+        }
+        return
+      }
+      if (!cancelled) setGpsStatus((s) => (s === 'ok' ? s : 'loading'))
+      const rows = await fetchGpsReceiveLogs()
+      if (cancelled) return
+      if (rows == null) {
+        setGpsStatus('error')
+        return
+      }
+      setGpsLogs(rows)
+      setGpsStatus('ok')
+      setGpsUpdatedAt(new Date().toLocaleTimeString('ko-KR', { hour12: false }))
+      setGpsPage(0) // 실시간 갱신 시 가장 최신 페이지(1)로 이동
+      setSelectedGpsLog(null)
+    }
+    void load()
+    const timer = window.setInterval(() => {
+      void load()
+    }, 5_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setDbSystemLogs([])
+          setSystemLogsStatus('idle')
+        }
+        return
+      }
+      if (!cancelled) setSystemLogsStatus((s) => (s === 'ok' ? s : 'loading'))
+      const rows = await fetchSystemLogs()
+      if (cancelled) return
+      if (rows == null) {
+        setSystemLogsStatus('error')
+        return
+      }
+      setDbSystemLogs(rows)
+      setSystemLogsStatus('ok')
+    }
+    void load()
+    const timer = window.setInterval(() => {
+      void load()
+    }, 15_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const gpsTotalPages = Math.max(1, Math.ceil(gpsLogs.length / GPS_PAGE_SIZE))
+  const pageClamped = Math.min(gpsPage, gpsTotalPages - 1)
+  const visibleGpsLogs = gpsLogs.slice(pageClamped * GPS_PAGE_SIZE, (pageClamped + 1) * GPS_PAGE_SIZE)
+
+  const systemLogsTotalPages = Math.max(1, Math.ceil(systemLogsToShow.length / SYSTEM_LOGS_PAGE_SIZE))
+  const systemLogsPageClamped = Math.min(systemLogsPage, systemLogsTotalPages - 1)
+  const visibleSystemLogs = systemLogsToShow.slice(
+    systemLogsPageClamped * SYSTEM_LOGS_PAGE_SIZE,
+    (systemLogsPageClamped + 1) * SYSTEM_LOGS_PAGE_SIZE,
+  )
+
   return (
     <div className="page">
       <section className="card card-pad">
@@ -1312,29 +1727,62 @@ export function SystemPage() {
         <section className="card card-pad">
           <div className="card-head">
             <h3>시스템 기록 목록</h3>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {systemLogsStatus === 'loading'
+                ? '불러오는 중…'
+                : systemLogsStatus === 'error'
+                  ? '조회 실패 (관리자 권한/RLS 확인)'
+                  : systemLogsStatus === 'ok'
+                    ? `${systemLogsToShow.length}건`
+                    : !isSupabaseConfigured
+                      ? 'mock'
+                      : ''}
+            </span>
           </div>
-          <table className="data-table">
+          <table className="data-table system-logs-table">
             <thead>
               <tr>
-                <th>시간</th>
-                <th>기록 유형</th>
-                <th>상세 내용</th>
-                <th>사용자</th>
-                <th>IP 주소</th>
-                <th>대상</th>
-                <th>결과</th>
+                <th className="col-time">시간</th>
+                <th className="col-type">기록 유형</th>
+                <th className="col-action">상세 내용</th>
+                <th className="col-actor">사용자</th>
+                <th className="col-target">대상</th>
+                <th className="col-result">결과</th>
               </tr>
             </thead>
             <tbody>
-              {systemLogs.map((row) => (
-                <tr key={row.time + row.action}>
-                  <td>{row.time}</td>
-                  <td>{row.type}</td>
-                  <td>{row.action}</td>
-                  <td>{row.actor}</td>
-                  <td>{row.ip}</td>
-                  <td>{row.target}</td>
-                  <td>
+              {systemLogsToShow.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                    {systemLogsStatus === 'error'
+                      ? '시스템 기록을 불러오지 못했습니다. 관리자 계정으로 로그인했는지 확인해 주세요.'
+                      : systemLogsStatus === 'loading'
+                        ? '불러오는 중…'
+                        : '저장된 시스템 기록이 없습니다.'}
+                  </td>
+                </tr>
+              ) : (
+                visibleSystemLogs.map((row) => (
+                <tr
+                  key={row.id ?? row.time + row.action}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedSystemLog(row)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') setSelectedSystemLog(row)
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    outline: 'none',
+                    background: selectedSystemLog && 'id' in selectedSystemLog && 'id' in row && selectedSystemLog.id === row.id ? '#f2f6ff' : undefined,
+                  }}
+                >
+                  <td className="col-time">{row.time}</td>
+                  <td className="col-type">{row.type}</td>
+                  <td className="col-action">{row.action}</td>
+                  <td className="col-actor">{row.actor}</td>
+                  <td className="col-target">{row.target}</td>
+                  <td className="col-result">
                     <StatusBadge
                       tone={row.result === '성공' ? 'green' : row.result === '경고' ? 'orange' : 'red'}
                     >
@@ -1342,41 +1790,64 @@ export function SystemPage() {
                     </StatusBadge>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
           <div className="pagination">
             <div className="pagination-pages">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} className={`page-chip${n === 1 ? ' active' : ''}`} type="button">
-                  {n}
-                </button>
-              ))}
+              {Array.from({ length: systemLogsTotalPages }).map((_, i) => {
+                const n = i + 1
+                const active = n - 1 === systemLogsPageClamped
+                return (
+                  <button
+                    key={n}
+                    className={`page-chip${active ? ' active' : ''}`}
+                    type="button"
+                    onClick={() => setSystemLogsPage(i)}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
             </div>
-            <select className="select" style={{ width: 110, height: 32 }}>
-              <option>10개씩 보기</option>
-            </select>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {SYSTEM_LOGS_PAGE_SIZE}개씩 보기
+            </span>
           </div>
           <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
             시스템 시간 기준으로 기록이 저장됩니다.
           </p>
+
+          {selectedSystemLog ? (
+            <div
+              style={{
+                marginTop: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 12,
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontWeight: 800 }}>선택된 로그 상세</div>
+                <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelectedSystemLog(null)}>
+                  닫기
+                </button>
+              </div>
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+                <div>시간: {selectedSystemLog.time}</div>
+                <div>유형: {selectedSystemLog.type}</div>
+                <div>상세 내용: {selectedSystemLog.action}</div>
+                <div>사용자: {selectedSystemLog.actor ?? '-'}</div>
+                <div>대상: {selectedSystemLog.target ?? '-'}</div>
+                <div>결과: {selectedSystemLog.result}</div>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <div className="stack">
-          <section className="card card-pad">
-            <h3>기록 유형 분포</h3>
-            <div className="muted" style={{ fontSize: 12, lineHeight: 1.8 }}>
-              운영 기록 1,362 (55.4%)
-              <br />
-              사용자 활동 736 (29.9%)
-              <br />
-              시스템 변경 248 (10.1%)
-              <br />
-              오류 / 경고 112 (4.6%)
-              <br />
-              <strong style={{ color: 'var(--color-text)' }}>총 2,458건</strong>
-            </div>
-          </section>
           <section className="card card-pad">
             <div className="card-head">
               <h3>보관 정책</h3>
@@ -1386,9 +1857,124 @@ export function SystemPage() {
             </div>
             <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
               시스템 기록은 1년간 보관됩니다. 보관 기간 이후 데이터는 자동 삭제됩니다.
+              <br />
+              operation_logs(GPS 포함)는 우선 최대 {GPS_LOGS_MAX}건만 유지합니다.
             </p>
           </section>
         </div>
+      </div>
+
+      <div className="split-14">
+        <section className="card card-pad">
+          <div className="card-head">
+          <h3>GPS 수신 목록</h3>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {isSupabaseConfigured
+              ? gpsStatus === 'error'
+                ? 'DB 조회 실패 · RLS/테이블 확인'
+                : gpsStatus === 'loading' && gpsLogs.length === 0
+                  ? '불러오는 중…'
+                  : `LOCATION_UPDATED · ${gpsLogs.length}/${GPS_LOGS_MAX}건${gpsUpdatedAt ? ` · 갱신 ${gpsUpdatedAt}` : ''} · 5초 폴링`
+              : 'Supabase 미설정'}
+          </span>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>수신 시각</th>
+              <th>차량</th>
+                <th>위도</th>
+                <th>경도</th>
+                <th>정확도</th>
+                <th>상세</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gpsLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted">
+                    {isSupabaseConfigured
+                      ? '아직 GPS 수신 로그가 없습니다. 기사 앱에서 운행을 시작하면 LOCATION_UPDATED가 쌓입니다.'
+                      : 'Supabase를 연결하면 operation_logs GPS가 표시됩니다.'}
+                  </td>
+                </tr>
+              ) : (
+                visibleGpsLogs.map((row) => (
+                  <tr
+                    key={row.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedGpsLog(row)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') setSelectedGpsLog(row)
+                    }}
+                    style={{ cursor: 'pointer', background: selectedGpsLog?.id === row.id ? '#f2f6ff' : undefined }}
+                  >
+                    <td>{row.createdAtLabel}</td>
+                    <td>{row.vehicleName}</td>
+                    <td>{row.lat != null ? row.lat.toFixed(6) : '-'}</td>
+                    <td>{row.lng != null ? row.lng.toFixed(6) : '-'}</td>
+                    <td>{row.accuracy ?? '-'}</td>
+                    <td style={{ maxWidth: 360, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {row.message}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <div className="pagination" style={{ marginTop: 10 }}>
+            <div className="pagination-pages">
+              {Array.from({ length: gpsTotalPages }).map((_, i) => {
+                const n = i + 1
+                const active = n - 1 === pageClamped
+                return (
+                  <button
+                    key={n}
+                    className={`page-chip${active ? ' active' : ''}`}
+                    type="button"
+                    onClick={() => setGpsPage(i)}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            DB `operation_logs`의 GPS 수신만 표시합니다. {GPS_LOGS_MAX}건을 넘으면 오래된 로그부터 삭제됩니다.
+          </p>
+
+          {selectedGpsLog ? (
+            <div
+              style={{
+                marginTop: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 12,
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontWeight: 800 }}>선택된 GPS 상세</div>
+                <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelectedGpsLog(null)}>
+                  닫기
+                </button>
+              </div>
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+                <div>수신 시각: {selectedGpsLog.createdAtLabel}</div>
+                <div>차량: {selectedGpsLog.vehicleName}</div>
+                <div>운행 ID: {selectedGpsLog.operationId}</div>
+                <div>위도: {selectedGpsLog.lat != null ? selectedGpsLog.lat.toFixed(6) : '-'}</div>
+                <div>경도: {selectedGpsLog.lng != null ? selectedGpsLog.lng.toFixed(6) : '-'}</div>
+                <div>정확도: {selectedGpsLog.accuracy ?? '-'}</div>
+                <div>메시지: {selectedGpsLog.message}</div>
+                <div>이벤트 타입: {selectedGpsLog.eventType}</div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+        <div className="stack" />
       </div>
     </div>
   )

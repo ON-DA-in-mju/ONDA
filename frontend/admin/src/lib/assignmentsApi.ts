@@ -1,6 +1,6 @@
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { AssignmentStatus, TodayAssignment } from '../types/assignment'
-import { todayDateKey } from '../types/assignment'
+import { DRIVER_OPTIONS, todayDateKey } from '../types/assignment'
 import type { OperationStatus as DbOperationStatus, Weekday } from '../types/database'
 import type { Database } from '../types/database'
 
@@ -168,7 +168,9 @@ export async function fetchAssignments(params?: {
     console.error('[assignments]', error.message)
     return []
   }
-  return ((data ?? []) as unknown as OpRow[]).map(rowToAssignment)
+  const mapped = ((data ?? []) as unknown as OpRow[]).map(rowToAssignment)
+  // 출발시각 기준 정렬 (schedules.departure_time)
+  return mapped.sort((a, b) => a.departTime.localeCompare(b.departTime) || a.routeName.localeCompare(b.routeName))
 }
 
 export async function createAssignment(
@@ -262,4 +264,41 @@ export async function deleteAssignment(id: string): Promise<{ ok: boolean; messa
   const { error } = await supabase.from('operations').delete().eq('id', uuid)
   if (error) return { ok: false, message: error.message }
   return { ok: true }
+}
+
+export type DriverOption = { id: string; name: string }
+
+/** 기사 역할 사용자 — login_id 기준 (없으면 email local-part) */
+export async function fetchDriverOptions(): Promise<DriverOption[]> {
+  const fallback = DRIVER_OPTIONS.map((d) => ({ id: d.id, name: d.name }))
+  if (!isSupabaseConfigured) return fallback
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('login_id, name, email')
+    .eq('role', 'DRIVER')
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('[drivers]', error.message)
+    return fallback
+  }
+
+  const rows = (data ?? [])
+    .map((u) => {
+      const id = (u.login_id || u.email?.split('@')[0] || '').trim()
+      if (!id) return null
+      return { id, name: u.name || id }
+    })
+    .filter((x): x is DriverOption => Boolean(x))
+
+  return rows.length ? rows : fallback
+}
+
+/** 기존 배차에 기사만 변경 */
+export async function assignDriverToOperation(
+  operationId: string,
+  driverLoginId: string,
+): Promise<{ ok: boolean; entry?: TodayAssignment; message?: string }> {
+  return updateAssignment(operationId, { driverId: driverLoginId })
 }

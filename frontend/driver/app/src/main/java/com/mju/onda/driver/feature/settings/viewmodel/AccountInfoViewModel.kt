@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.settings.data.AccountInfo
 import com.mju.onda.driver.feature.settings.data.AccountInfoStateHolder
-import com.mju.onda.driver.feature.settings.data.MockAccountInfo
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,7 +20,6 @@ data class AccountInfoUiState(
 sealed interface AccountInfoEvent {
     data object NavigateBack : AccountInfoEvent
     data object GoToSettings : AccountInfoEvent
-    data object OpenEdit : AccountInfoEvent
 }
 
 class AccountInfoViewModel : ViewModel() {
@@ -38,10 +36,6 @@ class AccountInfoViewModel : ViewModel() {
 
     fun onBack() {
         viewModelScope.launch { _events.emit(AccountInfoEvent.NavigateBack) }
-    }
-
-    fun onEdit() {
-        viewModelScope.launch { _events.emit(AccountInfoEvent.OpenEdit) }
     }
 
     fun onGoToSettings() {

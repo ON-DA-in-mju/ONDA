@@ -2,13 +2,15 @@ package com.mju.onda.driver.core
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
 
 /** 배차·이력 화면용 실시간 날짜 포맷 (시각은 별도 Mock 유지) */
 object OndaDates {
+    private val koreaZone = ZoneId.of("Asia/Seoul")
 
-    fun today(): LocalDate = LocalDate.now()
+    fun today(): LocalDate = LocalDate.now(koreaZone)
 
     /** 오늘의 운행 홈: "8월 7일 금요일" */
     fun homeDateLabel(date: LocalDate = today()): String {

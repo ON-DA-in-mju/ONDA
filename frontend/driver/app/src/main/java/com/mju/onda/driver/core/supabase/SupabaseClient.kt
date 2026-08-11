@@ -6,7 +6,6 @@ import com.mju.onda.driver.BuildConfig
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -98,6 +97,33 @@ object SupabaseClient {
             ?.apply()
     }
 
+    /** access token 만료 시 refresh_token으로 재발급 */
+    fun refreshSession(): Boolean {
+        val refresh = prefs?.getString(KEY_REFRESH, null)
+        if (refresh.isNullOrBlank()) return false
+        val payload = JSONObject().put("refresh_token", refresh).toString()
+        val result = requestOnce(
+            method = "POST",
+            path = "/auth/v1/token?grant_type=refresh_token",
+            jsonBody = payload,
+            authed = false,
+            prefer = null,
+        )
+        if (result.code !in 200..299) return false
+        return runCatching {
+            val root = JSONObject(result.body)
+            val access = root.optString("access_token")
+            if (access.isBlank()) return false
+            val newRefresh = root.optString("refresh_token").ifBlank { refresh }
+            accessToken = access
+            prefs?.edit()
+                ?.putString(KEY_ACCESS, access)
+                ?.putString(KEY_REFRESH, newRefresh)
+                ?.apply()
+            true
+        }.getOrDefault(false)
+    }
+
     fun resolveEmail(idOrEmail: String): String {
         val trimmed = idOrEmail.trim()
         return if (trimmed.contains("@")) trimmed else "$trimmed@mju.ac.kr"
@@ -110,16 +136,31 @@ object SupabaseClient {
         path: String,
         jsonBody: String? = null,
         authed: Boolean = true,
+        /** POST/PATCH Prefer 헤더. null이면 return=representation */
+        prefer: String? = null,
+    ): HttpResult {
+        val first = requestOnce(method, path, jsonBody, authed, prefer)
+        if (first.code != 401 || !authed) return first
+        if (!refreshSession()) return first
+        return requestOnce(method, path, jsonBody, authed, prefer)
+    }
+
+    private fun requestOnce(
+        method: String,
+        path: String,
+        jsonBody: String?,
+        authed: Boolean,
+        prefer: String?,
     ): HttpResult {
         val conn = (URL("$url$path").openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 12_000
             readTimeout = 12_000
             setRequestProperty("apikey", anonKey)
-            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
             if (method == "PATCH" || method == "POST") {
-                setRequestProperty("Prefer", "return=representation")
+                setRequestProperty("Prefer", prefer ?: "return=representation")
             }
             if (authed) {
                 val token = accessToken
@@ -137,7 +178,9 @@ object SupabaseClient {
         }
         try {
             if (jsonBody != null) {
-                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(jsonBody) }
+                val bytes = jsonBody.toByteArray(Charsets.UTF_8)
+                conn.setFixedLengthStreamingMode(bytes.size)
+                conn.outputStream.use { it.write(bytes) }
             }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream

@@ -1,33 +1,38 @@
-/**
- * 2026학년도 명지대 자연캠 통학·셔틀 — mju_pier_ 공지 기반
- */
-import type { Weekday, SemesterType } from '../types/database'
+import type { Weekday, SemesterType } from '../types/database';
+import { resolveOperationalRouteName } from '../lib/routeVariants';
 
-export const MJU_ROUTE_NAMES = ['기흥역 통학버스', '명지대역 셔틀', '시내 셔틀'] as const
-export type MjuRouteName = (typeof MJU_ROUTE_NAMES)[number]
+export const MJU_ROUTE_NAMES = [
+  '기흥역 통학버스',
+  '명지대역 셔틀',
+  '시내 셔틀',
+] as const;
+export type MjuRouteName = (typeof MJU_ROUTE_NAMES)[number];
+
+/** schedules에 저장되는 실제 노선명(변형 포함) */
+export type ScheduleRouteName = string;
 
 export type MjuTrip = {
-  no: number
-  route: MjuRouteName
-  departure: string
-  via?: string
-  arrival?: string
-  buses?: number
-}
+  no: number;
+  route: MjuRouteName;
+  departure: string;
+  via?: string;
+  arrival?: string;
+  buses?: number;
+};
 
 export type MjuTimetablePack = {
-  id: string
-  title: string
-  period: 'SEMESTER' | 'VACATION'
-  daysLabel: string
-  weekdays: Weekday[]
-  semester: SemesterType
-  trips: MjuTrip[]
-  note?: string
-}
+  id: string;
+  title: string;
+  period: 'SEMESTER' | 'VACATION';
+  daysLabel: string;
+  weekdays: Weekday[];
+  semester: SemesterType;
+  trips: MjuTrip[];
+  note?: string;
+};
 
-const WEEKDAYS: Weekday[] = ['MON', 'TUE', 'WED', 'THU', 'FRI']
-const WEEKEND: Weekday[] = ['SAT', 'SUN']
+const WEEKDAYS: Weekday[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+const WEEKEND: Weekday[] = ['SAT', 'SUN'];
 
 /** 학기 중 평일 — 명지대역·시내 (이미지 am+pm) */
 const SEMESTER_SHUTTLE: MjuTrip[] = [
@@ -91,10 +96,10 @@ const SEMESTER_SHUTTLE: MjuTrip[] = [
   { no: 58, route: '명지대역 셔틀', departure: '17:45', via: '18:00' },
   { no: 59, route: '명지대역 셔틀', departure: '18:00', via: '18:15' },
   { no: 60, route: '시내 셔틀', departure: '18:10', via: '18:25' },
-]
+];
 
 /** 계절학기 = 학기 중 평일과 동일 (18:10까지) */
-const SEASONAL_SHUTTLE: MjuTrip[] = SEMESTER_SHUTTLE
+const SEASONAL_SHUTTLE: MjuTrip[] = SEMESTER_SHUTTLE;
 
 /** 학기중 주말·공휴일·방학 — 시내만 (생활관 기점) */
 const WEEKEND_VACATION_CITY: MjuTrip[] = [
@@ -108,7 +113,7 @@ const WEEKEND_VACATION_CITY: MjuTrip[] = [
   { no: 8, route: '시내 셔틀', departure: '16:20', arrival: '16:45' },
   { no: 9, route: '시내 셔틀', departure: '17:20', arrival: '17:45' },
   { no: 10, route: '시내 셔틀', departure: '18:00', arrival: '18:25' },
-]
+];
 
 /** 기흥역 통학버스 — 학기중 평일 (학교→기흥 + 기흥→학교) */
 const GIHEUNG_SEMESTER: MjuTrip[] = [
@@ -139,7 +144,7 @@ const GIHEUNG_SEMESTER: MjuTrip[] = [
   { no: 25, route: '기흥역 통학버스', departure: '17:30', buses: 1 },
   { no: 26, route: '기흥역 통학버스', departure: '18:30', buses: 1 },
   { no: 27, route: '기흥역 통학버스', departure: '19:30', buses: 1 },
-]
+];
 
 export const MJU_ROUTES = [
   {
@@ -178,7 +183,7 @@ export const MJU_ROUTES = [
     hours: '08:05 ~ 18:10',
     stopCount: 13,
   },
-]
+];
 
 /** 변형 노선 (공휴일·주말·방학 시내) */
 export const MJU_ROUTE_VARIANTS = [
@@ -190,7 +195,7 @@ export const MJU_ROUTE_VARIANTS = [
     start_location: '생활관(명현관)',
     end_location: '생활관(명현관)',
   },
-] as const
+] as const;
 
 export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
   {
@@ -259,21 +264,22 @@ export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
     trips: WEEKEND_VACATION_CITY,
     note: '생활관(명현관) 기점 순환 10회',
   },
-]
+];
 
 /** schedules 테이블 insert용 — 노선별 출발시각 × 요일 × semester */
+/** schedules insert용 — 18시 이후·주말/방학 시내를 변형 노선으로 분리 */
 export function expandScheduleRows(): {
-  routeName: string
-  departure_time: string
-  weekday: Weekday
-  semester: SemesterType
+  routeName: ScheduleRouteName;
+  departure_time: string;
+  weekday: Weekday;
+  semester: SemesterType;
 }[] {
   const out: {
-    routeName: string
-    departure_time: string
-    weekday: Weekday
-    semester: SemesterType
-  }[] = []
+    routeName: ScheduleRouteName;
+    departure_time: string;
+    weekday: Weekday;
+    semester: SemesterType;
+  }[] = [];
 
   const push = (
     trips: MjuTrip[],
@@ -282,32 +288,42 @@ export function expandScheduleRows(): {
     routeName?: string,
   ) => {
     for (const t of trips) {
-      const name = routeName ?? t.route
+      const name = routeName ?? t.route;
       for (const wd of weekdays) {
+        const departure_time = `${t.departure}:00`;
         out.push({
-          routeName: name,
-          departure_time: `${t.departure}:00`,
+          routeName: resolveOperationalRouteName({
+            baseRouteName: t.route,
+            departureTime: departure_time,
+            weekday: wd,
+            semester,
+          }),
+          departure_time,
           weekday: wd,
           semester,
-        })
+        });
       }
     }
-  }
+  };
 
   // 학기 중 평일
-  push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER')
-  push(SEMESTER_SHUTTLE, WEEKDAYS, 'SEMESTER')
+  push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER');
+  push(SEMESTER_SHUTTLE, WEEKDAYS, 'SEMESTER');
   // 계절학기 평일 (= 학기 중 평일 셔틀)
-  push(SEASONAL_SHUTTLE, WEEKDAYS, 'VACATION')
-  // 주말·공휴일·방학 시내 → 분리 노선
-  const weekendRoute = '시내 셔틀 (주말·공휴일·방학)'
-  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', weekendRoute)
-  push(WEEKEND_VACATION_CITY, [...WEEKDAYS, ...WEEKEND], 'VACATION', weekendRoute)
+  push(SEASONAL_SHUTTLE, WEEKDAYS, 'VACATION');
+  // 학기중 주말도 시내 운행 → 시내 셔틀 (주말·공휴일·방학)
+  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', '시내 셔틀');
+  push(WEEKEND_VACATION_CITY, WEEKEND, 'VACATION', '시내 셔틀');
+  // 방학 평일 시내 → 시내 셔틀 (주말·공휴일·방학)
+  push(WEEKEND_VACATION_CITY, WEEKDAYS, 'VACATION', '시내 셔틀');
 
-  return out
+  return out;
 }
 
-export function summarizeRouteSchedule(route: MjuRouteName, semester: SemesterType = 'SEMESTER') {
+export function summarizeRouteSchedule(
+  route: MjuRouteName,
+  semester: SemesterType = 'SEMESTER',
+) {
   const trips =
     route === '기흥역 통학버스'
       ? GIHEUNG_SEMESTER
@@ -315,12 +331,12 @@ export function summarizeRouteSchedule(route: MjuRouteName, semester: SemesterTy
         ? SEASONAL_SHUTTLE.filter((t) => t.route === route).concat(
             route === '시내 셔틀' ? WEEKEND_VACATION_CITY : [],
           )
-        : SEMESTER_SHUTTLE.filter((t) => t.route === route)
+        : SEMESTER_SHUTTLE.filter((t) => t.route === route);
 
-  const times = trips.map((t) => t.departure).sort()
+  const times = trips.map((t) => t.departure).sort();
   return {
     rounds: trips.length,
     start: times[0] ?? '-',
     end: times[times.length - 1] ?? '-',
-  }
+  };
 }
