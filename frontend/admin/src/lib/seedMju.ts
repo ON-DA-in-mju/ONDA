@@ -1,7 +1,4 @@
 import { isSupabaseConfigured, supabase } from './supabase'
-<<<<<<< HEAD
-import { expandScheduleRows, MJU_ROUTES, MJU_ROUTE_VARIANTS } from '../data/mjuTimetable'
-=======
 import { expandScheduleRows, MJU_ROUTES } from '../data/mjuTimetable'
 import { OPERATIONAL_ROUTE_NAMES, VARIANT_ROUTE_DEFS } from './routeVariants'
 import {
@@ -10,18 +7,11 @@ import {
   MYONGJI_STATION_AFTER18_ROUTE_NAME,
   MYONGJI_STATION_ROUTE_NAME,
 } from '../data/cityShuttleStops'
->>>>>>> main
 import type { Database, SemesterType, Weekday } from '../types/database'
 
 type RouteRow = Database['public']['Tables']['routes']['Row']
 type ScheduleRow = Database['public']['Tables']['schedules']['Row']
 
-<<<<<<< HEAD
-const TARGET_NAMES = [
-  ...MJU_ROUTES.map((r) => r.name),
-  ...MJU_ROUTE_VARIANTS.map((r) => r.name),
-]
-=======
 const TARGET_NAMES = [...OPERATIONAL_ROUTE_NAMES]
 const BASE_AND_VARIANT_DEFS = [
   ...MJU_ROUTES.map((r) => ({
@@ -56,7 +46,6 @@ export function routeMatchesFilter(actualName: string | null | undefined, filter
   if (!actualName) return false
   return routeNamesForFilter(filterName).includes(actualName)
 }
->>>>>>> main
 
 export type ScheduleWithRoute = ScheduleRow & {
   routes: Pick<RouteRow, 'id' | 'route_name' | 'direction' | 'description' | 'is_active' | 'start_location' | 'end_location'> | null
