@@ -11,10 +11,12 @@
 --   (테이블 추가) safe_stop_requests
 --   마이그레이션: supabase/migrate_reports_source.sql
 --   마이그레이션: supabase/migrate_notices_fields.sql (type/audience/기간/is_push/status + RLS)
+--   마이그레이션: supabase/migrate_operation_device_status.sql (GPS vs 네트워크 heartbeat + RLS + Realtime)
 --   마이그레이션: supabase/migrate_routes_route_stops.sql (공지 기준 노선·정류장 순서)
 
 -- users.role: STUDENT | DRIVER | ADMIN
 -- notices: title, content, author_id, type, audience[], starts_at, ends_at, is_push, status
+-- operation_device_status: operation_id, gps_ok, gps_enabled, last_location_at, updated_at
 -- reports.status: PENDING | PROCESSING | COMPLETED
 -- reports.source: STUDENT | DRIVER
 -- buses.status: ACTIVE | INACTIVE | MAINTENANCE

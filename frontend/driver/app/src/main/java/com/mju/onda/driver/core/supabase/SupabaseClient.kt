@@ -110,6 +110,7 @@ object SupabaseClient {
         path: String,
         jsonBody: String? = null,
         authed: Boolean = true,
+        prefer: String? = null,
     ): HttpResult {
         val conn = (URL("$url$path").openConnection() as HttpURLConnection).apply {
             requestMethod = method
@@ -118,8 +119,12 @@ object SupabaseClient {
             setRequestProperty("apikey", anonKey)
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
-            if (method == "PATCH" || method == "POST") {
-                setRequestProperty("Prefer", "return=representation")
+            val preferHeader = prefer ?: when (method) {
+                "PATCH", "POST" -> "return=representation"
+                else -> null
+            }
+            if (!preferHeader.isNullOrBlank()) {
+                setRequestProperty("Prefer", preferHeader)
             }
             if (authed) {
                 val token = accessToken

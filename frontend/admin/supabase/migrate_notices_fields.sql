@@ -132,6 +132,8 @@ drop policy if exists notices_driver_select on public.notices;
 drop policy if exists "Enable read access for all users" on public.notices;
 drop policy if exists notices_select on public.notices;
 drop policy if exists notices_all on public.notices;
+drop policy if exists notices_select_auth on public.notices;
+drop policy if exists notices_insert_auth on public.notices;
 
 create policy notices_admin_all on public.notices
   for all to authenticated

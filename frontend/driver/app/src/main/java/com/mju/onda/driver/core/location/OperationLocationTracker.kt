@@ -54,6 +54,8 @@ object OperationLocationTracker {
 
         appContext = context.applicationContext
 
+        DeviceStatusReporter.init(context)
+
     }
 
 
@@ -124,6 +126,8 @@ object OperationLocationTracker {
 
         LiveHeartbeatReporter.start(operationId)
 
+        DeviceStatusReporter.start(operationId)
+
     }
 
 
@@ -141,6 +145,8 @@ object OperationLocationTracker {
         activeOperationId = null
 
         LiveHeartbeatReporter.stopAndMarkEnded(endingId)
+
+        DeviceStatusReporter.stop()
 
         val intent = Intent(ctx, OperationLocationService::class.java).apply {
 
