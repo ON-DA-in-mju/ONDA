@@ -21,11 +21,21 @@ export const gpsAlerts = [
 ]
 
 export const schedules = [
-  { day: '월', route: '기흥역 ↔ 캠퍼스', start: '07:00', end: '22:30', interval: '15분', rounds: 42, status: '운행 중', tone: 'green' as const },
-  { day: '화', route: '용인시청 ↔ 캠퍼스', start: '07:10', end: '21:40', interval: '20분', rounds: 30, status: '운행 중', tone: 'green' as const },
-  { day: '수', route: '수원역 ↔ 캠퍼스', start: '06:50', end: '22:00', interval: '15분', rounds: 38, status: '수정 중', tone: 'blue' as const },
-  { day: '목', route: '죽전역 ↔ 캠퍼스', start: '07:20', end: '21:20', interval: '25분', rounds: 24, status: '운행 중', tone: 'green' as const },
+  { day: '월', route: '기흥역 통학버스', start: '08:00', end: '19:30', interval: '약 60분', rounds: 27, status: '운행 중', tone: 'green' as const },
+  { day: '화', route: '명지대역 셔틀', start: '08:00', end: '17:45', interval: '약 10~20분', rounds: 45, status: '운행 중', tone: 'green' as const },
+  { day: '화', route: '명지대역 셔틀 (18시 이후)', start: '18:00', end: '18:00', interval: '-', rounds: 1, status: '운행 중', tone: 'blue' as const },
+  { day: '수', route: '시내 셔틀', start: '08:05', end: '18:10', interval: '약 70분', rounds: 9, status: '운행 중', tone: 'green' as const },
+  { day: '토', route: '시내 셔틀 (주말·공휴일·방학)', start: '08:20', end: '18:00', interval: '약 60분', rounds: 10, status: '주말 운행', tone: 'blue' as const },
 ]
+
+/** 공식 시간표·조회 필터용 노선 (DB routes.route_name 과 동일) */
+export const SCHEDULE_ROUTE_OPTIONS = [
+  '기흥역 통학버스',
+  '명지대역 셔틀',
+  '명지대역 셔틀 (18시 이후)',
+  '시내 셔틀',
+  '시내 셔틀 (주말·공휴일·방학)',
+] as const
 
 /** 명지대 자연캠(용인) 인근 데모 좌표 — 실제 연동 시 vehicle_locations 사용 */
 export const liveVehicles = [

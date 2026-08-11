@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bus,
@@ -11,11 +11,37 @@ import {
   Search,
   Users,
 } from 'lucide-react'
-import { schedules } from '../data/mock'
+import { SCHEDULE_ROUTE_OPTIONS, schedules } from '../data/mock'
+import { MJU_TIMETABLE_PACKS } from '../data/mjuTimetable'
 import { StatusBadge } from '../components/ui/Form'
+import { semesterForDate } from '../lib/academicCalendar'
+import { fetchSchedulesWithRoutes, routeMatchesFilter, type ScheduleWithRoute } from '../lib/seedMju'
+import { isSupabaseConfigured } from '../lib/supabase'
+import type { SemesterType, Weekday } from '../types/database'
 import '../styles/schedules.css'
 
 const days = ['전체', '월', '화', '수', '목', '금', '토', '일'] as const
+type DayChip = (typeof days)[number]
+
+const DAY_TO_WEEKDAY: Record<Exclude<DayChip, '전체'>, Weekday> = {
+  월: 'MON',
+  화: 'TUE',
+  수: 'WED',
+  목: 'THU',
+  금: 'FRI',
+  토: 'SAT',
+  일: 'SUN',
+}
+
+const WEEKDAY_KO: Record<Weekday, string> = {
+  MON: '월',
+  TUE: '화',
+  WED: '수',
+  THU: '목',
+  FRI: '금',
+  SAT: '토',
+  SUN: '일',
+}
 
 const summaryCards = [
   { label: '총 운행 횟수', value: '210', unit: '회', hint: '일평균 30회', icon: CalendarDays, tone: 'blue' },
@@ -24,36 +50,139 @@ const summaryCards = [
   { label: '예상 탑승 인원', value: '8,450', unit: '명', hint: '일평균 1,210명', icon: Users, tone: 'purple' },
 ] as const
 
-const timetableA = [
-  ['1', '07:00', '72버 1234'],
-  ['2', '07:20', '73버 1122'],
-  ['3', '07:40', '72버 5678'],
-  ['4', '08:00', '74버 7788'],
-  ['5', '08:20', '72버 1234'],
-]
-
-const timetableB = [
-  ['1', '07:10', '73버 1122'],
-  ['2', '07:30', '72버 5678'],
-  ['3', '07:50', '74버 7788'],
-  ['4', '08:10', '72버 1234'],
-  ['5', '08:30', '73버 1122'],
-]
-
 const exceptions = [
-  { date: '2026.07.25', day: '금', reason: '정기 점검', route: '기흥역 ⇄ 캠퍼스', action: '운행 중단', status: '예정' },
+  { date: '2026.07.25', day: '금', reason: '정기 점검', route: '기흥역 통학버스', action: '운행 중단', status: '예정' },
   { date: '2026.07.27', day: '일', reason: '축제 일정으로 배차 증편', route: '전체 노선', action: '증편', status: '예정' },
   { date: '2026.07.30', day: '수', reason: '도로 공사', route: '시내 셔틀', action: '우회 운행', status: '예정' },
 ]
 
-const patternHours = ['06', '08', '10', '12', '14', '16', '18', '20', '22', '24']
-const patternWeekday = [35, 78, 92, 70, 55, 68, 95, 82, 48, 22]
-const patternWeekend = [18, 42, 55, 48, 38, 45, 60, 52, 30, 12]
+function formatTime(t: string) {
+  return t.slice(0, 5)
+}
 
-/** ADM-02 오늘의 운행·배차 목록 — Figma 56235228 */
+function jsDayToChip(d: number): DayChip {
+  const map: DayChip[] = ['일', '월', '화', '수', '목', '금', '토']
+  return map[d] ?? '월'
+}
+
+/** ADM-02 오늘의 운행·배차 목록 — 공식 시간표는 DB schedules */
 export function SchedulesPage() {
-  const [activeDay, setActiveDay] = useState<(typeof days)[number]>('월')
+  const [activeDay, setActiveDay] = useState<DayChip>(() => jsDayToChip(new Date().getDay()))
+  const [draftRoute, setDraftRoute] = useState<string>(SCHEDULE_ROUTE_OPTIONS[0])
+  const [routeFilter, setRouteFilter] = useState<string>(SCHEDULE_ROUTE_OPTIONS[0])
   const [exceptionTab, setExceptionTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [timetableRoute, setTimetableRoute] = useState<string>(SCHEDULE_ROUTE_OPTIONS[1])
+  const [timetablePeriod, setTimetablePeriod] = useState<SemesterType>(() => semesterForDate(new Date()))
+  const [dbSchedules, setDbSchedules] = useState<ScheduleWithRoute[] | null>(null)
+
+  const selectedWeekday: Weekday | null = activeDay === '전체' ? null : DAY_TO_WEEKDAY[activeDay]
+
+  const loadDbSchedules = useCallback(async () => {
+    const rows = await fetchSchedulesWithRoutes()
+    setDbSchedules(rows)
+  }, [])
+
+  useEffect(() => {
+    void loadDbSchedules()
+  }, [loadDbSchedules])
+
+  useEffect(() => {
+    setTimetablePeriod(semesterForDate(new Date()))
+  }, [])
+
+  useEffect(() => {
+    if (routeFilter) setTimetableRoute(routeFilter)
+  }, [routeFilter])
+
+  const localFallbackTrips = useMemo(() => {
+    const pack =
+      timetablePeriod === 'VACATION'
+        ? MJU_TIMETABLE_PACKS.find((p) => p.id === 'weekend-vacation-city' || p.id === 'seasonal-shuttle')
+        : timetableRoute === '기흥역 통학버스'
+          ? MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-giheung')
+          : MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-shuttle')
+    const trips = (pack ?? MJU_TIMETABLE_PACKS[0])?.trips ?? []
+    return trips.filter((t) => t.route === timetableRoute || routeMatchesFilter(t.route, timetableRoute))
+  }, [timetableRoute, timetablePeriod])
+
+  const dbTrips = useMemo(() => {
+    if (!dbSchedules) return []
+    return dbSchedules
+      .filter(
+        (s) =>
+          routeMatchesFilter(s.routes?.route_name, timetableRoute) &&
+          s.semester === timetablePeriod &&
+          (selectedWeekday == null || s.weekday === selectedWeekday),
+      )
+      .sort((a, b) => a.departure_time.localeCompare(b.departure_time))
+  }, [dbSchedules, timetableRoute, selectedWeekday, timetablePeriod])
+
+  const timetableLoading = isSupabaseConfigured && dbSchedules === null
+  const timetableSourceLabel = isSupabaseConfigured
+    ? dbSchedules
+      ? `DB schedules · ${dbTrips.length}건`
+      : 'DB 조회 중…'
+    : '로컬 시간표'
+
+  const dbRouteSummary = useMemo(() => {
+    if (!dbTrips.length) return null
+    const times = dbTrips.map((s) => formatTime(s.departure_time)).sort()
+    return { rounds: dbTrips.length, start: times[0], end: times[times.length - 1] }
+  }, [dbTrips])
+
+  const displayRows = useMemo(() => {
+    if (isSupabaseConfigured) return dbTrips
+    if (dbTrips.length) return dbTrips
+    return localFallbackTrips.map((t, i) => ({
+      id: `local-${i}`,
+      departure_time: `${t.departure}:00`,
+      weekday: (selectedWeekday ?? 'MON') as Weekday,
+      semester: timetablePeriod,
+      routes: { route_name: t.route },
+    }))
+  }, [dbTrips, localFallbackTrips, selectedWeekday, timetablePeriod])
+
+  const patternPreview = useMemo(() => {
+    const START_HOUR = 8
+    const SLOT_COUNT = 10
+    const rows =
+      dbSchedules?.filter(
+        (s) => routeMatchesFilter(s.routes?.route_name, timetableRoute) && s.semester === timetablePeriod,
+      ) ?? []
+    const source: { hour: number; weekday: Weekday }[] = rows.length
+      ? rows.map((s) => ({
+          hour: Number.parseInt(String(s.departure_time).slice(0, 2), 10) || 0,
+          weekday: s.weekday as Weekday,
+        }))
+      : localFallbackTrips.flatMap((t) => {
+          const hour = Number.parseInt(t.departure.slice(0, 2), 10) || 0
+          const wds: Weekday[] = ['MON', 'TUE', 'WED', 'THU', 'FRI']
+          return wds.map((weekday) => ({ hour, weekday }))
+        })
+    const WEEKDAY_SET = new Set<Weekday>(['MON', 'TUE', 'WED', 'THU', 'FRI'])
+    const slots = Array.from({ length: SLOT_COUNT }, (_, i) => {
+      const hour = START_HOUR + i
+      const atHour = source.filter((s) => s.hour === hour)
+      const weekdayPct = Math.min(100, atHour.filter((s) => WEEKDAY_SET.has(s.weekday)).length * 8)
+      const weekendPct = Math.min(100, atHour.filter((s) => !WEEKDAY_SET.has(s.weekday)).length * 12)
+      return { hour, weekdayPct, weekendPct }
+    })
+    return { slots, fromDb: rows.length > 0, empty: source.length === 0 }
+  }, [dbSchedules, timetableRoute, timetablePeriod, localFallbackTrips])
+
+  const onSearch = () => {
+    setRouteFilter(draftRoute)
+    setTimetableRoute(draftRoute)
+  }
+
+  const onReset = () => {
+    const today = jsDayToChip(new Date().getDay())
+    setActiveDay(today)
+    setDraftRoute(SCHEDULE_ROUTE_OPTIONS[0])
+    setRouteFilter(SCHEDULE_ROUTE_OPTIONS[0])
+    setTimetableRoute(SCHEDULE_ROUTE_OPTIONS[0])
+    setTimetablePeriod(semesterForDate(new Date()))
+  }
 
   return (
     <div className="page sched-page">
@@ -73,11 +202,17 @@ export function SchedulesPage() {
                   <RouteIcon size={13} />
                   노선
                 </label>
-                <select className="select" defaultValue="giheung">
-                  <option value="all">노선 전체</option>
-                  <option value="giheung">기흥역 ⇄ 캠퍼스</option>
-                  <option value="yongin">용인시청 ⇄ 캠퍼스</option>
-                  <option value="suwon">수원역 ⇄ 캠퍼스</option>
+                <select
+                  className="select"
+                  style={{ width: 220 }}
+                  value={draftRoute}
+                  onChange={(e) => setDraftRoute(e.target.value)}
+                >
+                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -100,30 +235,12 @@ export function SchedulesPage() {
                 </div>
               </div>
 
-              <div className="sched-filter-field sched-filter-period">
-                <label>
-                  <CalendarDays size={13} />
-                  기간
-                </label>
-                <div className="sched-period">
-                  <div className="sched-date-wrap">
-                    <input className="input" defaultValue="2026.07.20" />
-                    <CalendarDays size={14} />
-                  </div>
-                  <span>~</span>
-                  <div className="sched-date-wrap">
-                    <input className="input" defaultValue="2026.07.26" />
-                    <CalendarDays size={14} />
-                  </div>
-                </div>
-              </div>
-
               <div className="sched-filter-actions">
-                <button className="btn btn-primary" type="button">
+                <button className="btn btn-primary" type="button" onClick={onSearch}>
                   <Search size={14} />
                   조회하기
                 </button>
-                <button className="btn btn-outline" type="button">
+                <button className="btn btn-outline" type="button" onClick={onReset}>
                   초기화
                 </button>
               </div>
@@ -157,13 +274,13 @@ export function SchedulesPage() {
                 {schedules.map((row) => (
                   <tr key={`${row.day}-${row.route}`}>
                     <td>{row.day}</td>
-                    <td>{row.route.replace('↔', '⇄')}</td>
+                    <td>{row.route}</td>
                     <td>{row.start}</td>
                     <td>{row.end}</td>
                     <td>{row.interval}</td>
                     <td>{row.rounds}회</td>
                     <td>
-                      <StatusBadge tone={row.tone}>{row.status === '수정 중' ? '주말 운행' : row.status}</StatusBadge>
+                      <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
                     </td>
                     <td>
                       <Link className="btn btn-outline btn-xs" to="/schedules/detail">
@@ -174,18 +291,6 @@ export function SchedulesPage() {
                 ))}
               </tbody>
             </table>
-            <div className="pagination">
-              <div className="pagination-pages">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} className={`page-chip${n === 1 ? ' active' : ''}`} type="button">
-                    {n}
-                  </button>
-                ))}
-              </div>
-              <select className="select" style={{ width: 110, height: 28, fontSize: 11 }}>
-                <option>10개씩 보기</option>
-              </select>
-            </div>
           </section>
 
           <section className="card card-pad sched-panel">
@@ -194,57 +299,58 @@ export function SchedulesPage() {
                 <CalendarDays size={15} />
                 예외 일정 관리
               </h3>
-              <Link className="btn btn-primary btn-xs" to="/schedules/exception?mode=new">
-                <Plus size={13} />
-                예외 일정 등록
-              </Link>
-            </div>
-            <div className="sched-tabs">
-              <button
-                type="button"
-                className={exceptionTab === 'upcoming' ? 'active' : undefined}
-                onClick={() => setExceptionTab('upcoming')}
-              >
-                예정된 예외
-              </button>
-              <button
-                type="button"
-                className={exceptionTab === 'past' ? 'active' : undefined}
-                onClick={() => setExceptionTab('past')}
-              >
-                지난 예외
-              </button>
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className={`btn btn-xs ${exceptionTab === 'upcoming' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setExceptionTab('upcoming')}
+                >
+                  예정
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${exceptionTab === 'past' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setExceptionTab('past')}
+                >
+                  지난
+                </button>
+                <Link className="btn btn-primary btn-xs" to="/schedules/exception?mode=new">
+                  <Plus size={13} />
+                  예외 일정 등록
+                </Link>
+              </div>
             </div>
             <table className="data-table dense">
               <thead>
                 <tr>
-                  <th>일자</th>
+                  <th>날짜</th>
                   <th>요일</th>
                   <th>사유</th>
-                  <th>적용 노선</th>
+                  <th>노선</th>
                   <th>조치</th>
                   <th>상태</th>
-                  <th>관리</th>
                 </tr>
               </thead>
               <tbody>
-                {(exceptionTab === 'upcoming' ? exceptions : exceptions.slice(0, 1)).map((row) => (
-                  <tr key={row.date + row.reason}>
+                {(exceptionTab === 'upcoming' ? exceptions : []).map((row) => (
+                  <tr key={`${row.date}-${row.route}`}>
                     <td>{row.date}</td>
                     <td>{row.day}</td>
                     <td>{row.reason}</td>
                     <td>{row.route}</td>
                     <td>{row.action}</td>
                     <td>
-                      <StatusBadge tone="orange">{exceptionTab === 'upcoming' ? '예정' : '종료'}</StatusBadge>
-                    </td>
-                    <td>
-                      <Link className="btn btn-outline btn-xs" to={`/schedules/exception?date=${encodeURIComponent(row.date)}`}>
-                        상세
-                      </Link>
+                      <StatusBadge tone="orange">{row.status}</StatusBadge>
                     </td>
                   </tr>
                 ))}
+                {exceptionTab === 'past' ? (
+                  <tr>
+                    <td colSpan={6} className="muted">
+                      지난 예외 일정이 없습니다.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </section>
@@ -256,7 +362,6 @@ export function SchedulesPage() {
               <h3>
                 <CalendarDays size={15} />
                 운행 일정 요약
-                <span className="muted"> · 2026.07.20 ~ 2026.07.26</span>
               </h3>
               <div className="toolbar">
                 <button className="btn btn-outline btn-xs" type="button">
@@ -292,62 +397,100 @@ export function SchedulesPage() {
             <div className="card-head">
               <h3>
                 <Clock3 size={15} />
-                상세 시간표
+                공식 시간표
               </h3>
-              <span className="sched-subtitle">월요일 · 기흥역 ⇄ 캠퍼스</span>
+              <div className="toolbar sched-tt-filters">
+                <select
+                  className="select"
+                  style={{ width: 200, height: 32 }}
+                  value={timetableRoute}
+                  onChange={(e) => setTimetableRoute(e.target.value)}
+                >
+                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${timetablePeriod === 'SEMESTER' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setTimetablePeriod('SEMESTER')}
+                >
+                  학기 중
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${timetablePeriod === 'VACATION' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setTimetablePeriod('VACATION')}
+                >
+                  방학·계절학기
+                </button>
+              </div>
             </div>
-            <div className="sched-timetable">
-              <div>
-                <div className="sched-tt-title">기흥역 → 캠퍼스</div>
-                <table className="data-table dense">
-                  <thead>
+            <p className="muted sched-tt-meta">
+              {timetablePeriod === 'SEMESTER' ? '학기 중' : '방학·계절학기'} ·{' '}
+              {activeDay === '전체' ? '전체 요일' : `${activeDay}요일`} · {timetableRoute}
+              {dbRouteSummary
+                ? ` · ${dbRouteSummary.rounds}회 · ${dbRouteSummary.start}~${dbRouteSummary.end}`
+                : timetableLoading
+                  ? ' · 불러오는 중…'
+                  : timetableRoute === '기흥역 통학버스' && timetablePeriod === 'VACATION'
+                    ? ' · 기흥역은 방학·계절학기 미운행'
+                    : ' · 해당 조건 일정 없음'}
+              {' · '}
+              {timetableSourceLabel}
+            </p>
+            <div className="sched-timetable-scroll">
+              <table className="data-table dense">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>노선</th>
+                    <th>출발</th>
+                    <th>요일</th>
+                    <th>구분</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timetableLoading ? (
                     <tr>
-                      <th>순번</th>
-                      <th>출발 시간</th>
-                      <th>차량</th>
+                      <td colSpan={5} className="muted">
+                        schedules 불러오는 중…
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {timetableA.map((row) => (
-                      <tr key={row[0]}>
-                        <td>{row[0]}</td>
-                        <td>{row[1]}</td>
-                        <td>{row[2]}</td>
+                  ) : null}
+                  {!timetableLoading &&
+                    displayRows.map((row, idx) => (
+                      <tr key={'id' in row && row.id ? String(row.id) : `row-${idx}`}>
+                        <td>{idx + 1}</td>
+                        <td>{('routes' in row && row.routes?.route_name) || timetableRoute}</td>
+                        <td style={{ fontWeight: 700 }}>
+                          {'departure_time' in row ? formatTime(String(row.departure_time)) : '-'}
+                        </td>
+                        <td>
+                          {'weekday' in row
+                            ? WEEKDAY_KO[row.weekday as Weekday] ?? String(row.weekday)
+                            : activeDay}
+                        </td>
+                        <td>
+                          {('semester' in row ? String(row.semester) : timetablePeriod) === 'VACATION'
+                            ? '방학·계절학기'
+                            : '학기 중'}
+                        </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="sched-tt-rail" aria-hidden>
-                <span />
-                <div className="sched-tt-bus">
-                  <Bus size={16} />
-                </div>
-                <span />
-              </div>
-
-              <div>
-                <div className="sched-tt-title">캠퍼스 → 기흥역</div>
-                <table className="data-table dense">
-                  <thead>
+                  {!timetableLoading && displayRows.length === 0 ? (
                     <tr>
-                      <th>순번</th>
-                      <th>출발 시간</th>
-                      <th>차량</th>
+                      <td colSpan={5} className="muted">
+                        {timetableRoute === '기흥역 통학버스' && timetablePeriod === 'VACATION'
+                          ? '기흥역 통학버스는 방학·계절학기·주말에 운행하지 않습니다.'
+                          : '해당 조건의 schedules가 없습니다. 노선·학기중/방학·요일을 바꿔 보세요.'}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {timetableB.map((row) => (
-                      <tr key={row[0]}>
-                        <td>{row[0]}</td>
-                        <td>{row[1]}</td>
-                        <td>{row[2]}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ) : null}
+                </tbody>
+              </table>
             </div>
           </section>
 
@@ -357,29 +500,38 @@ export function SchedulesPage() {
                 <Bus size={15} />
                 운행 패턴 미리보기
               </h3>
-              <button className="btn btn-ghost btn-xs" type="button">
-                전체 보기
-              </button>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {timetableRoute} · {timetablePeriod === 'VACATION' ? '방학' : '학기중'} · 08~17시
+                {patternPreview.fromDb ? '' : ' (로컬)'}
+              </span>
             </div>
-            <div className="sched-pattern" aria-hidden>
-              {patternHours.map((hour, i) => (
-                <div key={hour} className="sched-pattern-col">
-                  <div className="sched-pattern-bars">
-                    <span className="bar bar-a" style={{ height: `${patternWeekday[i]}%` }} />
-                    <span className="bar bar-b" style={{ height: `${patternWeekend[i]}%` }} />
-                  </div>
-                  <em>{hour}시</em>
+            {patternPreview.empty ? (
+              <p className="muted" style={{ margin: '12px 0', fontSize: 13 }}>
+                선택 노선·학기에 해당하는 schedules가 없습니다.
+              </p>
+            ) : (
+              <>
+                <div className="sched-pattern" aria-hidden>
+                  {patternPreview.slots.map((slot) => (
+                    <div key={slot.hour} className="sched-pattern-col">
+                      <div className="sched-pattern-bars">
+                        <span className="bar bar-a" style={{ height: `${slot.weekdayPct || 4}%` }} />
+                        <span className="bar bar-b" style={{ height: `${slot.weekendPct || 4}%` }} />
+                      </div>
+                      <em>{String(slot.hour).padStart(2, '0')}시</em>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="legend-row">
-              <span>
-                <i style={{ background: '#266ef4' }} /> 평일
-              </span>
-              <span>
-                <i style={{ background: '#3fb46a' }} /> 주말
-              </span>
-            </div>
+                <div className="legend-row">
+                  <span>
+                    <i style={{ background: '#266ef4' }} /> 평일
+                  </span>
+                  <span>
+                    <i style={{ background: '#3fb46a' }} /> 주말
+                  </span>
+                </div>
+              </>
+            )}
           </section>
         </div>
       </div>
@@ -392,7 +544,7 @@ export function ScheduleDetailPage() {
     <div className="page">
       <section className="card card-pad">
         <div className="card-head">
-          <h3>운행 일정 상세 · 기흥역 ⇄ 캠퍼스 (월요일)</h3>
+          <h3>운행 일정 상세 · 기흥역 통학버스 (월요일)</h3>
           <div className="toolbar">
             <button className="btn btn-outline" type="button">
               수정
@@ -404,12 +556,12 @@ export function ScheduleDetailPage() {
         </div>
         <div className="grid grid-4">
           {[
-            ['노선', '기흥역 ⇄ 캠퍼스'],
+            ['노선', '기흥역 통학버스'],
             ['운행 요일', '월요일'],
-            ['운행 시간', '07:00 ~ 22:30'],
-            ['배차 간격', '15분'],
-            ['총 회차', '42회'],
-            ['배차 차량', '온다 1~4호기'],
+            ['운행 시간', '08:00 ~ 19:30'],
+            ['배차 간격', '약 60분'],
+            ['총 회차', '27회'],
+            ['배차 차량', '온다 1~4호차'],
             ['담당 기사', '김기사 외 3명'],
             ['상태', '운행 중'],
           ].map(([k, v]) => (
@@ -446,7 +598,7 @@ export function ScheduleDetailPage() {
               <td>현장 담당</td>
               <td>김기사</td>
               <td>010-2222-3333</td>
-              <td>기흥역 노선</td>
+              <td>기흥역 통학버스</td>
             </tr>
           </tbody>
         </table>
@@ -486,10 +638,10 @@ export function ScheduleBulkPage() {
             {[1, 2, 3, 4, 5].map((n) => (
               <tr key={n}>
                 <td>{n}</td>
-                <td>기흥역 ⇄ 캠퍼스</td>
+                <td>기흥역 통학버스</td>
                 <td>월</td>
                 <td>{`0${6 + n}:00`}</td>
-                <td>22:30</td>
+                <td>19:30</td>
                 <td>
                   <StatusBadge tone={n === 4 ? 'red' : 'green'}>{n === 4 ? '실패' : '정상'}</StatusBadge>
                 </td>
@@ -514,9 +666,13 @@ export function ScheduleSuspendPage() {
             <label>
               대상 노선<span className="req">*</span>
             </label>
-            <select className="select" defaultValue="all">
+            <select className="select" defaultValue={SCHEDULE_ROUTE_OPTIONS[0]}>
               <option value="all">전체 노선</option>
-              <option>기흥역 ⇄ 캠퍼스</option>
+              {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
           </div>
           <div className="field">

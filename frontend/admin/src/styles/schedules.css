@@ -73,6 +73,35 @@
   width: 180px;
 }
 
+.sched-tt-filters {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sched-tt-meta {
+  font-size: 12px;
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.sched-timetable-scroll {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+}
+
+.sched-timetable-scroll .data-table {
+  margin: 0;
+}
+
+.sched-timetable-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
 .sched-filter-days {
   flex: 1 1 280px;
 }

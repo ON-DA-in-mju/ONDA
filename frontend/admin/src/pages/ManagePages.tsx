@@ -56,7 +56,16 @@ import {
   fetchRoutes,
   type RouteRow,
 } from '../lib/api'
-import { maintenances, notices as mockNotices, reports as mockReports, routes as mockRoutes, systemLogs, users as mockUsers, vehicles as mockVehicles } from '../data/mock'
+import {
+  SCHEDULE_ROUTE_OPTIONS,
+  maintenances,
+  notices as mockNotices,
+  reports as mockReports,
+  routes as mockRoutes,
+  systemLogs,
+  users as mockUsers,
+  vehicles as mockVehicles,
+} from '../data/mock'
 import { StatusBadge } from '../components/ui/Form'
 import { isNaverMapConfigured } from '../lib/naverMaps'
 import { useAuth } from '../state/AuthContext'
@@ -2197,37 +2206,73 @@ const settingsNav = [
   { id: 'security', label: '보안 정책', icon: Shield },
   { id: 'notifications', label: '알림', icon: Bell },
   { id: 'operations', label: '운행·서비스', icon: Bus },
+  { id: 'appearance', label: '화면·표시', icon: Settings2 },
   { id: 'retention', label: '시스템·보관', icon: Database },
   { id: 'integrations', label: '연동 상태', icon: Link2 },
 ] as const
 
 type SettingsSectionId = (typeof settingsNav)[number]['id']
 
-/** 설정 — 운영 정책·알림·연동 (사용자/시스템 관리와 연결) */
+const SETTINGS_STORAGE_KEY = 'onda-admin-settings-v1'
+
+type StoredSettings = {
+  pwMin: string
+  pwCycle: string
+  loginFail: string
+  sessionTimeout: string
+  notifyEmail: string
+  pushNotice: boolean
+  pushReport: boolean
+  pushMaint: boolean
+  pushGps: boolean
+  timezone: string
+  reportExpire: string
+  gpsLossMin: string
+  defaultRoute: string
+  logRetain: string
+  autoDelete: boolean
+  density: 'comfortable' | 'compact'
+  showKpis: boolean
+}
+
+function loadStoredSettings(): Partial<StoredSettings> {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as Partial<StoredSettings>
+  } catch {
+    return {}
+  }
+}
+
+/** 설정 — 운영 정책·알림·연동 (현업 콘솔형) */
 export function SettingsPage() {
   const { user, usingSupabase } = useAuth()
   const location = useLocation()
+  const stored = useMemo(() => loadStoredSettings(), [])
   const [active, setActive] = useState<SettingsSectionId>('account')
   const [savedMsg, setSavedMsg] = useState('')
 
-  const [pwMin, setPwMin] = useState('10')
-  const [pwCycle, setPwCycle] = useState('90')
-  const [loginFail, setLoginFail] = useState('5')
-  const [sessionTimeout, setSessionTimeout] = useState('30')
+  const [pwMin, setPwMin] = useState(stored.pwMin ?? '10')
+  const [pwCycle, setPwCycle] = useState(stored.pwCycle ?? '90')
+  const [loginFail, setLoginFail] = useState(stored.loginFail ?? '5')
+  const [sessionTimeout, setSessionTimeout] = useState(stored.sessionTimeout ?? '30')
 
-  const [notifyEmail, setNotifyEmail] = useState(user?.email ?? 'admin@mju.ac.kr')
-  const [pushNotice, setPushNotice] = useState(true)
-  const [pushReport, setPushReport] = useState(true)
-  const [pushMaint, setPushMaint] = useState(true)
-  const [pushGps, setPushGps] = useState(true)
+  const [notifyEmail, setNotifyEmail] = useState(stored.notifyEmail ?? user?.email ?? 'admin@mju.ac.kr')
+  const [pushNotice, setPushNotice] = useState(stored.pushNotice ?? true)
+  const [pushReport, setPushReport] = useState(stored.pushReport ?? true)
+  const [pushMaint, setPushMaint] = useState(stored.pushMaint ?? true)
+  const [pushGps, setPushGps] = useState(stored.pushGps ?? true)
 
-  const [timezone, setTimezone] = useState('Asia/Seoul')
-  const [reportExpire, setReportExpire] = useState('24')
-  const [gpsLossMin, setGpsLossMin] = useState('30')
-  const [defaultRoute, setDefaultRoute] = useState('시내 셔틀')
+  const [timezone, setTimezone] = useState(stored.timezone ?? 'Asia/Seoul')
+  const [reportExpire, setReportExpire] = useState(stored.reportExpire ?? '24')
+  const [gpsLossMin, setGpsLossMin] = useState(stored.gpsLossMin ?? '30')
+  const [defaultRoute, setDefaultRoute] = useState(stored.defaultRoute ?? '시내 셔틀')
 
-  const [logRetain, setLogRetain] = useState('365')
-  const [autoDelete, setAutoDelete] = useState(true)
+  const [logRetain, setLogRetain] = useState(stored.logRetain ?? '365')
+  const [autoDelete, setAutoDelete] = useState(stored.autoDelete ?? true)
+  const [density, setDensity] = useState<'comfortable' | 'compact'>(stored.density ?? 'comfortable')
+  const [showKpis, setShowKpis] = useState(stored.showKpis ?? true)
 
   useEffect(() => {
     const hash = (location.hash || '#account').replace('#', '') as SettingsSectionId
@@ -2246,7 +2291,28 @@ export function SettingsPage() {
   }
 
   const onSave = () => {
-    setSavedMsg('설정이 저장되었습니다. (로컬 UI 반영)')
+    const payload: StoredSettings = {
+      pwMin,
+      pwCycle,
+      loginFail,
+      sessionTimeout,
+      notifyEmail,
+      pushNotice,
+      pushReport,
+      pushMaint,
+      pushGps,
+      timezone,
+      reportExpire,
+      gpsLossMin,
+      defaultRoute,
+      logRetain,
+      autoDelete,
+      density,
+      showKpis,
+    }
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload))
+    document.documentElement.dataset.density = density
+    setSavedMsg('설정이 저장되었습니다.')
     window.setTimeout(() => setSavedMsg(''), 2500)
   }
 
@@ -2255,9 +2321,12 @@ export function SettingsPage() {
   return (
     <div className="page settings-page">
       <div className="settings-top">
-        <p className="page-subtitle">
-          보안·알림·운행 정책을 관리합니다. 사용자 관리·시스템 관리 화면과 연결된 설정입니다.
-        </p>
+        <div>
+          <h2 className="settings-page-title">설정</h2>
+          <p className="page-subtitle">
+            보안·알림·운행 정책과 연동 상태를 관리합니다. 변경 내용은 이 브라우저에 저장됩니다.
+          </p>
+        </div>
         <div className="settings-actions">
           {savedMsg ? <p className="settings-toast">{savedMsg}</p> : null}
           <button className="btn btn-outline" type="button" onClick={() => goSection('security')}>
@@ -2372,6 +2441,13 @@ export function SettingsPage() {
                 />
               </div>
             </div>
+            <div className="settings-danger">
+              <strong>비밀번호 변경</strong>
+              <p>Supabase Auth 비밀번호는 Authentication 콘솔 또는 재설정 메일로 변경합니다.</p>
+              <button className="btn btn-outline btn-xs" type="button" disabled title="Auth 연동 후 활성화">
+                재설정 메일 보내기 (준비 중)
+              </button>
+            </div>
           </section>
 
           <section className="settings-panel" id="settings-notifications">
@@ -2463,8 +2539,10 @@ export function SettingsPage() {
                   value={defaultRoute}
                   onChange={(e) => setDefaultRoute(e.target.value)}
                 >
-                  {mockRoutes.map((r) => (
-                    <option key={r.name}>{r.name}</option>
+                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2487,6 +2565,45 @@ export function SettingsPage() {
                   onChange={(e) => setGpsLossMin(e.target.value)}
                 />
                 <span className="hint">실시간 운행 관제 경고 기준</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-panel" id="settings-appearance">
+            <div className="settings-panel-head">
+              <div>
+                <h3>
+                  <Settings2 size={17} />
+                  화면·표시
+                </h3>
+                <p className="settings-panel-desc">관리자 콘솔 밀도·대시보드 표시 옵션입니다.</p>
+              </div>
+            </div>
+            <div className="settings-grid">
+              <div className="settings-field">
+                <label htmlFor="density">UI 밀도</label>
+                <select
+                  id="density"
+                  className="select"
+                  value={density}
+                  onChange={(e) => setDensity(e.target.value as 'comfortable' | 'compact')}
+                >
+                  <option value="comfortable">기본</option>
+                  <option value="compact">좁게 (표·목록 밀도↑)</option>
+                </select>
+              </div>
+              <div className="settings-field">
+                <span className="label">대시보드 KPI</span>
+                <div className="settings-switch-row" style={{ padding: '8px 12px' }}>
+                  <div>
+                    <strong>상단 KPI 카드 표시</strong>
+                    <p>대시보드 첫 화면 요약 지표</p>
+                  </div>
+                  <label className="settings-switch">
+                    <input type="checkbox" checked={showKpis} onChange={(e) => setShowKpis(e.target.checked)} />
+                    <span />
+                  </label>
+                </div>
               </div>
             </div>
           </section>
@@ -2581,13 +2698,16 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <div className="settings-actions">
-            <button className="btn btn-outline" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              맨 위로
-            </button>
-            <button className="btn btn-primary" type="button" onClick={onSave}>
-              변경사항 저장
-            </button>
+          <div className="settings-sticky-bar">
+            <span className="muted">변경 후 저장을 눌러 이 브라우저에 반영합니다.</span>
+            <div className="settings-actions">
+              <button className="btn btn-outline" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                맨 위로
+              </button>
+              <button className="btn btn-primary" type="button" onClick={onSave}>
+                변경사항 저장
+              </button>
+            </div>
           </div>
         </div>
       </div>
