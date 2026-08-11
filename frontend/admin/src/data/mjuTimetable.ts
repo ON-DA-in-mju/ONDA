@@ -91,71 +91,12 @@ const SEMESTER_SHUTTLE: MjuTrip[] = [
   { no: 58, route: '명지대역 셔틀', departure: '17:45', via: '18:00' },
   { no: 59, route: '명지대역 셔틀', departure: '18:00', via: '18:15' },
   { no: 60, route: '시내 셔틀', departure: '18:10', via: '18:25' },
-  { no: 61, route: '명지대역 셔틀', departure: '19:00', via: '19:15' },
-  { no: 62, route: '명지대역 셔틀', departure: '19:20', via: '19:35' },
-  { no: 63, route: '명지대역 셔틀', departure: '19:30', via: '19:45' },
-  { no: 64, route: '시내 셔틀', departure: '20:00', via: '20:15' },
 ]
 
-/** 계절학기 — 명지대역·시내 */
-const SEASONAL_SHUTTLE: MjuTrip[] = [
-  { no: 1, route: '명지대역 셔틀', departure: '08:00', via: '08:15' },
-  { no: 2, route: '시내 셔틀', departure: '08:05', via: '08:20' },
-  { no: 3, route: '명지대역 셔틀', departure: '08:15', via: '08:30' },
-  { no: 4, route: '명지대역 셔틀', departure: '08:20', via: '08:35' },
-  { no: 5, route: '명지대역 셔틀', departure: '08:25', via: '08:40' },
-  { no: 6, route: '명지대역 셔틀', departure: '08:35', via: '08:50' },
-  { no: 7, route: '명지대역 셔틀', departure: '08:45', via: '09:00' },
-  { no: 8, route: '명지대역 셔틀', departure: '08:50', via: '09:05' },
-  { no: 9, route: '시내 셔틀', departure: '08:55', via: '09:10' },
-  { no: 10, route: '명지대역 셔틀', departure: '09:00', via: '09:15' },
-  { no: 11, route: '명지대역 셔틀', departure: '09:15', via: '09:30' },
-  { no: 12, route: '명지대역 셔틀', departure: '09:25', via: '09:40' },
-  { no: 13, route: '명지대역 셔틀', departure: '09:35', via: '09:50' },
-  { no: 14, route: '명지대역 셔틀', departure: '09:40', via: '09:55' },
-  { no: 15, route: '명지대역 셔틀', departure: '09:55', via: '10:10' },
-  { no: 16, route: '명지대역 셔틀', departure: '10:00', via: '10:15' },
-  { no: 17, route: '시내 셔틀', departure: '10:10', via: '10:25' },
-  { no: 18, route: '명지대역 셔틀', departure: '10:20', via: '10:35' },
-  { no: 19, route: '명지대역 셔틀', departure: '10:40', via: '10:55' },
-  { no: 20, route: '명지대역 셔틀', departure: '10:45', via: '11:00' },
-  { no: 21, route: '명지대역 셔틀', departure: '11:00', via: '11:15' },
-  { no: 22, route: '시내 셔틀', departure: '11:20', via: '11:35' },
-  { no: 23, route: '명지대역 셔틀', departure: '11:25', via: '11:40' },
-  { no: 24, route: '명지대역 셔틀', departure: '11:45', via: '12:00' },
-  { no: 25, route: '명지대역 셔틀', departure: '11:55', via: '12:10' },
-  { no: 26, route: '명지대역 셔틀', departure: '12:05', via: '12:20' },
-  { no: 27, route: '명지대역 셔틀', departure: '12:20', via: '12:35' },
-  { no: 28, route: '명지대역 셔틀', departure: '12:45', via: '13:00' },
-  { no: 29, route: '명지대역 셔틀', departure: '13:00', via: '13:15' },
-  { no: 30, route: '시내 셔틀', departure: '13:10', via: '13:25' },
-  { no: 31, route: '명지대역 셔틀', departure: '13:40', via: '13:55' },
-  { no: 32, route: '명지대역 셔틀', departure: '14:00', via: '14:15' },
-  { no: 33, route: '명지대역 셔틀', departure: '14:10', via: '14:25' },
-  { no: 34, route: '명지대역 셔틀', departure: '14:15', via: '14:30' },
-  { no: 35, route: '시내 셔틀', departure: '14:20', via: '14:35' },
-  { no: 36, route: '명지대역 셔틀', departure: '14:50', via: '15:05' },
-  { no: 37, route: '명지대역 셔틀', departure: '15:00', via: '15:15' },
-  { no: 38, route: '명지대역 셔틀', departure: '15:10', via: '15:25' },
-  { no: 39, route: '명지대역 셔틀', departure: '15:25', via: '15:40' },
-  { no: 40, route: '시내 셔틀', departure: '15:40', via: '15:55' },
-  { no: 41, route: '명지대역 셔틀', departure: '15:55', via: '16:10' },
-  { no: 42, route: '명지대역 셔틀', departure: '16:10', via: '16:25' },
-  { no: 43, route: '명지대역 셔틀', departure: '16:25', via: '16:40' },
-  { no: 44, route: '시내 셔틀', departure: '16:35', via: '16:50' },
-  { no: 45, route: '명지대역 셔틀', departure: '16:50', via: '17:05' },
-  { no: 46, route: '명지대역 셔틀', departure: '17:00', via: '17:15' },
-  { no: 47, route: '명지대역 셔틀', departure: '17:10', via: '17:25' },
-  { no: 48, route: '명지대역 셔틀', departure: '17:20', via: '17:35' },
-  { no: 49, route: '명지대역 셔틀', departure: '17:30', via: '17:45' },
-  { no: 50, route: '명지대역 셔틀', departure: '17:45', via: '18:00' },
-  { no: 51, route: '명지대역 셔틀', departure: '18:00', via: '18:15' },
-  { no: 52, route: '시내 셔틀', departure: '18:10', via: '18:25' },
-  { no: 53, route: '시내 셔틀', departure: '19:00', via: '19:15' },
-  { no: 54, route: '시내 셔틀', departure: '20:00', via: '20:15' },
-]
+/** 계절학기 = 학기 중 평일과 동일 (18:10까지) */
+const SEASONAL_SHUTTLE: MjuTrip[] = SEMESTER_SHUTTLE
 
-/** 학기중 주말·공휴일·방학 — 시내만 */
+/** 학기중 주말·공휴일·방학 — 시내만 (생활관 기점) */
 const WEEKEND_VACATION_CITY: MjuTrip[] = [
   { no: 1, route: '시내 셔틀', departure: '08:20', arrival: '08:45' },
   { no: 2, route: '시내 셔틀', departure: '09:20', arrival: '09:45' },
@@ -169,62 +110,87 @@ const WEEKEND_VACATION_CITY: MjuTrip[] = [
   { no: 10, route: '시내 셔틀', departure: '18:00', arrival: '18:25' },
 ]
 
-/** 기흥역 통학버스 — 학기중 평일만 (출발=학교 출발, 없으면 기흥역 시각) */
+/** 기흥역 통학버스 — 학기중 평일 (학교→기흥 + 기흥→학교) */
 const GIHEUNG_SEMESTER: MjuTrip[] = [
-  { no: 1, route: '기흥역 통학버스', departure: '08:15', via: '08:15', arrival: '08:30', buses: 2 },
-  { no: 2, route: '기흥역 통학버스', departure: '08:25', via: '08:25', arrival: '08:35', buses: 3 },
-  { no: 3, route: '기흥역 통학버스', departure: '09:05', via: '09:15', arrival: '09:30', buses: 3 },
-  { no: 4, route: '기흥역 통학버스', departure: '09:10', via: '09:20', arrival: '09:35', buses: 2 },
-  { no: 5, route: '기흥역 통학버스', departure: '10:00', via: '10:15', arrival: '10:30', buses: 2 },
-  { no: 6, route: '기흥역 통학버스', departure: '10:05', via: '10:20', arrival: '10:35', buses: 3 },
-  { no: 7, route: '기흥역 통학버스', departure: '12:00', via: '12:15', arrival: '12:30', buses: 1 },
-  { no: 8, route: '기흥역 통학버스', departure: '13:00', via: '13:15', arrival: '13:30', buses: 1 },
-  { no: 9, route: '기흥역 통학버스', departure: '14:00', via: '14:15', arrival: '14:30', buses: 1 },
-  { no: 10, route: '기흥역 통학버스', departure: '15:15', via: '15:30', arrival: '15:45', buses: 2 },
-  { no: 11, route: '기흥역 통학버스', departure: '16:15', via: '16:30', arrival: '16:45', buses: 3 },
-  { no: 12, route: '기흥역 통학버스', departure: '17:15', via: '17:30', arrival: '17:45', buses: 4 },
-  { no: 13, route: '기흥역 통학버스', departure: '18:15', via: '18:30', arrival: '18:45', buses: 2 },
-  { no: 14, route: '기흥역 통학버스', departure: '19:15', via: '19:30', buses: 1 },
+  { no: 1, route: '기흥역 통학버스', departure: '08:00', buses: 1 },
+  { no: 2, route: '기흥역 통학버스', departure: '09:05', buses: 3 },
+  { no: 3, route: '기흥역 통학버스', departure: '09:10', buses: 2 },
+  { no: 4, route: '기흥역 통학버스', departure: '10:00', buses: 3 },
+  { no: 5, route: '기흥역 통학버스', departure: '10:05', buses: 2 },
+  { no: 6, route: '기흥역 통학버스', departure: '12:00', buses: 1 },
+  { no: 7, route: '기흥역 통학버스', departure: '13:00', buses: 1 },
+  { no: 8, route: '기흥역 통학버스', departure: '14:00', buses: 1 },
+  { no: 9, route: '기흥역 통학버스', departure: '15:15', buses: 2 },
+  { no: 10, route: '기흥역 통학버스', departure: '16:15', buses: 3 },
+  { no: 11, route: '기흥역 통학버스', departure: '17:15', buses: 5 },
+  { no: 12, route: '기흥역 통학버스', departure: '18:15', buses: 2 },
+  { no: 13, route: '기흥역 통학버스', departure: '19:15', buses: 1 },
+  { no: 14, route: '기흥역 통학버스', departure: '08:15', buses: 3 },
+  { no: 15, route: '기흥역 통학버스', departure: '08:20', buses: 2 },
+  { no: 16, route: '기흥역 통학버스', departure: '09:15', buses: 3 },
+  { no: 17, route: '기흥역 통학버스', departure: '09:20', buses: 2 },
+  { no: 18, route: '기흥역 통학버스', departure: '10:15', buses: 3 },
+  { no: 19, route: '기흥역 통학버스', departure: '10:20', buses: 2 },
+  { no: 20, route: '기흥역 통학버스', departure: '12:15', buses: 1 },
+  { no: 21, route: '기흥역 통학버스', departure: '13:15', buses: 1 },
+  { no: 22, route: '기흥역 통학버스', departure: '14:15', buses: 1 },
+  { no: 23, route: '기흥역 통학버스', departure: '15:30', buses: 2 },
+  { no: 24, route: '기흥역 통학버스', departure: '16:30', buses: 3 },
+  { no: 25, route: '기흥역 통학버스', departure: '17:30', buses: 1 },
+  { no: 26, route: '기흥역 통학버스', departure: '18:30', buses: 1 },
+  { no: 27, route: '기흥역 통학버스', departure: '19:30', buses: 1 },
 ]
 
 export const MJU_ROUTES = [
   {
     name: '기흥역 통학버스' as const,
-    direction: '기흥역 ↔ 캠퍼스',
+    direction: '왕복',
     description:
-      '학기 중 평일만 운행. 주말·공휴일·계절학기·방학 미운행. 기점·종점: 캠퍼스 ↔ 기흥역 5번 출구.',
-    start_location: '캠퍼스',
-    end_location: '기흥역 5번 출구',
-    buses: '5대',
+      '학기 중 평일만 운행(계절학기·방학 중 제외). 명지대 버스 관리사무소 정류장(채플관 앞) → 기흥역 5번 출구 → 명지대 버스 관리사무소 정류장(채플관 앞). 편도 약 15분(교통상황에 따라 변동).',
+    start_location: '채플관 앞',
+    end_location: '채플관 앞',
+    buses: '최대 5대',
     days: '학기중 평일',
-    hours: '08:15 ~ 19:30',
-    stopCount: 2,
+    hours: '08:00 ~ 19:30',
+    stopCount: 3,
   },
   {
     name: '명지대역 셔틀' as const,
-    direction: '명지대역',
+    direction: '진입로(명지대역)',
     description:
-      '버스관리사무소 → 이마트·상공회의소 → 역북동행정복지센터 건너편 → 명지대역 → 역북동행정복지센터 앞 → 이마트 건너편 → 명진당 → 제3공학관. 18시 이후 명진당까지.',
+      '학기(계절학기 포함) 중 평일 운행. 4대·50회. 18:10까지만 운행. 버스관리사무소 → 상공회의소 → 진입로(럭스나인 앞) → 경전철 명지대역 → 명지대역 사거리 정류장 → 진입로(역북동 주민센터) → 이마트 → 명진당 → 제3공학관 → 함박관 → 창조관 → 버스관리사무소.',
     start_location: '버스관리사무소',
-    end_location: '제3공학관',
-    buses: '4대(+추가 1대)',
+    end_location: '버스관리사무소',
+    buses: '4대',
     days: '학기중 평일 · 계절학기',
-    hours: '08:00 ~ 20:00',
-    stopCount: 8,
+    hours: '08:00 ~ 18:10',
+    stopCount: 12,
   },
   {
     name: '시내 셔틀' as const,
     direction: '시내',
     description:
-      '버스관리사무소 → 이마트·상공회의소 → 역북동 → 동부경찰서 → 용인 CGV → 중앙공영주차장 → … → 제3공학관. 주말·공휴일·방학은 생활관(명현관) 기점 순환.',
+      '학기(계절학기 포함) 중 평일 운행. 1대·10회. 18:10까지만 운행. 버스관리사무소 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인CGV → 중앙공영주차장 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 제3공학관 → 함박관 → 창조관 → 버스관리사무소.',
     start_location: '버스관리사무소',
-    end_location: '제3공학관',
+    end_location: '버스관리사무소',
     buses: '1대',
-    days: '학기중 매일 · 방학',
-    hours: '08:00 ~ 20:15',
-    stopCount: 11,
+    days: '학기중 평일',
+    hours: '08:05 ~ 18:10',
+    stopCount: 13,
   },
 ]
+
+/** 변형 노선 (공휴일·주말·방학 시내) */
+export const MJU_ROUTE_VARIANTS = [
+  {
+    name: '시내 셔틀 (주말·공휴일·방학)',
+    direction: '시내',
+    description:
+      '공휴일(주말) 및 방학 중 운행. 1대·10회. 생활관(명현관) → 함박관 → 정문 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인 CGV → 중앙공영주차장 → 경전철 명지대역 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 생활관(명현관).',
+    start_location: '생활관(명현관)',
+    end_location: '생활관(명현관)',
+  },
+] as const
 
 export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
   {
@@ -235,7 +201,7 @@ export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
     weekdays: WEEKDAYS,
     semester: 'SEMESTER',
     trips: GIHEUNG_SEMESTER,
-    note: '주말·공휴일·계절학기·방학 미운행 · 총 30회(5대×6회)',
+    note: '학교→기흥 13회 + 기흥→학교 14회 · 학기중 평일만',
   },
   {
     id: 'semester-shuttle',
@@ -297,24 +263,29 @@ export const MJU_TIMETABLE_PACKS: MjuTimetablePack[] = [
 
 /** schedules 테이블 insert용 — 노선별 출발시각 × 요일 × semester */
 export function expandScheduleRows(): {
-  routeName: MjuRouteName
+  routeName: string
   departure_time: string
   weekday: Weekday
   semester: SemesterType
 }[] {
   const out: {
-    routeName: MjuRouteName
+    routeName: string
     departure_time: string
     weekday: Weekday
     semester: SemesterType
   }[] = []
 
-  const push = (trips: MjuTrip[], weekdays: Weekday[], semester: SemesterType, routeFilter?: MjuRouteName) => {
+  const push = (
+    trips: MjuTrip[],
+    weekdays: Weekday[],
+    semester: SemesterType,
+    routeName?: string,
+  ) => {
     for (const t of trips) {
-      if (routeFilter && t.route !== routeFilter) continue
+      const name = routeName ?? t.route
       for (const wd of weekdays) {
         out.push({
-          routeName: t.route,
+          routeName: name,
           departure_time: `${t.departure}:00`,
           weekday: wd,
           semester,
@@ -323,14 +294,15 @@ export function expandScheduleRows(): {
     }
   }
 
-  push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER', '기흥역 통학버스')
+  // 학기 중 평일
+  push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER')
   push(SEMESTER_SHUTTLE, WEEKDAYS, 'SEMESTER')
+  // 계절학기 평일 (= 학기 중 평일 셔틀)
   push(SEASONAL_SHUTTLE, WEEKDAYS, 'VACATION')
-  // 학기중 주말도 시내 운행
-  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', '시내 셔틀')
-  push(WEEKEND_VACATION_CITY, WEEKEND, 'VACATION', '시내 셔틀')
-  // 방학 평일 시내
-  push(WEEKEND_VACATION_CITY, WEEKDAYS, 'VACATION', '시내 셔틀')
+  // 주말·공휴일·방학 시내 → 분리 노선
+  const weekendRoute = '시내 셔틀 (주말·공휴일·방학)'
+  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', weekendRoute)
+  push(WEEKEND_VACATION_CITY, [...WEEKDAYS, ...WEEKEND], 'VACATION', weekendRoute)
 
   return out
 }

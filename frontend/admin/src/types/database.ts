@@ -7,6 +7,14 @@ export type AdminRole = UserRole
 export type BusStatus = 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE'
 export type OperationStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 export type ReportStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED'
+/** reports.source — 학생 제보 / 기사 문의 */
+export type ReportSource = 'STUDENT' | 'DRIVER'
+/** notices.type — 긴급 / 중요 / 운행 변경 / 일반 */
+export type NoticeType = 'URGENT' | 'IMPORTANT' | 'OPERATION_CHANGE' | 'GENERAL'
+/** notices.audience 요소 — 학생·기사 다중 선택 */
+export type NoticeAudience = 'STUDENT' | 'DRIVER'
+/** notices.status — 목록용 게시 상태 */
+export type NoticeStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'ENDED'
 export type NotificationType = 'NOTICE' | 'SYSTEM' | 'OPERATION'
 export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN'
 export type SemesterType = 'SEMESTER' | 'VACATION'
@@ -229,6 +237,18 @@ type Tables = {
       title: string
       content: string
       author_id: string | null
+      /** URGENT | IMPORTANT | OPERATION_CHANGE | GENERAL */
+      type: NoticeType
+      /** 대상: STUDENT / DRIVER (둘 다 가능) */
+      audience: NoticeAudience[]
+      /** 게시 시작. 상시 게시면 null */
+      starts_at: string | null
+      /** 게시 종료. 상시 게시면 null */
+      ends_at: string | null
+      /** 푸시 동시 발송 여부 */
+      is_push: boolean
+      /** DRAFT | SCHEDULED | PUBLISHED | ENDED */
+      status: NoticeStatus
       created_at: string | null
       updated_at: string | null
     }
@@ -237,6 +257,12 @@ type Tables = {
       title: string
       content: string
       author_id?: string | null
+      type?: NoticeType
+      audience?: NoticeAudience[]
+      starts_at?: string | null
+      ends_at?: string | null
+      is_push?: boolean
+      status?: NoticeStatus
       created_at?: string | null
       updated_at?: string | null
     }
@@ -250,6 +276,10 @@ type Tables = {
       title: string
       content: string
       status: ReportStatus
+      /** STUDENT = 학생 제보, DRIVER = 기사 문의 */
+      source: ReportSource
+      /** 문의 유형 (account, assignment, gps …) */
+      category: string | null
       created_at: string | null
       updated_at: string | null
     }
@@ -259,6 +289,8 @@ type Tables = {
       title: string
       content: string
       status?: ReportStatus
+      source?: ReportSource
+      category?: string | null
       created_at?: string | null
       updated_at?: string | null
     }

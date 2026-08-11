@@ -1,11 +1,14 @@
 import { isSupabaseConfigured, supabase } from './supabase'
-import { expandScheduleRows, MJU_ROUTES } from '../data/mjuTimetable'
+import { expandScheduleRows, MJU_ROUTES, MJU_ROUTE_VARIANTS } from '../data/mjuTimetable'
 import type { Database, SemesterType, Weekday } from '../types/database'
 
 type RouteRow = Database['public']['Tables']['routes']['Row']
 type ScheduleRow = Database['public']['Tables']['schedules']['Row']
 
-const TARGET_NAMES = MJU_ROUTES.map((r) => r.name)
+const TARGET_NAMES = [
+  ...MJU_ROUTES.map((r) => r.name),
+  ...MJU_ROUTE_VARIANTS.map((r) => r.name),
+]
 
 export type ScheduleWithRoute = ScheduleRow & {
   routes: Pick<RouteRow, 'id' | 'route_name' | 'direction' | 'description' | 'is_active' | 'start_location' | 'end_location'> | null

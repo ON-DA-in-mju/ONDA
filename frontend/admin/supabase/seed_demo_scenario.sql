@@ -27,6 +27,31 @@ create unique index if not exists operations_external_id_uidx
 
 comment on column public.operations.external_id is '로컬 mock 배차 id (op-0905, d02-op-0840 …)';
 
+-- reports: 학생 제보 / 기사 문의 구분
+alter table public.reports
+  add column if not exists source text not null default 'STUDENT';
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'reports_source_check'
+  ) then
+    alter table public.reports
+      add constraint reports_source_check
+      check (source in ('STUDENT', 'DRIVER'));
+  end if;
+end $$;
+
+alter table public.reports
+  add column if not exists category text;
+
+comment on column public.reports.source is '문의/제보 출처: STUDENT | DRIVER';
+comment on column public.reports.category is '문의 유형 (예: account, assignment, gps …)';
+
+create index if not exists reports_source_idx on public.reports (source);
+
 -- =============================================================================
 -- 1) ADMIN이 operations 쓸 수 있도록 RLS (정책명 충돌 시 drop 후 재생성)
 -- =============================================================================
@@ -64,6 +89,23 @@ create policy operations_driver_update on public.operations
   for update to authenticated
   using (driver_id = auth.uid())
   with check (driver_id = auth.uid());
+
+-- 학생 SELECT (is_student 없으면 rls_student_select.sql 먼저 실행)
+drop policy if exists operations_student_select on public.operations;
+do $$
+begin
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'is_student'
+  ) then
+    execute $p$
+      create policy operations_student_select on public.operations
+        for select to authenticated
+        using (public.is_student())
+    $p$;
+  end if;
+end $$;
 
 -- =============================================================================
 -- 2) 정류장 (mock stops + 배차 origin/destination)
@@ -155,6 +197,7 @@ begin
         ('admin@mju.ac.kr', 'Admin1234!', '관리자', 'ADMIN', 'admin', null::text),
         ('operator1@mju.ac.kr', '123456', '김운영', 'ADMIN', 'operator1', '010-2000-0001'),
         ('operator2@mju.ac.kr', '123456', '이운영', 'ADMIN', 'operator2', '010-2000-0002'),
+        ('60201234@mju.ac.kr', 'onda1234', '테스트 학생', 'STUDENT', null, null::text),
         ('user01@mju.ac.kr', '123456', '박사용', 'DRIVER', 'user01', '010-1111-2222'),
         ('user02@mju.ac.kr', '123456', '최사용', 'DRIVER', 'user02', '010-3333-4444'),
         ('user03@mju.ac.kr', '123456', '정사용', 'DRIVER', 'user03', '010-5555-6666'),
@@ -198,7 +241,15 @@ begin
     end if;
 
     insert into public.users (id, name, email, role, phone, login_id, student_no)
-    values (uid, v.name, v.email, v.role::public.user_role, v.phone, v.login_id, v.login_id)
+    values (
+      uid,
+      v.name,
+      v.email,
+      v.role::public.user_role,
+      v.phone,
+      v.login_id,
+      case when v.role = 'STUDENT' then split_part(v.email, '@', 1) else v.login_id end
+    )
     on conflict (id) do update set
       name = excluded.name,
       email = excluded.email,
