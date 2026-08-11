@@ -282,14 +282,13 @@ object MockTodayOperations {
 
 
 
-    /** 로컬 API 캐시가 있으면 우선, 없으면 계정별 mock 시드 */
+    /** Supabase 캐시가 있으면 사용. 없으면 빈 목록 (로컬 mock 시드 사용 안 함). */
     fun forUser(userId: String?): List<AssignedOperation> {
         TodayAssignmentsHolder.getOrNull()?.let { return it }
-        return seedForUser(userId)
+        return emptyList()
     }
 
-
-
+    /** 시드 템플릿 (서버 시드 SQL과 동기화용 참고). 앱 런타임에서는 사용하지 않음. */
     fun seedForUser(userId: String?): List<AssignedOperation> = when (userId) {
 
         "user02" -> driver02Operations

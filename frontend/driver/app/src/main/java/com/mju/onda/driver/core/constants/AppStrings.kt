@@ -8,8 +8,8 @@ object AppStrings {
     // 로그인 (DRI-00-01)
     const val LOGIN_TITLE = "운행 관리"
     const val LOGIN_SUBTITLE = "배정된 운행을 확인하고\n차량위치를 공유합니다."
-    const val LOGIN_ID_HINT = "아이디 또는 사번"
-    const val LOGIN_PASSWORD_HINT = "비밀 번호"
+    const val LOGIN_ID_HINT = "아이디 (예: user01)"
+    const val LOGIN_PASSWORD_HINT = "비밀번호 (예: 123456)"
     const val LOGIN_BUTTON = "로그인"
     const val LOGIN_AUTO_LOGIN = "자동 로그인"
     const val LOGIN_HELP = "로그인 정보 문의"

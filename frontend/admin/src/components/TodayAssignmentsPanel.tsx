@@ -21,7 +21,7 @@ const statusTone: Record<TodayAssignment['status'], 'gray' | 'orange' | 'blue' |
   ended: 'gray',
 }
 
-/** 관리자 → 기사 앱 mock/로컬 API 연동용 기사 배정 패널 */
+/** 관리자 → Supabase `operations` 오늘 배차 관리 */
 export function TodayAssignmentsPanel() {
   const [date, setDate] = useState(todayDateKey())
   const [rows, setRows] = useState<TodayAssignment[]>([])

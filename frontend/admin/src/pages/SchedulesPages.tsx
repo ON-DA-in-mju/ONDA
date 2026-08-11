@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Bus, CalendarDays, Clock, Download, Plus, Search, Users } from 'lucide-react'
+import { WeekRangePicker } from '../components/WeekRangePicker'
 import { SCHEDULE_ROUTE_OPTIONS, drivers, schedules } from '../data/mock'
 import {
   MJU_TIMETABLE_PACKS,
@@ -23,8 +25,13 @@ import {
 import { TodayAssignmentsPanel } from '../components/TodayAssignmentsPanel'
 import { StatusBadge } from '../components/ui/Form'
 import type { TodayAssignment } from '../types/assignment'
+import '../styles/figma-pages.css'
 
 const JS_TO_WEEKDAY: Weekday[] = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
+const LIST_PAGE_SIZE = 5
+/** 공식 시간표 스크롤 영역 기본 높이(평소부터 짧게) */
+const TIMETABLE_MAX_HEIGHT = 392
 
 function formatTime(t: string) {
   return t.slice(0, 5)
@@ -60,20 +67,31 @@ export function SchedulesPage() {
   const initialWeek = weekRangeFromDate(new Date())
   const [weekStart, setWeekStart] = useState(initialWeek.start)
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
-  const [weekday, setWeekday] = useState(() => new Date().getDay())
+  const [weekday, setWeekday] = useState<number>(() => new Date().getDay()) // -1 = 전체
   const [routeFilter, setRouteFilter] = useState('')
   // 명지대역을 기본으로 — 기흥역은 방학 미운행이라 학기중만 보이기 쉬움
   const [timetableRoute, setTimetableRoute] = useState<string>('명지대역 셔틀')
   const [timetablePeriod, setTimetablePeriod] = useState<'SEMESTER' | 'VACATION'>('SEMESTER')
   const [assignments, setAssignments] = useState<TodayAssignment[]>([])
   const [dbSchedules, setDbSchedules] = useState<ScheduleWithRoute[] | null>(null)
-  const weekInputRef = useRef<HTMLInputElement>(null)
+  const [listPage, setListPage] = useState(1)
+  const [weekPickerOpen, setWeekPickerOpen] = useState(false)
   const syncTriedRef = useRef(false)
 
-  const selectedDate = useMemo(() => addDays(weekStart, weekday), [weekStart, weekday])
+  const selectedDate = useMemo(() => {
+    if (weekday < 0) {
+      const today = new Date()
+      const todayKey = toDateKey(today)
+      const startKey = toDateKey(weekStart)
+      const endKey = toDateKey(weekEnd)
+      if (todayKey >= startKey && todayKey <= endKey) return today
+      return weekStart
+    }
+    return addDays(weekStart, weekday)
+  }, [weekStart, weekEnd, weekday])
   const selectedDateKey = toDateKey(selectedDate)
   const weekLabel = formatWeekRange(weekStart, weekEnd)
-  const selectedWeekday = JS_TO_WEEKDAY[weekday]
+  const selectedWeekday = JS_TO_WEEKDAY[weekday < 0 ? selectedDate.getDay() : weekday]
 
   const mjuPack = useMemo(() => {
     const route = timetableRoute as MjuRouteName
@@ -177,7 +195,64 @@ export function SchedulesPage() {
       })
   }, [assignments, routeFilter, dbSchedules, selectedWeekday, timetablePeriod])
 
-  const totalRounds = listRows.reduce((sum, row) => sum + row.rounds, 0)
+  const listPageCount = Math.max(1, Math.ceil(listRows.length / LIST_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, listPageCount)
+  const pagedListRows = useMemo(() => {
+    const start = (safeListPage - 1) * LIST_PAGE_SIZE
+    return listRows.slice(start, start + LIST_PAGE_SIZE)
+  }, [listRows, safeListPage])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [routeFilter, selectedDateKey, weekday, weekStart])
+
+  useEffect(() => {
+    if (listPage > listPageCount) setListPage(listPageCount)
+  }, [listPage, listPageCount])
+
+  /** 주간 요약 KPI (Figma: 기간 전체 기준) */
+  const weekSummary = useMemo(() => {
+    const routes = routeFilter ? [routeFilter] : [...SCHEDULE_ROUTE_OPTIONS]
+    let tripCount = 0
+    if (dbSchedules?.length) {
+      for (let d = 0; d < 7; d++) {
+        const wd = JS_TO_WEEKDAY[d]
+        for (const route of routes) {
+          tripCount += dbSchedules.filter(
+            (s) =>
+              s.routes?.route_name === route &&
+              s.weekday === wd &&
+              s.semester === timetablePeriod,
+          ).length
+        }
+      }
+    } else {
+      tripCount = listRows.reduce((sum, row) => sum + row.rounds, 0) * 7
+    }
+    const dayCount = 7
+    const avgTrips = Math.round(tripCount / dayCount)
+    const totalMinutes = tripCount * 25
+    const avgMinutes = Math.round(totalMinutes / dayCount)
+    const fmtDur = (mins: number) => {
+      const h = Math.floor(mins / 60)
+      const m = mins % 60
+      return { h, m }
+    }
+    const totalDur = fmtDur(totalMinutes)
+    const avgDur = fmtDur(avgMinutes)
+    const vehicleCount = 8
+    const passengers = tripCount * 40
+    const avgPassengers = Math.round(passengers / dayCount)
+    return {
+      tripCount,
+      avgTrips,
+      totalDur,
+      avgDur,
+      vehicleCount,
+      passengers,
+      avgPassengers,
+    }
+  }, [dbSchedules, routeFilter, timetablePeriod, listRows])
 
   useEffect(() => {
     if (!routeFilter) return
@@ -185,9 +260,7 @@ export function SchedulesPage() {
     if (routeFilter === '기흥역 통학버스') setTimetablePeriod('SEMESTER')
   }, [routeFilter])
 
-  const onPickWeekDate = (value: string) => {
-    if (!value) return
-    const { start } = weekRangeFromDate(parseDateKey(value))
+  const onPickWeekStart = (start: Date) => {
     setWeekStart(start)
   }
 
@@ -196,6 +269,7 @@ export function SchedulesPage() {
     setWeekStart(start)
     setWeekday(new Date().getDay())
     setRouteFilter('')
+    setWeekPickerOpen(false)
   }
 
   return (
@@ -206,73 +280,104 @@ export function SchedulesPage() {
             <div className="card-head">
               <h3>운행 일정 조회</h3>
             </div>
-            <div className="toolbar" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <select
-                className="select"
-                style={{ width: 170 }}
-                value={routeFilter}
-                onChange={(e) => setRouteFilter(e.target.value)}
-              >
-                <option value="">노선 전체</option>
-                {SCHEDULE_ROUTE_OPTIONS.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <div className="toolbar" style={{ gap: 4 }}>
-                {WEEKDAY_LABELS.map((d, i) => (
-                  <button
-                    key={d}
-                    className={`page-chip${weekday === i ? ' active' : ''}`}
-                    type="button"
-                    onClick={() => setWeekday(i)}
+            <div className="sched-filter-form">
+              <div className="sched-filter-row sched-filter-row-top">
+                <div className="sched-filter-field sched-filter-route">
+                  <span className="sched-filter-label">노선</span>
+                  <select
+                    className="select"
+                    value={routeFilter}
+                    onChange={(e) => setRouteFilter(e.target.value)}
                   >
-                    {d}
+                    <option value="">노선 전체</option>
+                    {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sched-filter-field sched-filter-days">
+                  <span className="sched-filter-label">요일</span>
+                  <div className="sched-day-group">
+                    <button
+                      type="button"
+                      className={`sched-day-chip wide${weekday < 0 ? ' active' : ''}`}
+                      onClick={() => setWeekday(-1)}
+                    >
+                      전체
+                    </button>
+                    {/* Figma 순서: 월~토 → 일 */}
+                    {[1, 2, 3, 4, 5, 6, 0].map((i) => (
+                      <button
+                        key={WEEKDAY_LABELS[i]}
+                        type="button"
+                        className={`sched-day-chip${weekday === i ? ' active' : ''}`}
+                        onClick={() => setWeekday(i)}
+                      >
+                        {WEEKDAY_LABELS[i]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="sched-filter-row sched-filter-row-bottom">
+                <div className="sched-filter-field sched-filter-period">
+                  <span className="sched-filter-label">기간</span>
+                  <div className="sched-period-wrap">
+                    <div className="sched-period-box">
+                      <div className="sched-period-part">
+                        <button
+                          type="button"
+                          onClick={() => setWeekPickerOpen((v) => !v)}
+                          aria-expanded={weekPickerOpen}
+                          aria-label="기간 시작일"
+                        >
+                          {formatDotDate(weekStart)}
+                        </button>
+                        <CalendarDays
+                          size={16}
+                          className="cal-icon"
+                          onClick={() => setWeekPickerOpen((v) => !v)}
+                        />
+                      </div>
+                      <span className="sched-period-sep">~</span>
+                      <div className="sched-period-part">
+                        <button
+                          type="button"
+                          onClick={() => setWeekPickerOpen((v) => !v)}
+                          aria-label="기간 종료일"
+                        >
+                          {formatDotDate(weekEnd)}
+                        </button>
+                        <CalendarDays
+                          size={16}
+                          className="cal-icon"
+                          onClick={() => setWeekPickerOpen((v) => !v)}
+                        />
+                      </div>
+                    </div>
+                    <WeekRangePicker
+                      weekStart={weekStart}
+                      open={weekPickerOpen}
+                      onClose={() => setWeekPickerOpen(false)}
+                      onPick={onPickWeekStart}
+                    />
+                  </div>
+                </div>
+
+                <div className="sched-filter-actions">
+                  <button className="btn btn-primary" type="button" onClick={() => void load()}>
+                    <Search size={15} style={{ marginRight: 6 }} />
+                    조회하기
                   </button>
-                ))}
+                  <button className="btn btn-outline" type="button" onClick={onReset}>
+                    초기화
+                  </button>
+                </div>
               </div>
-              <div style={{ position: 'relative' }}>
-                <button
-                  className="input"
-                  type="button"
-                  style={{
-                    width: 220,
-                    height: 36,
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    background: '#fff',
-                  }}
-                  onClick={() => {
-                    const el = weekInputRef.current
-                    if (!el) return
-                    el.showPicker?.()
-                    el.click()
-                  }}
-                >
-                  {weekLabel}
-                </button>
-                <input
-                  ref={weekInputRef}
-                  type="date"
-                  value={toDateKey(selectedDate)}
-                  onChange={(e) => onPickWeekDate(e.target.value)}
-                  style={{
-                    position: 'absolute',
-                    opacity: 0,
-                    pointerEvents: 'none',
-                    width: 0,
-                    height: 0,
-                  }}
-                  aria-label="주간 기간 선택"
-                />
-              </div>
-              <button className="btn btn-primary" type="button" onClick={() => void load()}>
-                조회하기
-              </button>
-              <button className="btn btn-outline" type="button" onClick={onReset}>
-                초기화
-              </button>
             </div>
           </section>
 
@@ -302,7 +407,7 @@ export function SchedulesPage() {
                 </tr>
               </thead>
               <tbody>
-                {listRows.map((row) => (
+                {pagedListRows.map((row) => (
                   <tr key={row.route}>
                     <td>{row.no}</td>
                     <td>{row.route}</td>
@@ -328,6 +433,20 @@ export function SchedulesPage() {
             </table>
             <div className="pagination">
               <span>총 {listRows.length}건</span>
+              {listRows.length > LIST_PAGE_SIZE ? (
+                <div className="pagination-pages">
+                  {Array.from({ length: listPageCount }, (_, i) => i + 1).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`page-chip${n === safeListPage ? ' active' : ''}`}
+                      onClick={() => setListPage(n)}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -377,58 +496,103 @@ export function SchedulesPage() {
         <div className="sched-col">
           <section className="card card-pad">
             <div className="card-head">
-              <h3>운행 일정 요약 · {weekLabel}</h3>
+              <h3>
+                운행 일정 요약{' '}
+                <span className="muted sched-summary-range">({weekLabel})</span>
+              </h3>
               <div className="toolbar">
                 <button className="btn btn-outline" type="button">
+                  <Download size={15} style={{ marginRight: 6 }} />
                   엑셀 다운로드
                 </button>
                 <Link className="btn btn-primary" to="/schedules/bulk">
-                  + 운행 일정 생성
+                  <Plus size={15} style={{ marginRight: 4 }} />
+                  운행 일정 생성
                 </Link>
               </div>
             </div>
-            <div className="grid grid-2">
-              {[
-                ['선택일 배차 수', `${totalRounds}회`, formatDotDate(selectedDate)],
-                ['등록 노선', `${listRows.length}개`, '기흥·명지대·시내'],
-                ['총 운행 차량', '8대', '노선 평균 2~3대'],
-                ['예상 탑승 인원', '—', '추후 연동'],
-              ].map(([t, v, s]) => (
-                <div key={t} className="card card-pad" style={{ boxShadow: 'none' }}>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {t}
+            <div className="sched-summary-kpis">
+              <div className="sched-summary-kpi">
+                <div className="sched-summary-kpi-head">
+                  <div className="icon blue">
+                    <CalendarDays size={23} strokeWidth={3} />
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    {s}
-                  </div>
+                  <div className="label">총 운행 횟수</div>
                 </div>
-              ))}
+                <div className="value">
+                  {weekSummary.tripCount.toLocaleString()}
+                  <em>회</em>
+                </div>
+                <div className="hint">일 평균 {weekSummary.avgTrips.toLocaleString()}회</div>
+              </div>
+              <div className="sched-summary-kpi">
+                <div className="sched-summary-kpi-head">
+                  <div className="icon green">
+                    <Clock size={23} strokeWidth={3} />
+                  </div>
+                  <div className="label">총 운행 시간</div>
+                </div>
+                <div className="value">
+                  {weekSummary.totalDur.h}
+                  <em>시간</em> {String(weekSummary.totalDur.m).padStart(2, '0')}
+                  <em>분</em>
+                </div>
+                <div className="hint">
+                  일 평균 {weekSummary.avgDur.h}시간 {String(weekSummary.avgDur.m).padStart(2, '0')}분
+                </div>
+              </div>
+              <div className="sched-summary-kpi">
+                <div className="sched-summary-kpi-head">
+                  <div className="icon orange">
+                    <Bus size={23} strokeWidth={3} />
+                  </div>
+                  <div className="label">총 운행 차량</div>
+                </div>
+                <div className="value">
+                  {weekSummary.vehicleCount}
+                  <em>대</em>
+                </div>
+                <div className="hint">투입 차량 기준</div>
+              </div>
+              <div className="sched-summary-kpi">
+                <div className="sched-summary-kpi-head">
+                  <div className="icon purple">
+                    <Users size={23} strokeWidth={3} />
+                  </div>
+                  <div className="label">예상 탑승 인원</div>
+                </div>
+                <div className="value">
+                  {weekSummary.passengers.toLocaleString()}
+                  <em>명</em>
+                </div>
+                <div className="hint">일 평균 {weekSummary.avgPassengers.toLocaleString()}명</div>
+              </div>
             </div>
           </section>
 
           <section className="card card-pad">
-            <div className="card-head" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>공식 시간표</h3>
-              <select
-                className="select"
-                style={{ width: 170 }}
-                value={timetableRoute}
-                onChange={(e) => {
-                  const next = e.target.value
-                  setTimetableRoute(next)
-                  if (next === '기흥역 통학버스' && timetablePeriod === 'VACATION') {
-                    setTimetablePeriod('SEMESTER')
-                  }
-                }}
-                aria-label="상세 시간표 노선"
-              >
-                {SCHEDULE_ROUTE_OPTIONS.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+            <div className="card-head sched-timetable-head">
+              <div className="sched-timetable-title-row">
+                <h3>공식 시간표</h3>
+                <select
+                  className="select sched-timetable-route-select"
+                  value={timetableRoute}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setTimetableRoute(next)
+                    if (next === '기흥역 통학버스' && timetablePeriod === 'VACATION') {
+                      setTimetablePeriod('SEMESTER')
+                    }
+                  }}
+                  aria-label="상세 시간표 노선"
+                >
+                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="toolbar" style={{ gap: 6 }}>
                 <button
                   type="button"
@@ -459,7 +623,7 @@ export function SchedulesPage() {
                   ? ' · 기흥역은 방학·계절학기 미운행'
                   : ' · 해당 요일 일정 없음'}
             </p>
-            <div style={{ maxHeight: 480, overflow: 'auto' }}>
+            <div className="sched-timetable-scroll" style={{ maxHeight: TIMETABLE_MAX_HEIGHT }}>
               <table className="data-table dense">
                 <thead>
                   <tr>

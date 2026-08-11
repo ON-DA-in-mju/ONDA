@@ -16,6 +16,8 @@ class OndaDriverApp : Application() {
 
         super.onCreate()
 
+        com.mju.onda.driver.core.supabase.SupabaseClient.init(this)
+
         OperationLocationTracker.init(this)
 
         // 로그인 세션이 있으면 해당 계정 prefs를 바인딩한다.

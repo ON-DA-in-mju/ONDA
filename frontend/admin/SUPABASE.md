@@ -104,6 +104,11 @@ where pubname = 'supabase_realtime'
 status DB enum: `SCHEDULED` → `IN_PROGRESS` → `COMPLETED` / `CANCELLED`  
 (기사 UI의 waiting·departing_soon 은 출발시각 기준 파생)
 
+## 오늘 배차 앱 연동 (Vite mock 아님)
+- 관리자 웹: `src/lib/assignmentsApi.ts` → Supabase `operations`
+- 기사 앱: Supabase Auth + REST `operations` (`BuildConfig.SUPABASE_*` from `local.properties`)
+- 기사 로그인 예: `user01` / `123456` (이메일은 `user01@mju.ac.kr`로 변환)
+
 ## 코드
 - `src/types/database.ts` — 스키마 타입
 - `src/lib/supabase.ts` — 클라이언트

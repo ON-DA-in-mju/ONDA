@@ -12,7 +12,7 @@ import com.mju.onda.driver.data.mock.MockDriver
 
 import com.mju.onda.driver.feature.auth.data.AuthResult
 
-import com.mju.onda.driver.feature.auth.data.MockAuthRepository
+import com.mju.onda.driver.feature.auth.data.AuthRepository
 
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 
@@ -66,7 +66,7 @@ sealed interface LoginEvent {
 
 class LoginViewModel(
 
-    private val authRepository: MockAuthRepository = MockAuthRepository(),
+    private val authRepository: AuthRepository = AuthRepository(),
 
 ) : ViewModel() {
 
