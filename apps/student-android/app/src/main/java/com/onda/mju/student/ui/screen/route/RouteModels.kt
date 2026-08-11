@@ -66,7 +66,7 @@ fun sampleRouteList(): List<RouteUiModel> = listOf(
         toLabel = "시내 순환",
         status = RouteStatus.SCHEDULED,
         activeVehicleCount = null,
-        nextDeparture = "18:10",
+        nextDeparture = "17:15",
         isFavorite = false,
         imageRes = R.drawable.route_thumb_city,
     ),

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,8 +76,10 @@ private val FooterGray = Color(0xFF6B7280)
 
 /** Fractions from STU-00-02A phone content (414 x 874). */
 private const val SideInsetFraction = 22f / 414f
-private const val HeroHeightFraction = 228f / 874f
-private const val TitleTopGapFraction = 14f / 874f
+/** Intrinsic ratio of permission_guide_hero.png */
+private const val HeroAspect = 401f / 233f
+/** Extra air between hero and the title/cards block. */
+private const val TitleTopGapFraction = 32f / 874f
 private const val BodyTopGapFraction = 10f / 874f
 private const val CardsTopGapFraction = 18f / 874f
 private const val CardGapFraction = 10f / 874f
@@ -176,7 +179,6 @@ fun PermissionGuideScreen(
             with(density) { (screenWidth.toPx() * fraction).toDp() }
 
         val sideInset = fracW(SideInsetFraction).coerceIn(18.dp, 24.dp)
-        val heroHeight = fracH(HeroHeightFraction).coerceIn(190.dp, 250.dp)
         val buttonHeight = 52.dp
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -221,11 +223,15 @@ fun PermissionGuideScreen(
                     contentDescription = "ON-DA 권한 안내",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(heroHeight),
+                        .aspectRatio(HeroAspect),
                     contentScale = ContentScale.Fit,
                 )
 
-                Spacer(modifier = Modifier.height(fracH(TitleTopGapFraction).coerceIn(10.dp, 18.dp)))
+                Spacer(
+                    modifier = Modifier.height(
+                        fracH(TitleTopGapFraction).coerceIn(24.dp, 40.dp),
+                    ),
+                )
 
                 Text(
                     text = "앱 사용을 위해\n필요한 권한을 안내해요",

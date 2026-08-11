@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,13 +53,14 @@ private val SloganText = Color(0xFF111111)
  * Fractions from Figma STU-00-01A (402 x 874).
  * Device chrome is omitted; positions are relative to the full screen.
  */
-private const val LogoTopFraction = 122f / 874f
+// Shifted down together so the header cluster sits closer to the login button.
+private const val LogoTopFraction = 158f / 874f
 private const val LogoHeightFraction = 91f / 874f
 private const val LogoWidthFraction = 225f / 402f
-private const val SloganTopFraction = 236f / 874f
-// Slightly lower than Figma raw y so the art sits closer to the login button.
-private const val IllustrationTopFraction = 330f / 874f
-private const val IllustrationHeightFraction = 365f / 874f
+private const val SloganTopFraction = 272f / 874f
+private const val IllustrationTopFraction = 336f / 874f
+/** Intrinsic ratio of login_illustration.png (black bars cropped). */
+private const val IllustrationAspect = 398f / 291f
 private const val SideInsetFraction = 14f / 402f
 private const val BottomClusterBottomPaddingFraction = 28f / 874f
 private const val ButtonToInfoGapFraction = 19f / 874f
@@ -96,8 +98,6 @@ fun LoginStartScreen(
             val logoHeight = fracH(LogoHeightFraction).coerceIn(64.dp, 96.dp)
             val sloganTop = fracH(SloganTopFraction)
             val illustrationTop = fracH(IllustrationTopFraction)
-            val illustrationHeight = fracH(IllustrationHeightFraction)
-                .coerceIn(240.dp, 400.dp)
 
             Image(
                 painter = painterResource(id = R.drawable.splash_logo),
@@ -123,7 +123,7 @@ fun LoginStartScreen(
                     .fillMaxWidth(0.7f),
             )
 
-            // Nearly full-bleed like Figma (x≈2, width≈398 on 402).
+            // Match intrinsic asset ratio so the full illustration shows without cropping.
             Image(
                 painter = painterResource(id = R.drawable.login_illustration),
                 contentDescription = null,
@@ -131,9 +131,8 @@ fun LoginStartScreen(
                     .align(Alignment.TopCenter)
                     .padding(top = illustrationTop)
                     .fillMaxWidth()
-                    .height(illustrationHeight),
-                contentScale = ContentScale.FillWidth,
-                alignment = Alignment.BottomCenter,
+                    .aspectRatio(IllustrationAspect),
+                contentScale = ContentScale.Fit,
             )
 
             // Button + info + terms anchored near the bottom (Figma ~75%–93%).

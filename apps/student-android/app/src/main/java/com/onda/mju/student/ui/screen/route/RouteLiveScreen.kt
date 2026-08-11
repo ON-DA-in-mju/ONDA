@@ -1,5 +1,6 @@
 package com.onda.mju.student.ui.screen.route
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +34,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,6 +52,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeParseException
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -61,16 +70,53 @@ private val Teal = Color(0xFF14B8A6)
 fun RouteLiveScreen(
     routeId: String,
     modifier: Modifier = Modifier,
+    liveData: RouteLiveData? = null,
     onBackClick: () -> Unit = {},
     onStopClick: (String) -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
     onTimetableClick: () -> Unit = {},
 ) {
-    val data = remember(routeId) { sampleRouteLive(routeId) }
+    val data = remember(routeId, liveData) { liveData ?: sampleRouteLive(routeId) }
     var directionIndex by remember { mutableIntStateOf(0) }
-    var selectedVehicle by remember { mutableStateOf(data.vehicles.first().id) }
+    var selectedVehicle by remember(routeId, data.vehicles.map { it.id }) {
+        mutableStateOf(data.vehicles.firstOrNull()?.id.orEmpty())
+    }
     var alertStops by remember {
         mutableStateOf(data.stops.filter { it.alertOn }.map { it.id }.toSet())
+    }
+
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+
+    val selectedLiveVehicle = data.vehicles.firstOrNull { it.id == selectedVehicle }
+    val ageSeconds = remember(selectedLiveVehicle?.recordedAt, nowMillis) {
+        locationAgeSeconds(selectedLiveVehicle?.recordedAt, nowMillis)
+    }
+    val lastUpdatedText = remember(ageSeconds) {
+        lastUpdatedLabel(ageSeconds)
+    }
+    val locationStatusText = remember(ageSeconds) {
+        locationStatusLabel(ageSeconds)
+    }
+    val statusColor = remember(ageSeconds) {
+        locationStatusColor(ageSeconds)
+    }
+
+    // Temporary: verify live vehicles passed from shell.
+    LaunchedEffect(data.vehicles) {
+        data.vehicles.forEach { vehicle ->
+            Log.d(
+                "ONDA_SUPABASE",
+                "route vehicle operationId=${vehicle.id}, label=${vehicle.label}, " +
+                    "latitude=${vehicle.latitude}, longitude=${vehicle.longitude}, " +
+                    "recordedAt=${vehicle.recordedAt}",
+            )
+        }
     }
 
     Column(
@@ -180,20 +226,28 @@ fun RouteLiveScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Refresh, null, tint = BodyGray, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(data.lastUpdateLabel, color = BodyGray, fontSize = 11.sp)
+                        Text(lastUpdatedText, color = BodyGray, fontSize = 11.sp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Spacer(modifier = Modifier.size(6.dp).background(Color(0xFF22C55E), CircleShape))
+                        Spacer(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(statusColor, CircleShape),
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("위치 정상", color = Color(0xFF16A34A), fontSize = 11.sp)
+                        Text(locationStatusText, color = statusColor, fontSize = 11.sp)
                     }
                 }
+                val isRunning = data.runningCount > 0
                 Text(
-                    "운행 중",
-                    color = Color(0xFF0F766E),
+                    if (isRunning) "운행 중" else "운행 예정",
+                    color = if (isRunning) Color(0xFF0F766E) else Color(0xFF1D4ED8),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .background(Color(0xFFD1FAE5), RoundedCornerShape(999.dp))
+                        .background(
+                            if (isRunning) Color(0xFFD1FAE5) else Color(0xFFDBEAFE),
+                            RoundedCornerShape(999.dp),
+                        )
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
@@ -377,5 +431,61 @@ fun RouteLiveScreen(
             }
             Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+}
+
+private val SeoulZone: ZoneId = ZoneId.of("Asia/Seoul")
+
+private fun parseRecordedAtInstant(recordedAt: String): Instant? {
+    val trimmed = recordedAt.trim()
+    if (trimmed.isEmpty()) return null
+    return try {
+        Instant.parse(trimmed)
+    } catch (_: DateTimeParseException) {
+        try {
+            OffsetDateTime.parse(trimmed).toInstant()
+        } catch (_: DateTimeParseException) {
+            try {
+                ZonedDateTime.parse(trimmed).toInstant()
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        }
+    }
+}
+
+private fun locationAgeSeconds(recordedAt: String?, nowMillis: Long): Long? {
+    if (recordedAt.isNullOrBlank()) return null
+    val recordedInstant = parseRecordedAtInstant(recordedAt) ?: return null
+    // Compare using epoch millis; Asia/Seoul is used for display context consistency.
+    val nowInstant = Instant.ofEpochMilli(nowMillis).atZone(SeoulZone).toInstant()
+    val ageMillis = (nowInstant.toEpochMilli() - recordedInstant.toEpochMilli()).coerceAtLeast(0L)
+    return ageMillis / 1_000L
+}
+
+private fun lastUpdatedLabel(ageSeconds: Long?): String {
+    if (ageSeconds == null) return "위치 정보 없음"
+    return when {
+        ageSeconds < 60L -> "마지막 갱신 ${ageSeconds}초 전"
+        ageSeconds < 3_600L -> "마지막 갱신 ${ageSeconds / 60L}분 전"
+        else -> "마지막 갱신 1시간 이상 전"
+    }
+}
+
+private fun locationStatusLabel(ageSeconds: Long?): String {
+    if (ageSeconds == null) return "위치 확인 중"
+    return when {
+        ageSeconds <= 30L -> "위치 정상"
+        ageSeconds <= 60L -> "위치 불안정"
+        else -> "위치 수신 지연"
+    }
+}
+
+private fun locationStatusColor(ageSeconds: Long?): Color {
+    if (ageSeconds == null) return Color(0xFF64748B)
+    return when {
+        ageSeconds <= 30L -> Color(0xFF16A34A)
+        ageSeconds <= 60L -> Color(0xFFEA580C)
+        else -> Color(0xFFDC2626)
     }
 }

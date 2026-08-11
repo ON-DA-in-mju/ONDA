@@ -63,10 +63,10 @@ private const val BadgeHeightFraction = 128f / 874f
 private const val TitleTopGapFraction = 16f / 874f
 private const val BodyTopGapFraction = 8f / 874f
 private const val CardTopGapFraction = 20f / 874f
-private const val IllustrationBottomGapFraction = 10f / 874f
+private const val IllustrationBottomGapFraction = 14f / 874f
 private const val ButtonBottomPadFraction = 14f / 874f
 /** Intrinsic ratio of permission_complete_illustration.png */
-private const val IllustrationAspectRatio = 372f / 144f
+private const val IllustrationAspectRatio = 402f / 166f
 
 @Composable
 fun PermissionCompleteScreen(
@@ -157,25 +157,25 @@ fun PermissionCompleteScreen(
 
                 PermissionStatusCard(grantState = grantState)
 
-                // Push illustration down so it sits just above the home button (Figma).
+                // Flexible space keeps the illustration above the home button without compressing it.
                 Spacer(modifier = Modifier.weight(1f))
-
-                Image(
-                    painter = painterResource(id = R.drawable.permission_complete_illustration),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(IllustrationAspectRatio),
-                    contentScale = ContentScale.Fit,
-                    alignment = Alignment.BottomCenter,
-                )
-
-                Spacer(
-                    modifier = Modifier.height(
-                        fracH(IllustrationBottomGapFraction).coerceIn(6.dp, 14.dp),
-                    ),
-                )
             }
+
+            // Outside the weighted column so aspect-ratio height is never clipped.
+            Image(
+                painter = painterResource(id = R.drawable.permission_complete_illustration),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(IllustrationAspectRatio),
+                contentScale = ContentScale.Fit,
+            )
+
+            Spacer(
+                modifier = Modifier.height(
+                    fracH(IllustrationBottomGapFraction).coerceIn(10.dp, 18.dp),
+                ),
+            )
 
             Button(
                 onClick = onGoHomeClick,

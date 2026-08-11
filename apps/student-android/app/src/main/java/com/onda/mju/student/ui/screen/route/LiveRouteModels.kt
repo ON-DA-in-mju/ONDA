@@ -22,6 +22,11 @@ data class LiveVehicle(
     val label: String,
     val status: VehicleStatus,
     val etaMinutes: Int? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val speed: Double? = null,
+    val heading: Double? = null,
+    val recordedAt: String? = null,
 )
 
 data class LiveStopNode(

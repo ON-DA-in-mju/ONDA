@@ -60,6 +60,8 @@ fun NotificationListScreen(
     unreadIds: Set<Int>,
     markAllDone: Boolean,
     modifier: Modifier = Modifier,
+    showUnreadOnly: Boolean = false,
+    onShowUnreadOnlyChange: (Boolean) -> Unit = {},
     onBackClick: () -> Unit = {},
     onMarkAllRead: () -> Unit = {},
     onNotificationClick: (Int) -> Unit = {},
@@ -67,12 +69,17 @@ fun NotificationListScreen(
     var selectedFilter by remember { mutableStateOf(NotificationFilter.All) }
 
     val unreadCount = notifications.count { it.id in unreadIds }
-    val filtered = remember(notifications, selectedFilter) {
-        if (selectedFilter == NotificationFilter.All) {
-            notifications
-        } else {
-            notifications.filter { selectedFilter in it.filters }
+    val filtered = remember(notifications, selectedFilter, showUnreadOnly, unreadIds) {
+        when {
+            showUnreadOnly -> notifications.filter { it.id in unreadIds }
+            selectedFilter == NotificationFilter.All -> notifications
+            else -> notifications.filter { selectedFilter in it.filters }
         }
+    }
+    val unreadHeaderText = if (unreadCount == 0) {
+        "읽지 않은 알림이 없습니다."
+    } else {
+        "읽지 않은 알림 ${unreadCount}개"
     }
 
     Column(
@@ -114,11 +121,15 @@ fun NotificationListScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "읽지 않은 알림 ${unreadCount}개",
-                color = if (unreadCount > 0) OndaBlue else BodyGray,
+                text = unreadHeaderText,
+                color = if (unreadCount > 0 || showUnreadOnly) OndaBlue else BodyGray,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onShowUnreadOnlyChange(true) }
+                    .padding(vertical = 2.dp),
             )
             Text(
                 text = "모두 읽음",
@@ -147,7 +158,8 @@ fun NotificationListScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NotificationFilter.entries.forEach { filter ->
-                val selected = filter == selectedFilter
+                // Unread-only mode clears category selection (all chips unselected / gray).
+                val selected = !showUnreadOnly && filter == selectedFilter
                 Text(
                     text = filter.label,
                     color = if (selected) Color.White else ChipGrayText,
@@ -156,7 +168,10 @@ fun NotificationListScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(if (selected) OndaBlue else ChipGrayBg)
-                        .clickable { selectedFilter = filter }
+                        .clickable {
+                            onShowUnreadOnlyChange(false)
+                            selectedFilter = filter
+                        }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
@@ -167,12 +182,34 @@ fun NotificationListScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(filtered, key = { it.id }) { item ->
-                NotificationCard(
-                    item = item,
-                    unread = item.id in unreadIds,
-                    onClick = { onNotificationClick(item.id) },
-                )
+            if (filtered.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 48.dp, bottom = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (showUnreadOnly) {
+                                "읽지 않은 알림이 없습니다."
+                            } else {
+                                "알림이 없습니다."
+                            },
+                            color = BodyGray,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            } else {
+                items(filtered, key = { it.id }) { item ->
+                    NotificationCard(
+                        item = item,
+                        unread = item.id in unreadIds,
+                        onClick = { onNotificationClick(item.id) },
+                    )
+                }
             }
             item { Spacer(modifier = Modifier.height(8.dp)) }
         }
@@ -188,6 +225,7 @@ private fun NotificationCard(
     val titleColor = if (unread) TitleBlack else Color(0xFF4B5563)
     val categoryColor = if (unread) item.categoryColor else ReadMuted
     val iconBg = if (unread) item.iconBg else Color(0xFFD1D5DB)
+    val iconTint = if (unread) item.iconTint else Color.White
     val subtitleColor = if (unread) BodyGray else Color(0xFF9CA3AF)
 
     Row(
@@ -210,7 +248,7 @@ private fun NotificationCard(
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = Color.White,
+                tint = iconTint,
                 modifier = Modifier.size(22.dp),
             )
         }

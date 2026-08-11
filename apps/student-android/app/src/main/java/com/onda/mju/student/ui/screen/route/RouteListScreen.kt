@@ -72,11 +72,10 @@ private const val SideFrac = 18f / RefW
 @Composable
 fun RouteListScreen(
     modifier: Modifier = Modifier,
-    initialRoutes: List<RouteUiModel> = sampleRouteList(),
+    routes: List<RouteUiModel> = sampleRouteList(),
     onRouteClick: (String) -> Unit = {},
     onFavoriteClick: (String) -> Unit = {},
 ) {
-    var routes by remember { mutableStateOf(initialRoutes) }
     var selectedFilter by remember { mutableStateOf(RouteFilter.ALL) }
     val visibleRoutes = remember(routes, selectedFilter) {
         routes.filterBy(selectedFilter)
@@ -130,12 +129,7 @@ fun RouteListScreen(
                     route = route,
                     thumbSize = thumbSize,
                     onClick = { onRouteClick(route.id) },
-                    onFavoriteClick = {
-                        routes = routes.map {
-                            if (it.id == route.id) it.copy(isFavorite = !it.isFavorite) else it
-                        }
-                        onFavoriteClick(route.id)
-                    },
+                    onFavoriteClick = { onFavoriteClick(route.id) },
                     modifier = Modifier
                         .padding(horizontal = sideInset)
                         .padding(bottom = 12.dp),

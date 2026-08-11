@@ -60,14 +60,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
 import com.onda.mju.student.data.auth.AuthResult
-import com.onda.mju.student.data.auth.MockAuthRepository
+import com.onda.mju.student.data.auth.SupabaseAuthRepository
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    authRepository: MockAuthRepository = remember { MockAuthRepository() },
+    authRepository: SupabaseAuthRepository = remember { SupabaseAuthRepository() },
     onBackClick: () -> Unit = {},
     onLoginSuccess: () -> Unit = {},
     onFindIdClick: () -> Unit = {},

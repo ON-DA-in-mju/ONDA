@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -41,6 +43,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +62,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
+import com.onda.mju.student.ui.screen.notification.formatUnreadBadgeLabel
+import com.onda.mju.student.ui.screen.route.RouteStatus
+import com.onda.mju.student.ui.screen.route.RouteUiModel
+import com.onda.mju.student.ui.screen.route.sampleRouteList
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
+import kotlinx.coroutines.delay
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -71,15 +83,20 @@ private val StarYellow = Color(0xFFFBBF24)
 private val SuccessGreen = Color(0xFF22C55E)
 private val UpdateBadgeBg = Color(0xFFE8F7F5)
 private val UpdateBadgeText = Color(0xFF0F766E)
+private val UnreadBadgeRed = Color(0xFFE11D48)
 
 private const val SideInsetFraction = 18f / 414f
-/** Intrinsic ratio of home_hero.png from STU-01-00. */
-private const val HeroAspect = 414f / 183f
+/** Intrinsic ratio of home_hero.png (illustration only, phone chrome cropped). */
+private const val HeroAspect = 398f / 169f
 
 @Composable
 fun StudentHomeScreen(
     modifier: Modifier = Modifier,
     noticeBannerTitle: String = "등록된 공지가 없습니다.",
+    unreadNotificationCount: Int = 0,
+    /** Epoch millis when mock/live operation data was last received. */
+    operationLastUpdatedAtMillis: Long = System.currentTimeMillis(),
+    routes: List<RouteUiModel> = sampleRouteList(),
     onNotificationClick: () -> Unit = {},
     onStatusTimetableClick: () -> Unit = {},
     onNoticeBannerClick: () -> Unit = {},
@@ -113,7 +130,7 @@ fun StudentHomeScreen(
                     painter = painterResource(id = R.drawable.home_hero),
                     contentDescription = "ON-DA",
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = ContentScale.Crop,
                 )
                 IconButton(
                     onClick = onNotificationClick,
@@ -121,12 +138,36 @@ fun StudentHomeScreen(
                         .align(Alignment.TopEnd)
                         .padding(top = 4.dp, end = 4.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Notifications,
-                        contentDescription = "알림",
-                        tint = OndaBlue,
-                        modifier = Modifier.size(26.dp),
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "알림",
+                            tint = OndaBlue,
+                            modifier = Modifier.size(26.dp),
+                        )
+                        val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
+                            .ifEmpty { null }
+                        if (badgeLabel != null) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 6.dp, y = (-4).dp)
+                                    .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+                                    .clip(CircleShape)
+                                    .background(UnreadBadgeRed)
+                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = badgeLabel,
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -136,7 +177,10 @@ fun StudentHomeScreen(
                     .padding(horizontal = sideInset)
                     .padding(bottom = 20.dp),
             ) {
-                OperationStatusCard(onTimetableClick = onStatusTimetableClick)
+                OperationStatusCard(
+                    lastUpdatedAtMillis = operationLastUpdatedAtMillis,
+                    onTimetableClick = onStatusTimetableClick,
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -153,7 +197,10 @@ fun StudentHomeScreen(
                     onActionClick = onFavoriteManageClick,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                FavoriteCard(onClick = onFavoriteClick)
+                FavoriteCard(
+                    route = routes.firstOrNull { it.id == "giheung" } ?: routes.firstOrNull(),
+                    onClick = onFavoriteClick,
+                )
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -164,7 +211,10 @@ fun StudentHomeScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                RouteShortcutRow(onRouteClick = onRouteShortcutClick)
+                RouteShortcutRow(
+                    routes = routes,
+                    onRouteClick = onRouteShortcutClick,
+                )
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -182,7 +232,21 @@ fun StudentHomeScreen(
 }
 
 @Composable
-private fun OperationStatusCard(onTimetableClick: () -> Unit) {
+private fun OperationStatusCard(
+    lastUpdatedAtMillis: Long,
+    onTimetableClick: () -> Unit,
+) {
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lastUpdatedAtMillis) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+    val lastUpdatedLabel = remember(lastUpdatedAtMillis, nowMillis) {
+        formatOperationLastUpdatedLabel(lastUpdatedAtMillis, nowMillis)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -230,7 +294,7 @@ private fun OperationStatusCard(onTimetableClick: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = "마지막 갱신 17:10",
+                    text = lastUpdatedLabel,
                     color = UpdateBadgeText,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -359,7 +423,15 @@ private fun SectionHeader(
 }
 
 @Composable
-private fun FavoriteCard(onClick: () -> Unit) {
+private fun FavoriteCard(
+    route: RouteUiModel?,
+    onClick: () -> Unit,
+) {
+    val statusLabel = route?.homeStatusBadgeText() ?: "운행 예정"
+    val (badgeBg, badgeFg) = route?.homeStatusBadgeColors()
+        ?: (BadgePendingBg to BadgePendingText)
+    val detailText = route?.homeFavoriteDetailText() ?: "다음 출발 -"
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -395,7 +467,7 @@ private fun FavoriteCard(onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "기흥역 통학버스",
+                    text = route?.name ?: "기흥역 통학버스",
                     color = TitleBlack,
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -404,11 +476,11 @@ private fun FavoriteCard(onClick: () -> Unit) {
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                StatusPill(text = "운행 중", bg = BadgeGreenBg, fg = BadgeGreenText)
+                StatusPill(text = statusLabel, bg = badgeBg, fg = badgeFg)
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "다음 출발 17:15 / 현재 3대 운행 중",
+                text = detailText,
                 color = Color(0xFF64748B),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -424,42 +496,66 @@ private fun FavoriteCard(onClick: () -> Unit) {
 }
 
 @Composable
-private fun RouteShortcutRow(onRouteClick: (String) -> Unit) {
+private fun RouteShortcutRow(
+    routes: List<RouteUiModel>,
+    onRouteClick: (String) -> Unit,
+) {
+    val shortcutRoutes = if (routes.isNotEmpty()) {
+        routes
+    } else {
+        sampleRouteList()
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        RouteShortcutCard(
-            icon = Icons.Filled.DirectionsBus,
-            title = "기흥역 통학버스",
-            badge = "2대 운행 중",
-            badgeBg = BadgeGreenBg,
-            badgeFg = BadgeGreenText,
-            nextDeparture = "다음 출발 17:15",
-            onClick = { onRouteClick("기흥역 통학버스") },
-            modifier = Modifier.weight(1f),
-        )
-        RouteShortcutCard(
-            icon = Icons.Filled.Subway,
-            title = "명지대역 통학버스",
-            badge = "1대 운행 중",
-            badgeBg = BadgeGreenBg,
-            badgeFg = BadgeGreenText,
-            nextDeparture = "다음 출발 16:50",
-            onClick = { onRouteClick("명지대역 통학버스") },
-            modifier = Modifier.weight(1f),
-        )
-        RouteShortcutCard(
-            icon = Icons.Filled.Apartment,
-            title = "시내 셔틀",
-            badge = "운행 예정",
-            badgeBg = BadgePendingBg,
-            badgeFg = BadgePendingText,
-            nextDeparture = "다음 출발 18:10",
-            onClick = { onRouteClick("시내 셔틀") },
-            modifier = Modifier.weight(1f),
-        )
+        shortcutRoutes.forEach { route ->
+            val (badgeBg, badgeFg) = route.homeStatusBadgeColors()
+            RouteShortcutCard(
+                icon = route.homeShortcutIcon(),
+                title = route.name,
+                badge = route.homeShortcutBadgeText(),
+                badgeBg = badgeBg,
+                badgeFg = badgeFg,
+                nextDeparture = "다음 출발 ${route.nextDeparture}",
+                onClick = { onRouteClick(route.id) },
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
+}
+
+private fun RouteUiModel.homeStatusBadgeText(): String = when (status) {
+    RouteStatus.RUNNING -> "운행 중"
+    RouteStatus.SCHEDULED -> "운행 예정"
+}
+
+private fun RouteUiModel.homeShortcutBadgeText(): String = when (status) {
+    RouteStatus.RUNNING -> {
+        val count = activeVehicleCount
+        if (count != null) "${count}대 운행 중" else "운행 중"
+    }
+    RouteStatus.SCHEDULED -> "운행 예정"
+}
+
+private fun RouteUiModel.homeStatusBadgeColors(): Pair<Color, Color> = when (status) {
+    RouteStatus.RUNNING -> BadgeGreenBg to BadgeGreenText
+    RouteStatus.SCHEDULED -> BadgePendingBg to BadgePendingText
+}
+
+private fun RouteUiModel.homeFavoriteDetailText(): String {
+    val count = activeVehicleCount
+    return if (status == RouteStatus.RUNNING && count != null) {
+        "다음 출발 $nextDeparture / 현재 ${count}대 운행 중"
+    } else {
+        "다음 출발 $nextDeparture"
+    }
+}
+
+private fun RouteUiModel.homeShortcutIcon(): ImageVector = when (id) {
+    "myeongji_station" -> Icons.Filled.Subway
+    "city_shuttle" -> Icons.Filled.Apartment
+    else -> Icons.Filled.DirectionsBus
 }
 
 @Composable
@@ -613,4 +709,22 @@ private fun StudentHomeScreenPreview() {
     ONDAStudentTheme {
         StudentHomeScreen()
     }
+}
+
+/**
+ * Builds the home operation-card "마지막 갱신 …" label from the data timestamp.
+ * Reuse with live Supabase updates by passing the latest received epoch millis.
+ */
+internal fun formatOperationLastUpdatedLabel(
+    lastUpdatedAtMillis: Long,
+    nowMillis: Long = System.currentTimeMillis(),
+): String {
+    val elapsedSec = ((nowMillis - lastUpdatedAtMillis).coerceAtLeast(0L)) / 1_000L
+    val relative = when {
+        elapsedSec < 1L -> "방금 전"
+        elapsedSec < 60L -> "${elapsedSec}초 전"
+        elapsedSec < 3_600L -> "${elapsedSec / 60L}분 전"
+        else -> "${elapsedSec / 3_600L}시간 전"
+    }
+    return "마지막 갱신 $relative"
 }
