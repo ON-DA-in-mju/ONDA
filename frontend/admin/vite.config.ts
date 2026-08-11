@@ -5,6 +5,7 @@ import { livePlugin } from './vite-live-plugin'
 import { loginHistoryPlugin } from './vite-login-history-plugin'
 import { adminNotificationsPlugin } from './vite-admin-notifications-plugin'
 import { safeStopPlugin } from './vite-safe-stop-plugin'
+import { naverDirectionsPlugin } from './vite-naver-directions-plugin'
 
 export default defineConfig({
   plugins: [
@@ -14,6 +15,7 @@ export default defineConfig({
     livePlugin(),
     safeStopPlugin(),
     adminNotificationsPlugin(),
+    naverDirectionsPlugin(),
   ],
   server: {
     port: 5173,

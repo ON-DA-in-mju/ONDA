@@ -2,12 +2,10 @@ package com.mju.onda.driver.feature.settings.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.HeadsetMic
 import androidx.compose.material.icons.outlined.Info
@@ -58,7 +55,6 @@ import com.mju.onda.driver.core.theme.OndaColors
 import com.mju.onda.driver.core.theme.OndaTypography
 import com.mju.onda.driver.core.ui.components.OndaTopBar
 import com.mju.onda.driver.feature.settings.data.ContactInfoRow
-import com.mju.onda.driver.feature.settings.data.InquiryTypeItem
 import com.mju.onda.driver.feature.settings.data.MockContactAdmin
 import com.mju.onda.driver.feature.settings.viewmodel.ContactAdminEvent
 import com.mju.onda.driver.feature.settings.viewmodel.ContactAdminViewModel
@@ -93,13 +89,6 @@ fun ContactAdminScreen(
                             Intent(Intent.ACTION_SENDTO, Uri.parse(MockContactAdmin.EMAIL_URI)),
                         )
                     }
-                }
-                is ContactAdminEvent.InquiryTypeSelected -> {
-                    Toast.makeText(
-                        context,
-                        MockContactAdmin.INQUIRY_TYPE_TOAST_PREFIX + event.label,
-                        Toast.LENGTH_SHORT,
-                    ).show()
                 }
             }
         }
@@ -140,26 +129,6 @@ fun ContactAdminScreen(
 
                 ContactInfoCard(
                     rows = uiState.contactRows,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = MockContactAdmin.INQUIRY_SECTION_TITLE,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = OndaTypography.headlineLarge.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = OndaColors.TextPrimary,
-                    ),
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                InquiryTypesCard(
-                    items = uiState.inquiryTypes,
-                    onItemClick = viewModel::onInquiryTypeClick,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
@@ -280,68 +249,6 @@ private fun ContactInfoRowItem(row: ContactInfoRow) {
                 color = OndaColors.Primary,
                 textDecoration = if (row.underlined) TextDecoration.Underline else null,
             ),
-        )
-    }
-}
-
-@Composable
-private fun InquiryTypesCard(
-    items: List<InquiryTypeItem>,
-    onItemClick: (InquiryTypeItem) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(OndaColors.Surface, RoundedCornerShape(16.dp))
-            .border(1.dp, OndaColors.Border, RoundedCornerShape(16.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    ) {
-        items.forEachIndexed { index, item ->
-            InquiryTypeRow(item = item, onClick = { onItemClick(item) })
-            if (index < items.lastIndex) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 10.dp),
-                    color = OndaColors.Border.copy(alpha = 0.85f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InquiryTypeRow(
-    item: InquiryTypeItem,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = null,
-            tint = OndaColors.Primary,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = item.label,
-            modifier = Modifier.weight(1f),
-            style = OndaTypography.bodyLarge.copy(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = OndaColors.TextPrimary,
-            ),
-        )
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = OndaColors.TextHint,
-            modifier = Modifier.size(20.dp),
         )
     }
 }

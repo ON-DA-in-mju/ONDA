@@ -14,10 +14,12 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../state/AuthContext'
 import {
+  ADMIN_NOTIFICATIONS_CHANGED,
   fetchAdminNotifications,
   markNotificationRead,
   type AdminNotification,
 } from '../../lib/adminNotificationsApi'
+import { createExclusivePoll } from '../../lib/exclusivePoll'
 import { Header, Sidebar, type NavItem } from './SidebarHeader'
 import '../../styles/layout.css'
 
@@ -47,7 +49,7 @@ const titles: Record<string, string> = {
 }
 
 export function AdminLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, loading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -73,31 +75,44 @@ export function AdminLayout() {
   }
 
   useEffect(() => {
+    // 로그인 세션 준비 전 폴링하면 pending을 놓칠 수 있음
+    if (loading || !user) return
+
     let alive = true
-    const poll = async () => {
-      const data = await fetchAdminNotifications()
+    const poll = createExclusivePoll(async () => {
+      // 레이아웃은 pending만 — 전체 조인 조회가 쌓이면 클릭이 먹통처럼 보임
+      const data = await fetchAdminNotifications({ pendingOnly: true })
       if (!alive) return
-      setUnreadCount(data.unreadCount)
+      setUnreadCount((prev) => (prev === data.unreadCount ? prev : data.unreadCount))
 
       const ids = new Set(data.items.map((n) => n.id))
+      const unread = data.items.filter((n) => !n.read)
+
       if (knownIdsRef.current == null) {
         knownIdsRef.current = ids
+        if (unread.length > 0) showToast(unread[0])
         return
       }
-      const fresh = data.items.filter((n) => !knownIdsRef.current!.has(n.id) && !n.read)
-      knownIdsRef.current = ids
+
+      const fresh = unread.filter((n) => !knownIdsRef.current!.has(n.id))
+      knownIdsRef.current = new Set([...knownIdsRef.current, ...ids])
       if (fresh.length > 0) {
         showToast(fresh[0])
       }
-    }
+    })
     void poll()
-    const timer = window.setInterval(() => void poll(), 3_000)
+    const timer = window.setInterval(() => void poll(), 15_000)
+    const onChanged = () => {
+      void poll()
+    }
+    window.addEventListener(ADMIN_NOTIFICATIONS_CHANGED, onChanged)
     return () => {
       alive = false
       window.clearInterval(timer)
+      window.removeEventListener(ADMIN_NOTIFICATIONS_CHANGED, onChanged)
       if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current)
     }
-  }, [])
+  }, [loading, user])
 
   const onToastClick = async () => {
     if (!toast) return

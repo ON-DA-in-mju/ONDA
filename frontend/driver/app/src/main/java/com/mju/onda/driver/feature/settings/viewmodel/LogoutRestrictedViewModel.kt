@@ -34,6 +34,7 @@ sealed interface LogoutRestrictedEvent {
     data object NavigateBack : LogoutRestrictedEvent
     data class GoToOperation(val operationId: String) : LogoutRestrictedEvent
     data object ContactAdmin : LogoutRestrictedEvent
+    data object ClearedStaleForLogout : LogoutRestrictedEvent
 }
 
 class LogoutRestrictedViewModel(
@@ -101,6 +102,28 @@ class LogoutRestrictedViewModel(
 
     fun onContactAdmin() {
         viewModelScope.launch { _events.emit(LogoutRestrictedEvent.ContactAdmin) }
+    }
+
+    /** 배차 목록과 어긋난 로컬 운행중 플래그 제거 → 로그아웃 확인으로 */
+    fun onClearStaleAndLogout() {
+        OperationRuntimeStateHolder.clearOrphanedActiveOperations()
+        // 그래도 남아 있으면(목록에 실제 운행중이 있음) 강제 종료는 하지 않음
+        if (OperationRuntimeStateHolder.hasActiveOperation()) {
+            val ops = MockTodayOperations.assignedOperations
+            val active = OperationRuntimeStateHolder.activeOperationId()
+            val stillReal = ops.any { it.id == active && it.status == com.mju.onda.driver.feature.home.data.OperationStatus.InProgress }
+            if (!stillReal) {
+                OperationRuntimeStateHolder.clearAll()
+            }
+        }
+        viewModelScope.launch {
+            if (OperationRuntimeStateHolder.hasActiveOperation()) {
+                // 실제 운행 중이면 안내만 갱신
+                load()
+            } else {
+                _events.emit(LogoutRestrictedEvent.ClearedStaleForLogout)
+            }
+        }
     }
 
     fun onBack() {

@@ -100,6 +100,8 @@ class OperationDetailViewModel : ViewModel() {
                     OperationStatus.Ended to MockTodayOperations.ENDED_BADGE
                 OperationRuntimeStateHolder.isInProgress(operationId) ->
                     OperationStatus.InProgress to MockTodayOperations.IN_PROGRESS_BADGE
+                base.status == OperationStatus.Unavailable ->
+                    OperationStatus.Unavailable to MockTodayOperations.UNAVAILABLE_BADGE
                 OperationRuntimeStateHolder.canStartOperation(operationId) ->
                     OperationStatus.Waiting to MockTodayOperations.WAITING_BADGE
                 else ->

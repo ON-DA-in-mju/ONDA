@@ -66,6 +66,7 @@ fun LogoutRestrictedScreen(
     onBack: () -> Unit,
     onGoToOperation: (operationId: String) -> Unit,
     onContactAdmin: () -> Unit,
+    onClearedStaleForLogout: () -> Unit = {},
     viewModel: LogoutRestrictedViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,6 +81,7 @@ fun LogoutRestrictedScreen(
                 LogoutRestrictedEvent.NavigateBack -> onBack()
                 is LogoutRestrictedEvent.GoToOperation -> onGoToOperation(event.operationId)
                 LogoutRestrictedEvent.ContactAdmin -> onContactAdmin()
+                LogoutRestrictedEvent.ClearedStaleForLogout -> onClearedStaleForLogout()
             }
         }
     }
@@ -174,6 +176,41 @@ fun LogoutRestrictedScreen(
                         style = OndaTypography.labelLarge.copy(
                             fontSize = 15.sp,
                             color = OndaColors.Primary,
+                        ),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = MockLogoutRestricted.CLEAR_STALE_HINT,
+                    style = OndaTypography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        color = OndaColors.TextSecondary,
+                        textAlign = TextAlign.Center,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = viewModel::onClearStaleAndLogout,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.2.dp, OndaColors.Border),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                ) {
+                    Text(
+                        text = MockLogoutRestricted.CLEAR_STALE_LABEL,
+                        style = OndaTypography.labelLarge.copy(
+                            fontSize = 14.sp,
+                            color = OndaColors.TextSecondary,
                         ),
                     )
                 }

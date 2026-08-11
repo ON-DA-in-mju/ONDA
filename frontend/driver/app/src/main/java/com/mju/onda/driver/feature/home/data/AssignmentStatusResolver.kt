@@ -13,6 +13,7 @@ object AssignmentStatusResolver {
         when (operation.status) {
             OperationStatus.InProgress,
             OperationStatus.Ended,
+            OperationStatus.Unavailable,
             OperationStatus.Waiting,
             -> return operation.status
             else -> Unit

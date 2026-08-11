@@ -54,7 +54,7 @@ class SafeStopHistoryViewModel : ViewModel() {
         SafeStopHistoryHolder.ensureSeedIfEmpty()
         refreshState()
         viewModelScope.launch {
-            SafeStopDecisionPoller.pollOnce()
+            syncFromServer()
             refreshState()
         }
     }
@@ -68,9 +68,24 @@ class SafeStopHistoryViewModel : ViewModel() {
         }
     }
 
+    private suspend fun syncFromServer() {
+        val key = com.mju.onda.driver.core.supabase.SupabaseClient.userUuid
+            ?: com.mju.onda.driver.feature.auth.data.SessionStateHolder.currentUserId
+            ?: return
+        when (val result = com.mju.onda.driver.feature.settings.data.SafeStopApi.fetchForDriver(key)) {
+            is com.mju.onda.driver.feature.settings.data.SafeStopApi.FetchResult.Ok -> {
+                SafeStopHistoryHolder.mergeRemote(result.items)
+                SafeStopDecisionPoller.pollOnce()
+            }
+            com.mju.onda.driver.feature.settings.data.SafeStopApi.FetchResult.Failed -> {
+                SafeStopDecisionPoller.pollOnce()
+            }
+        }
+    }
+
     fun onRefresh() {
         viewModelScope.launch {
-            SafeStopDecisionPoller.pollOnce()
+            syncFromServer()
             refreshState()
             _events.emit(SafeStopHistoryEvent.Refreshed)
         }

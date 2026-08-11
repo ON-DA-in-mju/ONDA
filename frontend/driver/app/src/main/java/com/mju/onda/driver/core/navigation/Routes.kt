@@ -20,8 +20,9 @@ object Routes {
     const val START_CONFIRM = "start_confirm"
     const val START_PROCESSING = "start_processing"
     const val START_COMPLETE = "start_complete"
-    const val IN_OPERATION_MINIMAL = "in_operation_minimal/{operationId}"
+    // 운행 중 최소 화면은 제거됨 — 상세 상태로 통합
     const val IN_OPERATION_DETAIL_STATUS = "in_operation_detail_status/{operationId}"
+    const val STOP_ROUTE_PROGRESS = "stop_route_progress/{operationId}"
     const val OPERATION_RECOVERY = "operation_recovery"
     const val BACKGROUND_GUIDE = "background_guide"
     const val BATTERY_WARNING = "battery_warning"
@@ -36,7 +37,6 @@ object Routes {
     const val LOGOUT_CONFIRM = "logout_confirm"
     const val LOGOUT_RESTRICTED = "logout_restricted"
     const val ACCOUNT_INFO = "account_info"
-    const val ACCOUNT_EDIT = "account_edit"
     const val DEVICE_PERMISSION = "device_permission"
     const val ALARM_SETTINGS = "alarm_settings"
     const val LOCATION_CONSENT_MANAGE = "location_consent_manage"
@@ -53,9 +53,9 @@ object Routes {
     const val INTERRUPTED_END_COMPLETE = "interrupted_end_complete"
 
     fun operationDetail(operationId: String): String = "operation_detail/$operationId"
-    fun inOperationMinimal(operationId: String): String = "in_operation_minimal/$operationId"
     fun inOperationDetailStatus(operationId: String): String =
         "in_operation_detail_status/$operationId"
+    fun stopRouteProgress(operationId: String): String = "stop_route_progress/$operationId"
     fun endOperationConfirm(operationId: String): String = "end_operation_confirm/$operationId"
     fun endOperationProcessing(operationId: String): String =
         "end_operation_processing/$operationId"

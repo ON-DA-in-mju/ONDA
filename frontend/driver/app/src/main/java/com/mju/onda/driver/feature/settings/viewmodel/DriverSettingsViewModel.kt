@@ -76,6 +76,8 @@ class DriverSettingsViewModel : ViewModel() {
 
     fun onLogout() {
         viewModelScope.launch {
+            // 홈 배차는 비었는데 로컬만 운행중으로 남은 유령 상태 정리
+            OperationRuntimeStateHolder.clearOrphanedActiveOperations()
             if (OperationRuntimeStateHolder.hasActiveOperation()) {
                 _events.emit(DriverSettingsEvent.OpenLogoutRestricted)
             } else {

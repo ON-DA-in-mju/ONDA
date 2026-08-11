@@ -1,6 +1,9 @@
 package com.mju.onda.driver.core
 
+import com.mju.onda.driver.feature.adminforceend.data.AdminForceEndPoller
+import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
 import com.mju.onda.driver.feature.alarm.data.AlarmReadStateHolder
+import com.mju.onda.driver.feature.alarm.data.LocalAlarmStore
 import com.mju.onda.driver.feature.backgroundguide.data.BackgroundGuidePrefs
 import com.mju.onda.driver.feature.batterywarning.data.BatteryWarningPrefs
 import com.mju.onda.driver.feature.consent.data.LocationConsentPrefs
@@ -21,7 +24,9 @@ object UserScopedState {
         UserScopedPrefs.bind(userId)
         OperationRuntimeStateHolder.bindUser()
         HistoryRuntimeStateHolder.bindUser()
+        LocalAlarmStore.bindUser()
         AlarmReadStateHolder.bindUser()
+        AdminForceEndPoller.start()
         SafeStopHistoryHolder.bindUser()
         BatteryWarningPrefs.bindUser()
         BackgroundGuidePrefs.bindUser()
@@ -35,9 +40,13 @@ object UserScopedState {
 
     fun unbind() {
         SafeStopDecisionPoller.stop()
+        AdminForceEndPoller.stop()
+        AdminForceEndPoller.resetSession()
         OperationRuntimeStateHolder.unbindUser()
         HistoryRuntimeStateHolder.unbindUser()
         AlarmReadStateHolder.unbindUser()
+        LocalAlarmStore.unbindUser()
+        AlarmGenerator.resetSession()
         SafeStopHistoryHolder.unbindUser()
         BatteryWarningPrefs.unbindUser()
         BackgroundGuidePrefs.unbindUser()
@@ -54,6 +63,7 @@ object UserScopedState {
         OperationRuntimeStateHolder.clearAll()
         HistoryRuntimeStateHolder.clearAll()
         AlarmReadStateHolder.clearAll()
+        LocalAlarmStore.clear()
         SafeStopHistoryHolder.clearAll()
         BatteryWarningPrefs.clear()
         BackgroundGuidePrefs.clear()

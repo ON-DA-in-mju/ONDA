@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.history.data.HistoryDateRange
 import com.mju.onda.driver.feature.history.data.HistoryPeriodFilter
 import com.mju.onda.driver.feature.history.data.HistoryRecord
-import com.mju.onda.driver.feature.history.data.HistoryRuntimeStateHolder
+import com.mju.onda.driver.feature.history.data.HistoryOperationsApi
 import com.mju.onda.driver.feature.history.data.MockOperationHistory
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -60,15 +60,18 @@ class OperationHistoryViewModel : ViewModel() {
     }
 
     fun refresh() {
-        _uiState.update { state ->
-            state.copy(
-                records = MockOperationHistory.forFilter(
-                    filter = state.filter,
-                    runtimeRecords = HistoryRuntimeStateHolder.runtimeRecords(),
-                    customRange = state.customRange,
-                ),
-                rangeLabel = MockOperationHistory.rangeLabel(state.filter, state.customRange),
-            )
+        val state = _uiState.value
+        val range = resolveRangeFor(state.filter, state.customRange)
+            ?: return
+
+        viewModelScope.launch {
+            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            _uiState.update {
+                it.copy(
+                    records = records,
+                    rangeLabel = MockOperationHistory.rangeLabel(it.filter, it.customRange),
+                )
+            }
         }
     }
 
@@ -81,17 +84,16 @@ class OperationHistoryViewModel : ViewModel() {
             openPeriodPicker()
             return
         }
-        _uiState.update { state ->
-            state.copy(
-                filter = filter,
-                showPeriodPicker = false,
-                records = MockOperationHistory.forFilter(
-                    filter = filter,
-                    runtimeRecords = HistoryRuntimeStateHolder.runtimeRecords(),
-                    customRange = state.customRange,
-                ),
-                rangeLabel = MockOperationHistory.rangeLabel(filter, state.customRange),
-            )
+        _uiState.update { it.copy(filter = filter, showPeriodPicker = false) }
+        val range = resolveRangeFor(filter, _uiState.value.customRange) ?: return
+        viewModelScope.launch {
+            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            _uiState.update {
+                it.copy(
+                    records = records,
+                    rangeLabel = MockOperationHistory.rangeLabel(filter, it.customRange),
+                )
+            }
         }
     }
 
@@ -159,18 +161,15 @@ class OperationHistoryViewModel : ViewModel() {
             return
         }
         val range = HistoryDateRange(start, end)
-        _uiState.update {
-            it.copy(
-                filter = HistoryPeriodFilter.Custom,
-                customRange = range,
-                showPeriodPicker = false,
-                records = MockOperationHistory.forFilter(
-                    filter = HistoryPeriodFilter.Custom,
-                    runtimeRecords = HistoryRuntimeStateHolder.runtimeRecords(),
-                    customRange = range,
-                ),
-                rangeLabel = MockOperationHistory.formatRangeLabel(range),
-            )
+        _uiState.update { it.copy(filter = HistoryPeriodFilter.Custom, customRange = range, showPeriodPicker = false) }
+        viewModelScope.launch {
+            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            _uiState.update {
+                it.copy(
+                    records = records,
+                    rangeLabel = MockOperationHistory.formatRangeLabel(range),
+                )
+            }
         }
     }
 
@@ -184,5 +183,14 @@ class OperationHistoryViewModel : ViewModel() {
 
     fun onSettingsTab() {
         viewModelScope.launch { _events.emit(OperationHistoryEvent.OpenSettings) }
+    }
+
+    private fun resolveRangeFor(filter: HistoryPeriodFilter, customRange: HistoryDateRange?): HistoryDateRange? {
+        val today = MockOperationHistory.MOCK_TODAY
+        return when (filter) {
+            HistoryPeriodFilter.Today -> HistoryDateRange(today, today)
+            HistoryPeriodFilter.Last7Days -> HistoryDateRange(today.minusDays(6), today)
+            HistoryPeriodFilter.Custom -> customRange
+        }
     }
 }

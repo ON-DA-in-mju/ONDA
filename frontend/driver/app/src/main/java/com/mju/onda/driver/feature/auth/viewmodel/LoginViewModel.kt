@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
 import com.mju.onda.driver.core.login.LoginHistoryReporter
+import com.mju.onda.driver.core.system.SystemLogsApi
 
 import com.mju.onda.driver.data.mock.MockDriver
 
@@ -161,6 +162,17 @@ class LoginViewModel(
                         name = result.driver.name,
 
                     )
+
+                    // 관리자 웹의 "시스템 기록 목록"에 표시될 로그인 로그(옵션 A)
+                    runCatching {
+                        SystemLogsApi.insert(
+                            type = "사용자 로그인",
+                            action = "로그인 성공",
+                            actor = "${result.driver.name} (driver)",
+                            target = "-",
+                            result = "성공",
+                        )
+                    }
 
                     _uiState.update {
 

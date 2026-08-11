@@ -32,6 +32,7 @@ sealed interface InOperationDetailStatusEvent {
     data object GoHome : InOperationDetailStatusEvent
     data object EndOperation : InOperationDetailStatusEvent
     data object SuspendRequest : InOperationDetailStatusEvent
+    data object OpenStopRoute : InOperationDetailStatusEvent
 }
 
 class InOperationDetailStatusViewModel(
@@ -96,6 +97,10 @@ class InOperationDetailStatusViewModel(
 
     fun onEndOperation() {
         viewModelScope.launch { _events.emit(InOperationDetailStatusEvent.EndOperation) }
+    }
+
+    fun onOpenStopRoute() {
+        viewModelScope.launch { _events.emit(InOperationDetailStatusEvent.OpenStopRoute) }
     }
 
     fun onSuspendRequest() {
