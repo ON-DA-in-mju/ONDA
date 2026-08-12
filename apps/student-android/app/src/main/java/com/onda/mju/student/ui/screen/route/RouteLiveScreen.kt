@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -71,18 +72,33 @@ fun RouteLiveScreen(
     routeId: String,
     modifier: Modifier = Modifier,
     liveData: RouteLiveData? = null,
+    deviceStatuses: Map<String, OperationDeviceStatusDto> = emptyMap(),
     onBackClick: () -> Unit = {},
     onStopClick: (String) -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
     onTimetableClick: () -> Unit = {},
 ) {
-    val data = remember(routeId, liveData) { liveData ?: sampleRouteLive(routeId) }
+    val data = liveData ?: remember(routeId) { sampleRouteLive(routeId) }
     var directionIndex by remember { mutableIntStateOf(0) }
-    var selectedVehicle by remember(routeId, data.vehicles.map { it.id }) {
+    var selectedVehicle by remember(routeId) {
         mutableStateOf(data.vehicles.firstOrNull()?.id.orEmpty())
     }
     var alertStops by remember {
         mutableStateOf(data.stops.filter { it.alertOn }.map { it.id }.toSet())
+    }
+
+    // If the selected operation ended / left the list, move selection to a remaining vehicle.
+    val vehicleIds = remember(data.vehicles) { data.vehicles.map { it.id } }
+    LaunchedEffect(vehicleIds) {
+        if (selectedVehicle.isNotEmpty() && selectedVehicle !in vehicleIds) {
+            selectedVehicle = vehicleIds.firstOrNull().orEmpty()
+            Log.d(
+                "ONDA_SUPABASE",
+                "selected vehicle reset to=${selectedVehicle.ifEmpty { "<none>" }}",
+            )
+        } else if (selectedVehicle.isEmpty() && vehicleIds.isNotEmpty()) {
+            selectedVehicle = vehicleIds.first()
+        }
     }
 
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -94,17 +110,41 @@ fun RouteLiveScreen(
     }
 
     val selectedLiveVehicle = data.vehicles.firstOrNull { it.id == selectedVehicle }
-    val ageSeconds = remember(selectedLiveVehicle?.recordedAt, nowMillis) {
-        locationAgeSeconds(selectedLiveVehicle?.recordedAt, nowMillis)
+    val selectedDeviceStatus = selectedLiveVehicle?.let { deviceStatuses[it.id] }
+    val locationAgeSeconds = remember(selectedLiveVehicle?.recordedAt, nowMillis) {
+        timestampAgeSeconds(selectedLiveVehicle?.recordedAt, nowMillis)
     }
-    val lastUpdatedText = remember(ageSeconds) {
-        lastUpdatedLabel(ageSeconds)
+    val lastUpdatedText = remember(locationAgeSeconds) {
+        lastUpdatedLabel(locationAgeSeconds)
     }
-    val locationStatusText = remember(ageSeconds) {
-        locationStatusLabel(ageSeconds)
+    val connectionStatus = remember(
+        selectedDeviceStatus,
+        selectedLiveVehicle?.recordedAt,
+        nowMillis,
+    ) {
+        resolveConnectionStatus(
+            deviceStatus = selectedDeviceStatus,
+            locationRecordedAt = selectedLiveVehicle?.recordedAt,
+            nowMillis = nowMillis,
+        )
     }
-    val statusColor = remember(ageSeconds) {
-        locationStatusColor(ageSeconds)
+
+    LaunchedEffect(
+        selectedLiveVehicle?.id,
+        connectionStatus.label,
+        selectedDeviceStatus?.gpsOk,
+        selectedDeviceStatus?.gpsEnabled,
+        connectionStatus.heartbeatAgeSeconds,
+        connectionStatus.locationAgeSeconds,
+    ) {
+        val vehicle = selectedLiveVehicle ?: return@LaunchedEffect
+        Log.d(
+            "ONDA_SUPABASE",
+            "connection status operationId=${vehicle.id}, status=${connectionStatus.label}, " +
+                "gpsOk=${selectedDeviceStatus?.gpsOk}, gpsEnabled=${selectedDeviceStatus?.gpsEnabled}, " +
+                "heartbeatAge=${connectionStatus.heartbeatAgeSeconds}, " +
+                "locationAge=${connectionStatus.locationAgeSeconds}",
+        )
     }
 
     // Temporary: verify live vehicles passed from shell.
@@ -231,10 +271,10 @@ fun RouteLiveScreen(
                         Spacer(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(statusColor, CircleShape),
+                                .background(connectionStatus.color, CircleShape),
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(locationStatusText, color = statusColor, fontSize = 11.sp)
+                        Text(connectionStatus.label, color = connectionStatus.color, fontSize = 11.sp)
                     }
                 }
                 val isRunning = data.runningCount > 0
@@ -281,6 +321,19 @@ fun RouteLiveScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(vehicle.label, color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(vehicle.status.label, color = if (selected) OndaBlue else BodyGray, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "예정 출발 ${formatScheduledTime(vehicle.scheduledDepartureTime)}",
+                            color = BodyGray,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                        )
+                        Text(
+                            "실제 출발 ${formatStartedAtKst(vehicle.actualStartedAt)}",
+                            color = BodyGray,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                        )
                     }
                 }
             }
@@ -454,12 +507,10 @@ private fun parseRecordedAtInstant(recordedAt: String): Instant? {
     }
 }
 
-private fun locationAgeSeconds(recordedAt: String?, nowMillis: Long): Long? {
-    if (recordedAt.isNullOrBlank()) return null
-    val recordedInstant = parseRecordedAtInstant(recordedAt) ?: return null
-    // Compare using epoch millis; Asia/Seoul is used for display context consistency.
-    val nowInstant = Instant.ofEpochMilli(nowMillis).atZone(SeoulZone).toInstant()
-    val ageMillis = (nowInstant.toEpochMilli() - recordedInstant.toEpochMilli()).coerceAtLeast(0L)
+private fun timestampAgeSeconds(timestamp: String?, nowMillis: Long): Long? {
+    if (timestamp.isNullOrBlank()) return null
+    val instant = parseRecordedAtInstant(timestamp) ?: return null
+    val ageMillis = (nowMillis - instant.toEpochMilli()).coerceAtLeast(0L)
     return ageMillis / 1_000L
 }
 
@@ -472,20 +523,76 @@ private fun lastUpdatedLabel(ageSeconds: Long?): String {
     }
 }
 
-private fun locationStatusLabel(ageSeconds: Long?): String {
-    if (ageSeconds == null) return "위치 확인 중"
+private data class ConnectionStatusUi(
+    val label: String,
+    val color: Color,
+    val heartbeatAgeSeconds: Long?,
+    val locationAgeSeconds: Long?,
+)
+
+private fun resolveConnectionStatus(
+    deviceStatus: OperationDeviceStatusDto?,
+    locationRecordedAt: String?,
+    nowMillis: Long,
+): ConnectionStatusUi {
+    val heartbeatAge = timestampAgeSeconds(deviceStatus?.updatedAt, nowMillis)
+    val locationAge = timestampAgeSeconds(locationRecordedAt, nowMillis)
+
     return when {
-        ageSeconds <= 30L -> "위치 정상"
-        ageSeconds <= 60L -> "위치 불안정"
-        else -> "위치 수신 지연"
+        deviceStatus == null -> ConnectionStatusUi(
+            label = "상태 확인 중",
+            color = Color(0xFF64748B),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
+        heartbeatAge == null || heartbeatAge > 30L -> ConnectionStatusUi(
+            label = "네트워크 이상",
+            color = Color(0xFFDC2626),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
+        deviceStatus.gpsEnabled == false -> ConnectionStatusUi(
+            label = "GPS 꺼짐",
+            color = Color(0xFFEA580C),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
+        deviceStatus.gpsOk == false -> ConnectionStatusUi(
+            label = "GPS 이상",
+            color = Color(0xFFEA580C),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
+        locationAge == null || locationAge > 30L -> ConnectionStatusUi(
+            label = "위치 수신 지연",
+            color = Color(0xFFEA580C),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
+        else -> ConnectionStatusUi(
+            label = "위치 정상",
+            color = Color(0xFF16A34A),
+            heartbeatAgeSeconds = heartbeatAge,
+            locationAgeSeconds = locationAge,
+        )
     }
 }
 
-private fun locationStatusColor(ageSeconds: Long?): Color {
-    if (ageSeconds == null) return Color(0xFF64748B)
-    return when {
-        ageSeconds <= 30L -> Color(0xFF16A34A)
-        ageSeconds <= 60L -> Color(0xFFEA580C)
-        else -> Color(0xFFDC2626)
+private fun formatScheduledTime(value: String?): String {
+    if (value.isNullOrBlank()) return "-"
+    val parts = value.trim().split(':')
+    return if (parts.size >= 2) {
+        val hour = parts[0].padStart(2, '0')
+        val minute = parts[1].padStart(2, '0')
+        "$hour:$minute"
+    } else {
+        value
     }
+}
+
+private fun formatStartedAtKst(value: String?): String {
+    if (value.isNullOrBlank()) return "-"
+    val instant = parseRecordedAtInstant(value) ?: return "-"
+    val local = instant.atZone(SeoulZone).toLocalTime()
+    return "%02d:%02d".format(local.hour, local.minute)
 }

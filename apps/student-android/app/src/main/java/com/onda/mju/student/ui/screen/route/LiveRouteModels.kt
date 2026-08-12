@@ -27,6 +27,8 @@ data class LiveVehicle(
     val speed: Double? = null,
     val heading: Double? = null,
     val recordedAt: String? = null,
+    val scheduledDepartureTime: String? = null,
+    val actualStartedAt: String? = null,
 )
 
 data class LiveStopNode(

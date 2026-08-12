@@ -20,8 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import android.util.Log
 import com.onda.mju.student.data.mapper.toRouteUiModels
+import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
 import com.onda.mju.student.data.remote.dto.OperationDto
 import com.onda.mju.student.data.remote.dto.VehicleLocationDto
+import com.onda.mju.student.data.remote.repository.OperationDeviceStatusRepository
 import com.onda.mju.student.data.remote.repository.OperationRepository
 import com.onda.mju.student.data.remote.repository.VehicleLocationRepository
 import com.onda.mju.student.ui.component.StudentBottomNavBar
@@ -131,19 +133,25 @@ fun StudentMainShell(
     val scope = rememberCoroutineScope()
     val operationRepository = remember { OperationRepository() }
     val vehicleLocationRepository = remember { VehicleLocationRepository() }
+    val operationDeviceStatusRepository = remember { OperationDeviceStatusRepository() }
     var routes by remember { mutableStateOf<List<RouteUiModel>>(sampleRouteList()) }
     var operations by remember { mutableStateOf<List<OperationDto>>(emptyList()) }
     val operationLocations = remember {
         mutableStateMapOf<String, VehicleLocationDto>()
     }
+    val operationDeviceStatuses = remember {
+        mutableStateMapOf<String, OperationDeviceStatusDto>()
+    }
 
     // Temporary: verify Supabase operations read path + realtime status updates.
     LaunchedEffect(Unit) {
         val locationJobs = mutableMapOf<String, Job>()
+        val deviceStatusJobs = mutableMapOf<String, Job>()
 
         suspend fun startLocationSubscription(operationId: String) {
             if (locationJobs.containsKey(operationId)) return
 
+            Log.d("ONDA_SUPABASE", "start realtime jobs operationId=$operationId (vehicle_locations)")
             val latestLocation = vehicleLocationRepository.getLatestLocation(operationId)
             if (latestLocation != null) {
                 Log.d(
@@ -177,9 +185,98 @@ fun StudentMainShell(
         }
 
         fun stopLocationSubscription(operationId: String) {
+            Log.d("ONDA_SUPABASE", "stop realtime jobs operationId=$operationId (vehicle_locations)")
             locationJobs.remove(operationId)?.cancel()
             operationLocations.remove(operationId)
-            Log.d("ONDA_SUPABASE", "operation removed from live vehicles operationId=$operationId")
+            Log.d("ONDA_SUPABASE", "remove operation state operationId=$operationId (locations)")
+        }
+
+        suspend fun startDeviceStatusSubscription(operationId: String) {
+            if (deviceStatusJobs.containsKey(operationId)) return
+
+            Log.d("ONDA_SUPABASE", "start realtime jobs operationId=$operationId (device_status)")
+            val initialStatus = operationDeviceStatusRepository.getStatus(operationId)
+            if (initialStatus != null) {
+                Log.d(
+                    "ONDA_SUPABASE",
+                    "device status initial operationId=${initialStatus.operationId}, " +
+                        "gpsOk=${initialStatus.gpsOk}, gpsEnabled=${initialStatus.gpsEnabled}, " +
+                        "updatedAt=${initialStatus.updatedAt}",
+                )
+                operationDeviceStatuses[operationId] = initialStatus
+            } else {
+                Log.d("ONDA_SUPABASE", "device status initial operationId=$operationId, status=null")
+            }
+
+            deviceStatusJobs[operationId] = launch {
+                try {
+                    operationDeviceStatusRepository.observeStatus(operationId).collect { status ->
+                        Log.d(
+                            "ONDA_SUPABASE",
+                            "device status realtime operationId=${status.operationId}, " +
+                                "gpsOk=${status.gpsOk}, gpsEnabled=${status.gpsEnabled}, " +
+                                "updatedAt=${status.updatedAt}",
+                        )
+                        operationDeviceStatuses[operationId] = status
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(
+                        "ONDA_SUPABASE",
+                        "device status observe failed operationId=$operationId " +
+                            "(check supabase_realtime publication includes public.operation_device_status): ${e.message}",
+                        e,
+                    )
+                }
+            }
+        }
+
+        fun stopDeviceStatusSubscription(operationId: String) {
+            Log.d("ONDA_SUPABASE", "stop realtime jobs operationId=$operationId (device_status)")
+            deviceStatusJobs.remove(operationId)?.cancel()
+            operationDeviceStatuses.remove(operationId)
+            Log.d("ONDA_SUPABASE", "device status removed operationId=$operationId")
+        }
+
+        /**
+         * Authoritative sync: subscribe exactly to current IN_PROGRESS operations.
+         * Stops jobs for ended ops and starts jobs for newly started ops.
+         */
+        suspend fun reconcileInProgressSubscriptions(latest: List<OperationDto>) {
+            val activeOps = latest.filter { it.status == "IN_PROGRESS" }
+            val activeIds = activeOps.map { it.id }.toSet()
+            val previousIds = (locationJobs.keys + deviceStatusJobs.keys).toSet()
+
+            val removedIds = previousIds - activeIds
+            val addedIds = activeIds - previousIds
+
+            removedIds.forEach { operationId ->
+                val routeName = latest.firstOrNull { it.id == operationId }
+                    ?.schedule?.route?.routeName
+                    ?: operations.firstOrNull { it.id == operationId }?.schedule?.route?.routeName
+                Log.d(
+                    "ONDA_SUPABASE",
+                    "active operation removed id=$operationId, route=$routeName",
+                )
+                stopLocationSubscription(operationId)
+                stopDeviceStatusSubscription(operationId)
+            }
+
+            addedIds.forEach { operationId ->
+                val op = activeOps.first { it.id == operationId }
+                Log.d(
+                    "ONDA_SUPABASE",
+                    "active operation added id=$operationId, route=${op.schedule?.route?.routeName}",
+                )
+                startLocationSubscription(operationId)
+                startDeviceStatusSubscription(operationId)
+            }
+
+            Log.d(
+                "ONDA_SUPABASE",
+                "current active operation ids=${activeIds.toList()}",
+            )
         }
 
         try {
@@ -205,22 +302,21 @@ fun StudentMainShell(
             routes = routeUiModels
             operations = fetchedOperations
 
-            val inProgressOperations = fetchedOperations.filter { it.status == "IN_PROGRESS" }
-            inProgressOperations.forEach { operation ->
-                Log.d(
-                    "ONDA_SUPABASE",
-                    "operation vehicle operationId=${operation.id}, " +
-                        "routeName=${operation.schedule?.route?.routeName}, " +
-                        "busId=${operation.busId ?: operation.bus?.id}, " +
-                        "busName=${operation.bus?.busName}, " +
-                        "vehicleNumber=${operation.bus?.vehicleNumber}, " +
-                        "status=${operation.status}",
-                )
-            }
+            fetchedOperations
+                .filter { it.status == "IN_PROGRESS" }
+                .forEach { operation ->
+                    Log.d(
+                        "ONDA_SUPABASE",
+                        "operation vehicle operationId=${operation.id}, " +
+                            "routeName=${operation.schedule?.route?.routeName}, " +
+                            "busId=${operation.busId ?: operation.bus?.id}, " +
+                            "busName=${operation.bus?.busName}, " +
+                            "vehicleNumber=${operation.bus?.vehicleNumber}, " +
+                            "status=${operation.status}",
+                    )
+                }
 
-            inProgressOperations.forEach { operation ->
-                startLocationSubscription(operation.id)
-            }
+            reconcileInProgressSubscriptions(fetchedOperations)
 
             // Realtime: today's operations status changes (start/end).
             // Requires public.operations in supabase_realtime publication.
@@ -239,45 +335,45 @@ fun StudentMainShell(
 
                         Log.d(
                             "ONDA_SUPABASE",
-                            "operation realtime update operationId=${record.id}, " +
-                                "oldStatus=$oldStatus, newStatus=$newStatus",
+                            "operation transition id=${record.id}, oldStatus=$oldStatus, newStatus=$newStatus",
                         )
 
-                        if (existing == null) {
-                            Log.d(
+                        // Merge immediately for the updated row (keep nested schedule/bus).
+                        val merged = if (existing != null) {
+                            operations.map { op ->
+                                if (op.id != record.id) {
+                                    op
+                                } else {
+                                    op.copy(
+                                        operationDate = record.operationDate,
+                                        status = record.status,
+                                        startedAt = record.startedAt,
+                                        endedAt = record.endedAt,
+                                        scheduleId = record.scheduleId,
+                                        busId = record.busId,
+                                    )
+                                }
+                            }
+                        } else {
+                            operations
+                        }
+
+                        // Authoritative refresh so missed A=COMPLETED / B=IN_PROGRESS
+                        // transitions cannot leave stale local IN_PROGRESS state.
+                        val refreshed = try {
+                            operationRepository.getOperations()
+                        } catch (e: Exception) {
+                            Log.e(
                                 "ONDA_SUPABASE",
-                                "operation realtime update skipped (not in today list) operationId=${record.id}",
+                                "operations refresh after realtime failed, using merge: ${e.message}",
+                                e,
                             )
-                            return@collect
+                            merged
                         }
 
-                        val merged = operations.map { op ->
-                            if (op.id != record.id) {
-                                op
-                            } else {
-                                op.copy(
-                                    operationDate = record.operationDate,
-                                    status = record.status,
-                                    startedAt = record.startedAt,
-                                    endedAt = record.endedAt,
-                                    scheduleId = record.scheduleId,
-                                    busId = record.busId,
-                                )
-                            }
-                        }
-                        operations = merged
-                        routes = merged.toRouteUiModels()
-
-                        val wasInProgress = oldStatus == "IN_PROGRESS"
-                        val isInProgress = newStatus == "IN_PROGRESS"
-                        when {
-                            !wasInProgress && isInProgress -> {
-                                startLocationSubscription(record.id)
-                            }
-                            wasInProgress && !isInProgress -> {
-                                stopLocationSubscription(record.id)
-                            }
-                        }
+                        operations = refreshed
+                        routes = refreshed.toRouteUiModels()
+                        reconcileInProgressSubscriptions(refreshed)
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -542,6 +638,7 @@ fun StudentMainShell(
                         .asSequence()
                         .filter { it.status == "IN_PROGRESS" }
                         .filter { it.schedule?.route?.routeName == routeName }
+                        .sortedByDescending { it.startedAt.orEmpty() }
                         .map { operation ->
                             val location = operationLocations[operation.id]
                             LiveVehicle(
@@ -555,6 +652,8 @@ fun StudentMainShell(
                                 speed = location?.speed,
                                 heading = location?.heading,
                                 recordedAt = location?.recordedAt,
+                                scheduledDepartureTime = operation.schedule?.departureTime,
+                                actualStartedAt = operation.startedAt,
                             )
                         }
                         .toList()
@@ -576,6 +675,7 @@ fun StudentMainShell(
                         routeId = current.routeId,
                         modifier = Modifier.fillMaxSize(),
                         liveData = liveData,
+                        deviceStatuses = operationDeviceStatuses,
                         onBackClick = { overlay = MainOverlay.None },
                         onStopClick = { stopId ->
                             overlay = MainOverlay.StopLive(

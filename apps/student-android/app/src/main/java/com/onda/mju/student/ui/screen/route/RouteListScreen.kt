@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -65,9 +66,15 @@ private val StarYellow = Color(0xFFFBBF24)
 /** Bidirectional arrow used in design (U+21C4). */
 private const val BidirectionalArrow = "\u21C4"
 
-/** Design content reference (STU-02-00 inner area). */
+/** Design content reference (STU-02-00). */
 private const val RefW = 414f
-private const val SideFrac = 18f / RefW
+private const val SideFrac = 20f / RefW
+
+/** Intrinsic ratio of route_list_header_illustration.png (illustration-only asset). */
+private const val HeaderIllustAspect = 198f / 131f
+
+/** Shared circular thumb size for every route card. */
+private val RouteThumbSize = 92.dp
 
 @Composable
 fun RouteListScreen(
@@ -89,30 +96,23 @@ fun RouteListScreen(
         val density = LocalDensity.current
         val sideInset = with(density) {
             (maxWidth.toPx() * SideFrac).toDp()
-        }.coerceIn(16.dp, 22.dp)
-        val thumbSize = with(density) {
-            (maxWidth.toPx() * (68f / RefW)).toDp()
-        }.coerceIn(56.dp, 68.dp)
-        val headerIllustWidth = with(density) {
-            (maxWidth.toPx() * (168f / RefW)).toDp()
-        }.coerceIn(140.dp, 180.dp)
+        }.coerceIn(18.dp, 24.dp)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 12.dp),
+                .padding(bottom = 16.dp),
         ) {
             RouteListHeader(
-                illustrationWidth = headerIllustWidth,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = sideInset)
-                    .padding(top = 8.dp),
+                    .padding(top = 4.dp),
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             RouteFilterBar(
                 selected = selectedFilter,
@@ -122,17 +122,17 @@ fun RouteListScreen(
                     .padding(horizontal = sideInset),
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             visibleRoutes.forEach { route ->
                 RouteCard(
                     route = route,
-                    thumbSize = thumbSize,
+                    thumbSize = RouteThumbSize,
                     onClick = { onRouteClick(route.id) },
                     onFavoriteClick = { onFavoriteClick(route.id) },
                     modifier = Modifier
                         .padding(horizontal = sideInset)
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 14.dp),
                 )
             }
         }
@@ -141,26 +141,40 @@ fun RouteListScreen(
 
 @Composable
 private fun RouteListHeader(
-    illustrationWidth: Dp,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
+    // Overlay text on the left and keep the full illustration visible on the right.
+    // Do NOT use ContentScale.Crop — this asset is a vector-like graphic that must show entirely.
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 148.dp)
+            .height(168.dp),
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.route_list_header_illustration),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth(0.62f)
+                .aspectRatio(HeaderIllustAspect),
+            contentScale = ContentScale.Fit,
+            alignment = Alignment.BottomEnd,
+        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp),
+                .align(Alignment.TopStart)
+                .fillMaxWidth(0.46f)
+                .padding(top = 10.dp, end = 4.dp),
         ) {
             Text(
                 text = "노선",
                 color = TitleBlack,
-                fontSize = 28.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = 34.sp,
+                lineHeight = 36.sp,
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "이용할 셔틀 노선을 선택하세요",
                 color = SubtitleGray,
@@ -169,15 +183,6 @@ private fun RouteListHeader(
                 lineHeight = 18.sp,
             )
         }
-        // Asset is illustration-only (no phone frame). Keep intrinsic aspect.
-        Image(
-            painter = painterResource(id = R.drawable.route_list_header_illustration),
-            contentDescription = null,
-            modifier = Modifier
-                .width(illustrationWidth)
-                .aspectRatio(198f / 131f),
-            contentScale = ContentScale.Fit,
-        )
     }
 }
 
@@ -190,7 +195,7 @@ private fun RouteFilterBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(44.dp)
             .clip(RoundedCornerShape(999.dp))
             .border(1.dp, FilterBorder, RoundedCornerShape(999.dp))
             .background(Color.White)
@@ -226,7 +231,7 @@ private fun FilterTab(
 ) {
     Box(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxHeight()
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) OndaBlue else Color.Transparent)
             .clickable(onClick = onClick),
@@ -252,19 +257,20 @@ private fun RouteCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 112.dp)
+            .heightIn(min = thumbSize + 28.dp)
             .clip(RoundedCornerShape(16.dp))
             .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
             .background(Color.White)
             .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = 10.dp, top = 14.dp, bottom = 14.dp),
+            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 26.dp),
+                .padding(end = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Identical circular thumb for every route: fill circle with Crop (no stretch).
             Image(
                 painter = painterResource(id = route.imageRes),
                 contentDescription = route.name,
@@ -274,22 +280,22 @@ private fun RouteCard(
                 contentScale = ContentScale.Crop,
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = route.name,
                     color = TitleBlack,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${route.fromLabel} $BidirectionalArrow ${route.toLabel}",
                     color = PathGray,
-                    fontSize = 12.5.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -307,7 +313,7 @@ private fun RouteCard(
             tint = if (route.isFavorite) StarYellow else OndaBlue,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(22.dp)
+                .size(24.dp)
                 .clickable(onClick = onFavoriteClick),
         )
     }
@@ -322,12 +328,12 @@ private fun RouteStatusBadge(status: RouteStatus) {
     Text(
         text = label,
         color = Color.White,
-        fontSize = 10.5.sp,
+        fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(bg)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 9.dp, vertical = 3.dp),
     )
 }
 
@@ -347,7 +353,7 @@ private fun RouteDetailLine(route: RouteUiModel) {
                 append(route.nextDeparture)
             }
         },
-        fontSize = 11.5.sp,
+        fontSize = 12.sp,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
