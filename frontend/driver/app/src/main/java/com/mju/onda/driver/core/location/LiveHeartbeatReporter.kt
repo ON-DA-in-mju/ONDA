@@ -21,10 +21,12 @@ import kotlinx.coroutines.withContext
 
 /**
  * 운행 중 관리자 웹(`/api/live/heartbeat`)으로 상태·위치를 주기 전송한다.
+ * 같은 주기에서 [OperationGpsApi]로 `vehicle_locations`에도 INSERT한다.
  */
 object LiveHeartbeatReporter {
     private const val TAG = "LiveHeartbeat"
-    private const val INTERVAL_MS = 10_000L
+    /** 학생 Realtime용 DB INSERT와 맞춤 (~3초). */
+    private const val INTERVAL_MS = 3_000L
 
     /** opId별로 GPS를 한 번이라도 받은 적 있는지 (출발 직후 미수신은 오류 로그 제외) */
     private val hadFixByOpId: MutableMap<String, Boolean> = mutableMapOf()

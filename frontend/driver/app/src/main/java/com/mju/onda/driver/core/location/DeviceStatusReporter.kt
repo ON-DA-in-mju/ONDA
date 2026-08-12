@@ -20,11 +20,13 @@ import org.json.JSONObject
 /**
  * 운행 중 Supabase `operation_device_status` heartbeat + (fix 있을 때) `vehicle_locations` INSERT.
  * Vite LiveHeartbeatReporter 와 병행. 네트워크 실패 시 서버 행은 자연스럽게 stale.
+ *
+ * 학생 앱 Realtime 지연을 줄이기 위해 INSERT 주기는 ~3초 (구 10초).
  */
 object DeviceStatusReporter {
     private const val TAG = "DeviceStatusReporter"
-    private const val INTERVAL_MS = 10_000L
-    private const val GPS_OK_WINDOW_MS = 15_000L
+    private const val INTERVAL_MS = 3_000L
+    private const val GPS_OK_WINDOW_MS = 8_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loopJob: Job? = null

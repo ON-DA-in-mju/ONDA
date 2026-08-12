@@ -326,7 +326,8 @@ class OperationLocationService : Service() {
 
         private const val NOTIFICATION_ID = 1001
 
-        private const val INTERVAL_MS = 5_000L
+        /** GPS 샘플링 — 업로드(3초)와 맞춤 */
+        private const val INTERVAL_MS = 3_000L
 
     }
 

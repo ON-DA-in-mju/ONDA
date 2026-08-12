@@ -70,15 +70,16 @@ SQL Editor에서 **`supabase/migrate_operation_device_status.sql`** 실행
 | `last_accuracy` | 마지막 fix 정확도(m) |
 | `updated_at` | heartbeat 시각 (= 네트워크/앱 생존 신호) |
 
-기사 앱이 운행 중 ~10초마다 upsert. 네트워크가 끊기면 upsert가 멈춰 `updated_at`이 오래진다.
+기사 앱이 운행 중 ~3초마다 `operation_device_status` upsert + `vehicle_locations` INSERT.
+네트워크가 끊기면 upsert가 멈춰 `updated_at`이 오래진다.
 
 ### 학생 앱 판정 규약 (권장 임계값 30초)
 
 | 조건 | 표시 |
 |------|------|
-| `now - status.updated_at > 30s` (또는 행 없음) | 네트워크 끊김(또는 앱 백그라운드/종료) |
+| `now - status.updated_at > 15s` (또는 행 없음) | 네트워크 끊김(또는 앱 백그라운드/종료) |
 | status 신선 + `gps_ok = false` | GPS 꺼짐/비활성·무수신 |
-| status 신선 + `gps_ok = true` + `now - vehicle_locations.recorded_at > 30s` | GPS 수신 불량(위치 미갱신) |
+| status 신선 + `gps_ok = true` + `now - vehicle_locations.recorded_at > 15s` | GPS 수신 불량(위치 미갱신) |
 | status·location 둘 다 신선 | 정상 |
 
 Realtime 구독: `operation_device_status` + `vehicle_locations`

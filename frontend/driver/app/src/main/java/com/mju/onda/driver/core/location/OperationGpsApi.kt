@@ -16,6 +16,11 @@ import org.json.JSONObject
 object OperationGpsApi {
     private const val TAG = "OperationGpsApi"
     const val MAX_LOGS = 100
+    /** 매 report마다 trim 하면 INSERT 루프가 수십 초 막힐 수 있음 → 주기 제한 */
+    private const val TRIM_INTERVAL_MS = 60_000L
+
+    @Volatile
+    private var lastTrimAtMs: Long = 0L
 
     suspend fun report(
         operationId: String,
@@ -35,6 +40,7 @@ object OperationGpsApi {
         }
 
         val recordedAt = Instant.now().toString()
+        // 위치 INSERT를 먼저 — 로그/trim 지연이 Realtime에 영향 주지 않게
         val locOk = insertVehicleLocation(opUuid, latitude, longitude, recordedAt)
         val logOk = insertOperationLog(
             opUuid = opUuid,
@@ -45,8 +51,15 @@ object OperationGpsApi {
             driverName = driverName,
             recordedAt = recordedAt,
         )
-        if (logOk) trimOperationLogs()
+        if (logOk) maybeTrimOperationLogs()
         locOk || logOk
+    }
+
+    private fun maybeTrimOperationLogs() {
+        val now = System.currentTimeMillis()
+        if (now - lastTrimAtMs < TRIM_INTERVAL_MS) return
+        lastTrimAtMs = now
+        trimOperationLogs()
     }
 
     private fun insertVehicleLocation(
