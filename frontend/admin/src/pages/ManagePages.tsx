@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -2816,47 +2816,460 @@ export function SystemPage() {
   )
 }
 
+type SettingsSection = 'account' | 'security' | 'notifications' | 'operations' | 'integrations'
+
+type AdminSettings = {
+  loginFailLimit: number
+  sessionTimeoutMin: number
+  passwordMinLength: number
+  passwordRotateDays: number
+  notifyEmail: string
+  timezone: string
+  notifySafetyStop: boolean
+  notifyOperationChange: boolean
+  notifySystemAlert: boolean
+  notifyEmailDigest: boolean
+  defaultBusCapacity: number
+  liveMapRefreshSec: number
+  autoAssignDriver: boolean
+  showInactiveRoutes: boolean
+}
+
+const SETTINGS_STORAGE_KEY = 'onda-admin-settings'
+
+const DEFAULT_SETTINGS: AdminSettings = {
+  loginFailLimit: 5,
+  sessionTimeoutMin: 30,
+  passwordMinLength: 10,
+  passwordRotateDays: 90,
+  notifyEmail: 'admin@mju.ac.kr',
+  timezone: 'Asia/Seoul',
+  notifySafetyStop: true,
+  notifyOperationChange: true,
+  notifySystemAlert: true,
+  notifyEmailDigest: false,
+  defaultBusCapacity: 45,
+  liveMapRefreshSec: 3,
+  autoAssignDriver: false,
+  showInactiveRoutes: false,
+}
+
+function loadAdminSettings(): AdminSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return { ...DEFAULT_SETTINGS }
+    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<AdminSettings>) }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
+function SettingsToggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`settings-switch${checked ? ' is-on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="settings-switch-knob" />
+    </button>
+  )
+}
+
+function SettingsRow({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="settings-row">
+      <div className="settings-row-copy">
+        <div className="settings-row-title">{title}</div>
+        {description ? <div className="settings-row-desc">{description}</div> : null}
+      </div>
+      <div className="settings-row-control">{children}</div>
+    </div>
+  )
+}
+
 export function SettingsPage() {
+  const { user, usingSupabase } = useAuth()
+  const [section, setSection] = useState<SettingsSection>('account')
+  const [draft, setDraft] = useState<AdminSettings>(() => loadAdminSettings())
+  const [saved, setSaved] = useState<AdminSettings>(() => loadAdminSettings())
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const naverMapReady = Boolean((import.meta.env.VITE_NAVER_MAP_CLIENT_ID || '').trim())
+
+  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved])
+
+  const patch = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) => {
+    setDraft((prev) => ({ ...prev, [key]: value }))
+    setSaveMessage(null)
+  }
+
+  const onSave = () => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(draft))
+    setSaved(draft)
+    setSaveMessage('설정이 저장되었습니다.')
+  }
+
+  const onReset = () => {
+    setDraft(saved)
+    setSaveMessage(null)
+  }
+
+  const onRestoreDefaults = () => {
+    const next = {
+      ...DEFAULT_SETTINGS,
+      notifyEmail: user?.email || DEFAULT_SETTINGS.notifyEmail,
+    }
+    setDraft(next)
+    setSaveMessage(null)
+  }
+
+  useEffect(() => {
+    if (user?.email && draft.notifyEmail === DEFAULT_SETTINGS.notifyEmail) {
+      setDraft((prev) => ({ ...prev, notifyEmail: user.email }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email])
+
+  const sections: { id: SettingsSection; label: string; hint: string }[] = [
+    { id: 'account', label: '계정', hint: '로그인 계정 정보' },
+    { id: 'security', label: '보안', hint: '세션·비밀번호 정책' },
+    { id: 'notifications', label: '알림', hint: '수신 채널·이벤트' },
+    { id: 'operations', label: '운행', hint: '관제·배차 기본값' },
+    { id: 'integrations', label: '연동', hint: '외부 서비스 상태' },
+  ]
+
+  const roleLabel =
+    user?.role === 'ADMIN' ? '관리자' : user?.role === 'DRIVER' ? '기사' : user?.role === 'STUDENT' ? '학생' : '-'
+
   return (
     <div className="page">
-      <section className="card card-pad">
-        <div className="card-head">
-          <h3>설정</h3>
+      <div className="settings-hero">
+        <div>
+          <h2 className="page-title">설정</h2>
+          <p className="page-subtitle">관리자 계정, 보안 정책, 알림·운행 기본값을 관리합니다.</p>
         </div>
-        <div className="grid grid-2">
-          <div className="field">
-            <label>연속 로그인 실패 허용 횟수</label>
-            <input className="input" defaultValue="5회" />
-          </div>
-          <div className="field">
-            <label>세션 타임아웃</label>
-            <input className="input" defaultValue="30분" />
-          </div>
-          <div className="field">
-            <label>비밀번호 최소 길이</label>
-            <input className="input" defaultValue="10자 이상" />
-          </div>
-          <div className="field">
-            <label>비밀번호 변경 주기</label>
-            <input className="input" defaultValue="90일" />
-          </div>
-          <div className="field">
-            <label>알림 이메일</label>
-            <input className="input" defaultValue="admin@mju.ac.kr" />
-          </div>
-          <div className="field">
-            <label>기본 타임존</label>
-            <select className="select" defaultValue="seoul">
-              <option value="seoul">Asia/Seoul</option>
-            </select>
-          </div>
-        </div>
-        <div className="toolbar" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" type="button">
-            저장
+        <div className="settings-hero-actions">
+          {saveMessage ? <span className="settings-save-toast">{saveMessage}</span> : null}
+          <button className="btn btn-outline" type="button" onClick={onRestoreDefaults}>
+            기본값
+          </button>
+          <button className="btn btn-ghost" type="button" disabled={!dirty} onClick={onReset}>
+            취소
+          </button>
+          <button className="btn btn-primary" type="button" disabled={!dirty} onClick={onSave}>
+            변경 사항 저장
           </button>
         </div>
-      </section>
+      </div>
+
+      <div className="settings-layout">
+        <nav className="card settings-nav" aria-label="설정 메뉴">
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`settings-nav-item${section === item.id ? ' is-active' : ''}`}
+              onClick={() => setSection(item.id)}
+            >
+              <span className="settings-nav-label">{item.label}</span>
+              <span className="settings-nav-hint">{item.hint}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="settings-main">
+          {section === 'account' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>계정</h3>
+                  <p className="settings-panel-desc">현재 로그인한 관리자 계정 정보입니다.</p>
+                </div>
+                <StatusBadge tone={usingSupabase ? 'blue' : 'gray'}>
+                  {usingSupabase ? 'Supabase Auth' : '로컬 데모'}
+                </StatusBadge>
+              </div>
+              <div className="settings-profile">
+                <div className="settings-avatar" aria-hidden>
+                  {(user?.name || '관').slice(0, 1)}
+                </div>
+                <div>
+                  <div className="settings-profile-name">{user?.name || '관리자'}</div>
+                  <div className="muted">{user?.email || '-'}</div>
+                </div>
+              </div>
+              <div className="settings-divider" />
+              <div className="grid grid-2">
+                <div className="field">
+                  <label>이름</label>
+                  <input className="input" value={user?.name || ''} readOnly />
+                </div>
+                <div className="field">
+                  <label>역할</label>
+                  <input className="input" value={roleLabel} readOnly />
+                </div>
+                <div className="field">
+                  <label>이메일</label>
+                  <input className="input" value={user?.email || ''} readOnly />
+                </div>
+                <div className="field">
+                  <label>사용자 ID</label>
+                  <input className="input" value={user?.id || '-'} readOnly />
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {section === 'security' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>보안</h3>
+                  <p className="settings-panel-desc">로그인·세션·비밀번호 정책을 설정합니다.</p>
+                </div>
+              </div>
+              <div className="grid grid-2">
+                <div className="field">
+                  <label>연속 로그인 실패 허용 횟수</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={draft.loginFailLimit}
+                    onChange={(e) => patch('loginFailLimit', Number(e.target.value) || 1)}
+                  />
+                  <div className="field-hint">초과 시 계정 잠금이 적용됩니다.</div>
+                </div>
+                <div className="field">
+                  <label>세션 타임아웃 (분)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={5}
+                    max={480}
+                    value={draft.sessionTimeoutMin}
+                    onChange={(e) => patch('sessionTimeoutMin', Number(e.target.value) || 5)}
+                  />
+                  <div className="field-hint">미사용 상태가 지속되면 자동 로그아웃됩니다.</div>
+                </div>
+                <div className="field">
+                  <label>비밀번호 최소 길이</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={8}
+                    max={64}
+                    value={draft.passwordMinLength}
+                    onChange={(e) => patch('passwordMinLength', Number(e.target.value) || 8)}
+                  />
+                </div>
+                <div className="field">
+                  <label>비밀번호 변경 주기 (일)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={30}
+                    max={365}
+                    value={draft.passwordRotateDays}
+                    onChange={(e) => patch('passwordRotateDays', Number(e.target.value) || 30)}
+                  />
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {section === 'notifications' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>알림</h3>
+                  <p className="settings-panel-desc">관제·운행 이벤트 수신 방식을 선택합니다.</p>
+                </div>
+              </div>
+              <div className="field" style={{ maxWidth: 420, marginBottom: 8 }}>
+                <label>알림 수신 이메일</label>
+                <input
+                  className="input"
+                  type="email"
+                  value={draft.notifyEmail}
+                  onChange={(e) => patch('notifyEmail', e.target.value)}
+                />
+              </div>
+              <div className="settings-divider" />
+              <SettingsRow
+                title="안전 정차 요청"
+                description="기사 앱에서 안전 정차가 요청되면 즉시 알림을 받습니다."
+              >
+                <SettingsToggle
+                  label="안전 정차 요청 알림"
+                  checked={draft.notifySafetyStop}
+                  onChange={(v) => patch('notifySafetyStop', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="운행·배차 변경"
+                description="운행 중단, 배차 변경, 긴급 공지 등록 시 알림을 받습니다."
+              >
+                <SettingsToggle
+                  label="운행·배차 변경 알림"
+                  checked={draft.notifyOperationChange}
+                  onChange={(v) => patch('notifyOperationChange', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="시스템 경고"
+                description="GPS 수신 지연, 연동 오류 등 시스템 경고를 받습니다."
+              >
+                <SettingsToggle
+                  label="시스템 경고 알림"
+                  checked={draft.notifySystemAlert}
+                  onChange={(v) => patch('notifySystemAlert', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="일일 이메일 요약"
+                description="하루 운행·제보·알림 요약을 이메일로 받습니다."
+              >
+                <SettingsToggle
+                  label="일일 이메일 요약"
+                  checked={draft.notifyEmailDigest}
+                  onChange={(v) => patch('notifyEmailDigest', v)}
+                />
+              </SettingsRow>
+            </section>
+          ) : null}
+
+          {section === 'operations' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>운행</h3>
+                  <p className="settings-panel-desc">실시간 관제와 배차 화면의 기본값을 설정합니다.</p>
+                </div>
+              </div>
+              <div className="grid grid-2">
+                <div className="field">
+                  <label>기본 타임존</label>
+                  <select
+                    className="select"
+                    value={draft.timezone}
+                    onChange={(e) => patch('timezone', e.target.value)}
+                  >
+                    <option value="Asia/Seoul">Asia/Seoul (한국 표준시)</option>
+                    <option value="UTC">UTC</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>실시간 지도 갱신 주기 (초)</label>
+                  <select
+                    className="select"
+                    value={draft.liveMapRefreshSec}
+                    onChange={(e) => patch('liveMapRefreshSec', Number(e.target.value))}
+                  >
+                    <option value={3}>3초</option>
+                    <option value={5}>5초</option>
+                    <option value={10}>10초</option>
+                  </select>
+                  <div className="field-hint">기사 GPS 업로드 주기와 맞춰 두는 것을 권장합니다.</div>
+                </div>
+                <div className="field">
+                  <label>기본 차량 정원</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={draft.defaultBusCapacity}
+                    onChange={(e) => patch('defaultBusCapacity', Number(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+              <div className="settings-divider" />
+              <SettingsRow
+                title="기사 자동 배정 제안"
+                description="배차 등록 시 가용 기사를 우선순위로 제안합니다."
+              >
+                <SettingsToggle
+                  label="기사 자동 배정 제안"
+                  checked={draft.autoAssignDriver}
+                  onChange={(v) => patch('autoAssignDriver', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="비활성 노선 표시"
+                description="노선 관리 목록에 비활성 노선도 함께 표시합니다."
+              >
+                <SettingsToggle
+                  label="비활성 노선 표시"
+                  checked={draft.showInactiveRoutes}
+                  onChange={(v) => patch('showInactiveRoutes', v)}
+                />
+              </SettingsRow>
+            </section>
+          ) : null}
+
+          {section === 'integrations' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>연동</h3>
+                  <p className="settings-panel-desc">외부 서비스 연결 상태를 확인합니다. 키 값은 노출하지 않습니다.</p>
+                </div>
+              </div>
+              <div className="settings-status-list">
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">Supabase</div>
+                    <div className="settings-row-desc">인증 · DB · Realtime</div>
+                  </div>
+                  <StatusBadge tone={usingSupabase ? 'green' : 'orange'}>
+                    {usingSupabase ? '연결됨' : '미설정'}
+                  </StatusBadge>
+                </div>
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">네이버 지도</div>
+                    <div className="settings-row-desc">실시간 관제 지도 · Dynamic Map</div>
+                  </div>
+                  <StatusBadge tone={naverMapReady ? 'green' : 'orange'}>
+                    {naverMapReady ? '연결됨' : '미설정'}
+                  </StatusBadge>
+                </div>
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">환경</div>
+                    <div className="settings-row-desc">관리자 웹 런타임</div>
+                  </div>
+                  <StatusBadge tone="gray">{import.meta.env.MODE}</StatusBadge>
+                </div>
+              </div>
+              <div className="field-hint" style={{ marginTop: 12 }}>
+                연동 키는 `.env.local`에서만 관리하세요. 프론트엔드에 Client Secret을 넣지 마세요.
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
     </div>
   )
 }
