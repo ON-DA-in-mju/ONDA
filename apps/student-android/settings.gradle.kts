@@ -19,8 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // 네이버 지도 Android SDK (관리자 웹과 동일 NCP Client ID / Dynamic Map)
-        maven("https://repository.map.naver.com/archive/maven")
+        // NAVER Map Android SDK
+        maven { url = uri("https://repository.map.naver.com/archive/maven") }
     }
 }
 

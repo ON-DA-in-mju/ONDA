@@ -38,6 +38,7 @@ private val favoriteOrGuideStopNames: Map<String, String> = mapOf(
 fun resolveStopSelection(
     stopId: String,
     routeIdHint: String?,
+    stopCoordinates: StopCoordinateMap = emptyMap(),
 ): ResolvedStopSelection? {
     val routeCandidates = buildList {
         routeIdHint?.takeIf { it.isNotBlank() }?.let { add(it) }
@@ -47,7 +48,7 @@ fun resolveStopSelection(
     for (routeId in routeCandidates) {
         val config = routeStopConfig(routeId)
         for (dir in 0..1) {
-            val waypoints = stopWaypointsForDirection(config, dir)
+            val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
             val byId = waypoints.firstOrNull { it.id == stopId }
             if (byId != null) {
                 return ResolvedStopSelection(routeId, dir, byId, waypoints)
@@ -59,7 +60,7 @@ fun resolveStopSelection(
     for (routeId in routeCandidates) {
         val config = routeStopConfig(routeId)
         for (dir in 0..1) {
-            val waypoints = stopWaypointsForDirection(config, dir)
+            val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
             val byName = waypoints.firstOrNull { it.name == stopName }
             if (byName != null) {
                 return ResolvedStopSelection(routeId, dir, byName, waypoints)
@@ -79,8 +80,9 @@ fun buildStopLiveData(
     vehicles: List<LiveVehicle>,
     nowMillis: Long,
     trackerByVehicle: Map<String, VehicleStopTracker> = emptyMap(),
+    stopCoordinates: StopCoordinateMap = emptyMap(),
 ): Pair<StopLiveData, Map<String, VehicleStopTracker>> {
-    val resolved = resolveStopSelection(stopId, routeIdHint)
+    val resolved = resolveStopSelection(stopId, routeIdHint, stopCoordinates)
     val stopName = resolved?.waypoint?.name
         ?: favoriteOrGuideStopNames[stopId]
         ?: stopId

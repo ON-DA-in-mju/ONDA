@@ -118,7 +118,7 @@ fun LoginScreen(
 
         isLoading = true
         scope.launch {
-            when (authRepository.login(studentId, password)) {
+            when (val result = authRepository.login(studentId, password)) {
                 AuthResult.Success -> {
                     isLoading = false
                     onLoginSuccess()
@@ -129,6 +129,11 @@ fun LoginScreen(
                     studentIdError = null
                     passwordError = null
                     onShowMessage("학번 또는 비밀번호를 다시 확인해주세요.")
+                }
+
+                is AuthResult.Failure -> {
+                    isLoading = false
+                    onShowMessage(result.message)
                 }
             }
         }

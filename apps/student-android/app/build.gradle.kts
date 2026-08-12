@@ -13,12 +13,6 @@ val localProperties = Properties().apply {
     }
 }
 
-// 관리자 웹(VITE_NAVER_MAP_CLIENT_ID)과 동일한 NCP Maps Client ID.
-// local.properties: NAVER_MAP_CLIENT_ID 또는 NCP_KEY_ID
-val naverMapClientId = localProperties.getProperty("NAVER_MAP_CLIENT_ID")
-    ?.takeIf { it.isNotBlank() }
-    ?: localProperties.getProperty("NCP_KEY_ID").orEmpty()
-
 android {
     namespace = "com.onda.mju.student"
     compileSdk {
@@ -35,8 +29,13 @@ android {
         versionName = "1.0"
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL", "")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("SUPABASE_KEY", "")}\"")
-        buildConfigField("String", "NAVER_MAP_CLIENT_ID", "\"$naverMapClientId\"")
-        manifestPlaceholders["NAVER_MAP_CLIENT_ID"] = naverMapClientId
+        buildConfigField(
+            "String",
+            "NAVER_MAP_CLIENT_ID",
+            "\"${localProperties.getProperty("NAVER_MAP_CLIENT_ID", "")}\"",
+        )
+        manifestPlaceholders["naverMapClientId"] =
+            localProperties.getProperty("NAVER_MAP_CLIENT_ID", "")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -76,7 +75,10 @@ dependencies {
     implementation(libs.supabase.realtime)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.naver.map.sdk)
     implementation(libs.naver.map.compose)
+    implementation(libs.naver.map.location)
+    implementation(libs.play.services.location)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -25,6 +25,7 @@ import com.onda.mju.student.data.remote.dto.OperationDto
 import com.onda.mju.student.data.remote.dto.VehicleLocationDto
 import com.onda.mju.student.data.remote.repository.OperationDeviceStatusRepository
 import com.onda.mju.student.data.remote.repository.OperationRepository
+import com.onda.mju.student.data.remote.repository.StopRepository
 import com.onda.mju.student.data.remote.repository.VehicleLocationRepository
 import com.onda.mju.student.ui.component.StudentBottomNavBar
 import com.onda.mju.student.ui.component.StudentBottomTab
@@ -60,6 +61,8 @@ import com.onda.mju.student.ui.screen.route.LiveVehicle
 import com.onda.mju.student.ui.screen.route.RouteListScreen
 import com.onda.mju.student.ui.screen.route.RouteLiveScreen
 import com.onda.mju.student.ui.screen.route.RouteUiModel
+import com.onda.mju.student.ui.screen.route.StopCoordinateMap
+import com.onda.mju.student.ui.screen.route.StopCoordinateResolver
 import com.onda.mju.student.ui.screen.route.StopLiveScreen
 import com.onda.mju.student.ui.screen.route.VehicleStatus
 import com.onda.mju.student.ui.screen.route.sampleRouteList
@@ -136,9 +139,11 @@ fun StudentMainShell(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val operationRepository = remember { OperationRepository() }
+    val stopRepository = remember { StopRepository() }
     val vehicleLocationRepository = remember { VehicleLocationRepository() }
     val operationDeviceStatusRepository = remember { OperationDeviceStatusRepository() }
     var routes by remember { mutableStateOf<List<RouteUiModel>>(sampleRouteList()) }
+    var stopCoordinates by remember { mutableStateOf<StopCoordinateMap>(emptyMap()) }
     var operations by remember { mutableStateOf<List<OperationDto>>(emptyList()) }
     val operationLocations = remember {
         mutableStateMapOf<String, VehicleLocationDto>()
@@ -284,6 +289,14 @@ fun StudentMainShell(
         }
 
         try {
+            try {
+                val stops = stopRepository.getAllStops()
+                stopCoordinates = StopCoordinateResolver.fromStops(stops)
+                Log.d("ONDA_SUPABASE", "stops fetch success=true, count=${stops.size}")
+            } catch (e: Exception) {
+                Log.e("ONDA_SUPABASE", "stops fetch failed: ${e.message}", e)
+            }
+
             val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
                 .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
             val fetchedOperations = operationRepository.getOperations()
@@ -663,6 +676,7 @@ fun StudentMainShell(
                         modifier = Modifier.fillMaxSize(),
                         liveData = liveData,
                         deviceStatuses = operationDeviceStatuses,
+                        stopCoordinates = stopCoordinates,
                         onBackClick = { overlay = MainOverlay.None },
                         onStopClick = { stopId ->
                             overlay = MainOverlay.StopLive(
@@ -698,6 +712,7 @@ fun StudentMainShell(
                         stopId = current.stopId,
                         routeId = routeId,
                         vehicles = liveVehicles,
+                        stopCoordinates = stopCoordinates,
                         modifier = Modifier.fillMaxSize(),
                         onBackClick = {
                             overlay = current.returnRouteId?.let { MainOverlay.RouteLive(it) }
