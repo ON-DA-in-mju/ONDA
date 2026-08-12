@@ -1,6 +1,5 @@
 package com.onda.mju.student.ui.screen.route
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,12 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.onda.mju.student.R
+import com.onda.mju.student.ui.component.RouteStopsMap
 import kotlinx.coroutines.delay
 
 private val OndaBlue = Color(0xFF0041F1)
@@ -147,21 +144,15 @@ fun StopLiveScreen(
             }
         }
 
-        Box(
+        // Map is keyed by stopId/routeId inside RouteStopsMap — ETA ticks do not recreate it.
+        RouteStopsMap(
+            stopId = stopId,
+            routeId = routeId,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(260.dp)
-                .padding(horizontal = 12.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFE8F0FE)),
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.stop_map_preview),
-                contentDescription = "정류장 지도",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        }
+                .height(240.dp)
+                .padding(horizontal = 12.dp),
+        )
 
         Column(
             modifier = Modifier

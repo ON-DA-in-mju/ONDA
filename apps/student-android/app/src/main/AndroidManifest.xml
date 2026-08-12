@@ -16,6 +16,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ONDAStudent">
+        <!-- NCP Maps Client ID (local.properties → manifestPlaceholders). 소스에 하드코딩하지 않음. -->
+        <meta-data
+            android:name="com.naver.maps.map.NCP_KEY_ID"
+            android:value="${NAVER_MAP_CLIENT_ID}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
