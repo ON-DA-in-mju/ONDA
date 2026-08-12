@@ -5,12 +5,14 @@ import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
 import { DashboardPage } from './pages/DashboardPage'
 import {
+  ScheduleAssignmentsPage,
   ScheduleBulkPage,
   ScheduleDetailPage,
   SchedulesPage,
   ScheduleSuspendPage,
 } from './pages/SchedulesPages'
-import { LiveDetailPage, LivePage, LiveSuspendPage } from './pages/LivePages'
+import { LiveDetailPage, LivePage, LiveSuspendPage, LiveVehicleDetailPage } from './pages/LivePages'
+import { NotificationsPage } from './pages/NotificationsPage'
 import {
   DriversPage,
   NoticesPage,
@@ -43,12 +45,15 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/schedules/assignments" element={<ScheduleAssignmentsPage />} />
           <Route path="/schedules/detail" element={<ScheduleDetailPage />} />
           <Route path="/schedules/bulk" element={<ScheduleBulkPage />} />
           <Route path="/schedules/suspend" element={<ScheduleSuspendPage />} />
           <Route path="/live" element={<LivePage />} />
           <Route path="/live/detail" element={<LiveDetailPage />} />
+          <Route path="/live/detail/:operationId" element={<LiveVehicleDetailPage />} />
           <Route path="/live/suspend" element={<LiveSuspendPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/routes" element={<RoutesPage />} />

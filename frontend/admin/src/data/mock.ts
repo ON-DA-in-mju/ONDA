@@ -20,12 +20,46 @@ export const gpsAlerts = [
   { bus: '온다 8호기', route: '수원역 ↔ 캠퍼스', location: '영통 IC', issue: '통신 지연', time: '07:22', status: '조치 완료', tone: 'gray' as const },
 ]
 
+/** 노선 관리·기사 앱과 동일한 3개 노선 기준 운행 일정 (2026 mju_pier_ 공지) */
 export const schedules = [
-  { day: '월', route: '기흥역 ↔ 캠퍼스', start: '07:00', end: '22:30', interval: '15분', rounds: 42, status: '운행 중', tone: 'green' as const },
-  { day: '화', route: '용인시청 ↔ 캠퍼스', start: '07:10', end: '21:40', interval: '20분', rounds: 30, status: '운행 중', tone: 'green' as const },
-  { day: '수', route: '수원역 ↔ 캠퍼스', start: '06:50', end: '22:00', interval: '15분', rounds: 38, status: '수정 중', tone: 'blue' as const },
-  { day: '목', route: '죽전역 ↔ 캠퍼스', start: '07:20', end: '21:20', interval: '25분', rounds: 24, status: '운행 중', tone: 'green' as const },
+  {
+    no: 1,
+    route: '기흥역 통학버스',
+    start: '08:15',
+    end: '19:15',
+    interval: '학기중 평일',
+    rounds: 14,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
+  {
+    no: 2,
+    route: '명지대역 셔틀',
+    start: '08:00',
+    end: '19:30',
+    interval: '학기중 평일',
+    rounds: 54,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
+  {
+    no: 3,
+    route: '시내 셔틀',
+    start: '08:05',
+    end: '20:00',
+    interval: '학기중·주말·방학',
+    rounds: 10,
+    status: '운행 예정',
+    tone: 'blue' as const,
+  },
 ]
+
+export const SCHEDULE_ROUTE_OPTIONS = [
+  '기흥역 통학버스',
+  '명지대역 셔틀',
+  '시내 셔틀',
+  '시내 셔틀 (주말·공휴일·방학)',
+] as const
 
 export const liveVehicles = [
   { bus: '온다 1호기', driver: '이기사', route: '용인시청', stop: '정문 정류장', status: '운행 중', tone: 'green' as const, gps: '정상', last: '방금 전' },
@@ -53,9 +87,46 @@ export const notices = [
 ]
 
 export const routes = [
-  { name: '기흥역 통학버스', stops: 8, buses: '8대', status: '운행 중', type: '통학', days: '월~금', hours: '07:00 ~ 22:30', desc: '기흥역과 명지대학교를 연결하는 통학 노선입니다.' },
-  { name: '명지대역 셔틀', stops: 6, buses: '5대', status: '운행 중', type: '셔틀', days: '월~금', hours: '08:00 ~ 21:00', desc: '명지대역과 교내 주요 건물을 연결하는 셔틀 노선입니다.' },
-  { name: '시내 셔틀', stops: 6, buses: '3대', status: '운행 중', type: '셔틀', days: '월~금', hours: '07:30 ~ 20:30', desc: '시내 주요 거점과 명지대학교를 연결하는 셔틀 노선입니다.' },
+  {
+    name: '기흥역 통학버스',
+    stops: 3,
+    buses: '최대 5대',
+    status: '운행 중',
+    type: '왕복',
+    days: '학기중 평일',
+    hours: '08:00 ~ 19:30',
+    desc: '채플관 앞 → 기흥역 5번 출구 → 채플관 앞. 계절학기·방학 제외.',
+  },
+  {
+    name: '명지대역 셔틀',
+    stops: 12,
+    buses: '4대',
+    status: '운행 중',
+    type: '진입로(명지대역)',
+    days: '학기중 평일·계절학기',
+    hours: '08:00 ~ 18:10',
+    desc: '버스관리사무소 → 상공회의소 → 진입로(럭스나인 앞) → 경전철 명지대역 → … → 함박관 → 창조관 → 버스관리사무소.',
+  },
+  {
+    name: '시내 셔틀',
+    stops: 13,
+    buses: '1대',
+    status: '운행 중',
+    type: '시내',
+    days: '학기중 평일',
+    hours: '08:05 ~ 18:10',
+    desc: '버스관리사무소 → 상공회의소 → … → 제1공학관 → 제3공학관 → 함박관 → 창조관 → 버스관리사무소.',
+  },
+  {
+    name: '시내 셔틀 (주말·공휴일·방학)',
+    stops: 13,
+    buses: '1대',
+    status: '운행 중',
+    type: '시내',
+    days: '주말·공휴일·방학',
+    hours: '08:20 ~ 18:00',
+    desc: '생활관(명현관) 기점 순환 10회.',
+  },
 ]
 
 export const vehicles = [
@@ -95,9 +166,11 @@ export const stops = [
 ]
 
 export const drivers = [
-  { name: '김민수', email: 'driver01@onda.local', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222' },
-  { name: '이정호', email: 'driver02@onda.local', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444' },
-  { name: '박서연', email: 'driver03@onda.local', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666' },
+  { name: '박사용', email: 'user01@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.06 09:05', phone: '010-1111-2222' },
+  { name: '최사용', email: 'user02@mju.ac.kr', status: '운행 중', lastTrip: '2026.08.06 08:40', phone: '010-3333-4444' },
+  { name: '정사용', email: 'user03@mju.ac.kr', status: '휴무', lastTrip: '2026.08.05 18:10', phone: '010-5555-6666' },
+  { name: '한사용', email: 'user04@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.04 17:20', phone: '010-7777-8888' },
+  { name: '임사용', email: 'user05@mju.ac.kr', status: '운행 가능', lastTrip: '2026.08.03 16:05', phone: '010-9999-0000' },
 ]
 
 export const systemLogs = [

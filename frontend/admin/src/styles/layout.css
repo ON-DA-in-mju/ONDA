@@ -14,6 +14,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  z-index: 50;
 }
 
 .sidebar-logo {
@@ -45,16 +46,42 @@
 }
 
 .map-frame {
+  position: relative;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #eef1f6;
-  height: 220px;
+  height: 300px;
+  isolation: isolate;
+  contain: layout paint;
 }
 
-.map-frame img {
+.map-frame img,
+.map-frame > div {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+}
+
+.dash-map-preview {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid #eef1f6;
+  background: #f8fafc;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.dash-map-preview:hover {
+  border-color: #bfdbfe;
+}
+
+.dash-map-preview-img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .legend-row,
@@ -79,6 +106,321 @@
   height: 8px;
   border-radius: 50%;
   margin-right: 4px;
+}
+
+/* 실시간 차량 위치 — Figma 범례(원+라벨) */
+.live-map-block {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.live-map-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.live-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 0;
+}
+
+.live-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.live-update-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.live-update-meta:hover:not(:disabled) {
+  color: #6b7280;
+}
+
+.live-update-meta:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.live-update-meta .is-spinning {
+  animation: live-spin 0.8s linear infinite;
+}
+
+@keyframes live-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1;
+}
+
+.live-status-item i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.live-map-frame {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eef1f6;
+  height: 400px;
+  isolation: isolate;
+  contain: layout paint;
+}
+
+.live-map-frame img {
+  display: block;
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+}
+
+.live-map-zoom {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.live-map-zoom-btn {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-bottom: 1px solid #eef1f6;
+  background: #fff;
+  color: #374151;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.live-map-zoom-btn:last-child {
+  border-bottom: 0;
+}
+
+.live-map-zoom-btn:hover {
+  background: #f8fafc;
+}
+
+.live-map-zoom-btn:active {
+  background: #eef2ff;
+}
+
+.live-route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.live-route-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-route-legend-line {
+  display: inline-block;
+  width: 28px;
+  height: 3.5px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* 지도·목록 한 행 — 세로 높이 동일 */
+.live-map-list-grid {
+  align-items: stretch;
+}
+
+.live-map-list-grid > .live-map-card,
+.live-map-list-grid > .live-vehicle-list-card {
+  min-height: 0;
+  height: 100%;
+}
+
+/* 실시간 차량 목록 — 왼쪽 지도 카드와 같은 행 높이로 맞춤 */
+.live-vehicle-list-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.live-vehicle-list-card .live-vehicle-table {
+  flex: 0 0 auto;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.live-list-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+/* GPS 정상률 / 운행 상태 비율 — Figma donut + legend */
+.live-ratio-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.live-ratio-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.live-donut {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.live-donut-hole {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.live-donut-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  line-height: 1;
+}
+
+.live-donut-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.live-ratio-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.live-ratio-legend li {
+  display: grid;
+  grid-template-columns: 12px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.live-ratio-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: block;
+}
+
+.live-ratio-swatch.is-ok {
+  background: #3fb46a;
+}
+.live-ratio-swatch.is-none {
+  background: #fdac38;
+}
+.live-ratio-swatch.is-error {
+  background: #eb4047;
+}
+.live-ratio-swatch.is-running {
+  background: #3fb46a;
+}
+.live-ratio-swatch.is-at-stop {
+  background: #fdac38;
+}
+.live-ratio-swatch.is-waiting {
+  background: #266ef4;
+}
+.live-ratio-swatch.is-ended {
+  background: #c4c9d7;
+}
+
+.live-ratio-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.live-ratio-stat {
+  justify-self: end;
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.live-ratio-foot {
+  margin-top: auto;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
 }
 
 .ops-list {
@@ -121,7 +463,13 @@
   width: 150px;
   height: 150px;
   border-radius: 50%;
-  background: conic-gradient(#9870d7 0 28%, #fea907 0 48%, #3fb46a 0 68%, #266ef4 0 84%, #c4c9d7 0);
+  background: conic-gradient(
+    #9870d7 0 28%,
+    #fea907 0 48%,
+    #3fb46a 0 68%,
+    #266ef4 0 84%,
+    #c4c9d7 0
+  );
   display: grid;
   place-items: center;
 }
@@ -147,9 +495,45 @@
 
 .sched-grid {
   display: grid;
-  grid-template-columns: 1.15fr 0.95fr;
+  /* 조회·목록·예외(좌) : 요약·시간표·패턴(우) = 4.5 : 5.5
+     카드를 행 단위로 배치해 좌·우 Y 높이를 일치시킴 */
+  grid-template-columns: 4.5fr 5.5fr;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.sched-grid > .sched-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 행 높이는 왼쪽(조회·목록·예외)이 결정하고, 오른쪽은 맞춰 늘어난 뒤 내부 스크롤 */
+.sched-filter-card,
+.sched-list-card,
+.sched-exception-card {
+  min-height: auto;
+}
+
+.sched-summary-card,
+.sched-timetable-card,
+.sched-pattern-card {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sched-timetable-card .sched-timetable-scroll {
+  /* basis 0 → 남는 높이만 쓰고, 넘치면 스크롤 */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sched-pattern-card .pattern-bars {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 140px;
 }
 
 .split-13 {
@@ -206,6 +590,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
 }
 
 .pattern-bars {
@@ -236,6 +621,21 @@
 
 .pattern-col .bar-b {
   background: #3fb46a;
+}
+
+.pattern-col .bar.is-empty {
+  opacity: 0.22;
+  min-height: 0;
+}
+
+.pattern-hour-labels {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted, #6b7280);
+  text-align: center;
 }
 
 @media (max-width: 1100px) {
@@ -286,6 +686,7 @@
 }
 
 .admin-main {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -375,6 +776,51 @@
   padding: 20px 24px 32px;
 }
 
+.admin-toast {
+  position: fixed;
+  top: calc(var(--header-height) + 12px);
+  left: auto;
+  right: 24px;
+  width: min(420px, calc(100vw - var(--sidebar-width) - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.7);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.admin-toast strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-toast span {
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.96;
+}
+
+.admin-toast em {
+  margin-top: 2px;
+  font-size: 11px;
+  font-style: normal;
+  opacity: 0.82;
+}
+
+.admin-toast:hover {
+  background: rgba(29, 78, 216, 0.78);
+}
+
 @media (max-width: 900px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -383,5 +829,10 @@
   .sidebar {
     position: relative;
     height: auto;
+  }
+
+  .admin-toast {
+    left: 16px;
+    right: 16px;
   }
 }

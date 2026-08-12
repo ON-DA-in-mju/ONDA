@@ -1,0 +1,56 @@
+﻿# OS / editor
+.DS_Store
+*.log
+*.swp
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Python
+__pycache__/
+*.pyc
+
+# Android (driver app)
+**/android-native/.gradle/
+**/android-native/build/
+**/android-native/app/build/
+**/android-native/local.properties
+**/android-native/*.iml
+**/android-native/.cxx/
+**/android-native/captures/
+frontend/driver/.gradle/
+frontend/driver/build/
+frontend/driver/app/build/
+frontend/driver/local.properties
+frontend/driver/*.iml
+frontend/driver/.cxx/
+frontend/driver/captures/
+frontend/driver/.kotlin/
+
+# Android (student app)
+apps/student-android/.gradle/
+apps/student-android/build/
+apps/student-android/app/build/
+apps/student-android/local.properties
+apps/student-android/*.iml
+apps/student-android/.cxx/
+apps/student-android/captures/
+apps/student-android/.kotlin/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Node / Vite (admin)
+frontend/admin/node_modules/
+frontend/admin/dist/
+**/node_modules/
+**/dist/
+
+# Secrets / local
+*.keystore
+*.jks
+.env
+.env.*

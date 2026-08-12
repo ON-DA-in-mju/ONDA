@@ -9,13 +9,13 @@ import '../styles/login.css'
 
 /** ADM-00 관리자 로그인 — Figma 중앙 폼 + 하단 일러스트 */
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, usingSupabase } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
 
-  const [email, setEmail] = useState('admin@mju.ac.kr')
-  const [password, setPassword] = useState('Admin1234!')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -45,6 +45,9 @@ export function LoginPage() {
           명지대학교 셔틀버스 서비스 관리를 위한
           <br />
           관리자 전용 시스템입니다.
+        </p>
+        <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12 }}>
+          {usingSupabase ? 'Supabase 연결됨 · Auth + users 테이블' : 'Supabase 미설정 · 로컬 데모 모드 (.env.local 확인)'}
         </p>
 
         <form className="login-form" onSubmit={onSubmit}>
