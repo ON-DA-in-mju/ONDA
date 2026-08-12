@@ -6,7 +6,8 @@ import {
   MYONGJI_STATION_AFTER18_ROUTE_NAME,
   MYONGJI_STATION_ROUTE_NAME,
 } from '../data/cityShuttleStops'
-import { isCityVacationServiceDay, isKoreanPublicHoliday, semesterForDate } from './academicCalendar'
+import { isCityVacationServiceDay, isKoreanPublicHoliday, semesterForDate, termForDate } from './academicCalendar'
+
 
 export const OPERATIONAL_ROUTE_NAMES = [
   GIHEUNG_ROUTE_NAME,
@@ -33,7 +34,7 @@ export function isAfter18Departure(departureTime: string): boolean {
  * 시간표/배차용 실제 노선명.
  * - 명지대역 셔틀 + 18:00 이후 → 명지대역 셔틀 (18시 이후)
  * - 시내 셔틀 + (주말·공휴일·방학) → 시내 셔틀 (주말·공휴일·방학)
- * - 학기 = 3/1·9/1부터 각 19주 (계절학기 포함), 그 외 방학
+ * - 학기 = 3/1·9/1부터 정규 15주 + 계절 4주(합 19주), 그 외 방학
  */
 export function resolveOperationalRouteName(input: {
   baseRouteName: string
@@ -70,13 +71,25 @@ export function shouldSkipBaseScheduleOnHoliday(opts: {
   routeName: string
 }): boolean {
   if (!isKoreanPublicHoliday(opts.date)) return false
-  if (semesterForDate(opts.date) === 'VACATION') return false
+  if (termForDate(opts.date) === 'VACATION') return false
   const name = opts.routeName
   if (name === CITY_SHUTTLE_VACATION_ROUTE_NAME) return false
   if (name === CITY_SHUTTLE_ROUTE_NAME) return true
   if (name === GIHEUNG_ROUTE_NAME) return true
   if (name === MYONGJI_STATION_ROUTE_NAME || name === MYONGJI_STATION_AFTER18_ROUTE_NAME) return true
   return false
+}
+
+/**
+ * 학사 기간별 노선 운행 여부
+ * - SEMESTER: 전 노선(해당 요일 스케줄)
+ * - SEASONAL: 기흥역 제외 (계절학기·방학 제외 노선)
+ * - VACATION: 시내 (주말·공휴일·방학)만
+ */
+export function routeRunsOnTerm(routeName: string, term: ReturnType<typeof termForDate>): boolean {
+  if (term === 'VACATION') return routeName === CITY_SHUTTLE_VACATION_ROUTE_NAME
+  if (term === 'SEASONAL') return routeName !== GIHEUNG_ROUTE_NAME
+  return true
 }
 
 export const VARIANT_ROUTE_DEFS = [

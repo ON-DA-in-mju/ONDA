@@ -27,6 +27,16 @@ frontend/driver/*.iml
 frontend/driver/.cxx/
 frontend/driver/captures/
 frontend/driver/.kotlin/
+
+# Android (student app)
+apps/student-android/.gradle/
+apps/student-android/build/
+apps/student-android/app/build/
+apps/student-android/local.properties
+apps/student-android/*.iml
+apps/student-android/.cxx/
+apps/student-android/captures/
+apps/student-android/.kotlin/
 *.apk
 *.aab
 *.ap_
