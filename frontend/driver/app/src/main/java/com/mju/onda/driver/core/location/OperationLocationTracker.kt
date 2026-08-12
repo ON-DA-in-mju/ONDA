@@ -60,6 +60,10 @@ object OperationLocationTracker {
 
 
 
+    fun appContextOrNull(): Context? = appContext
+
+
+
     fun hasLocationPermission(context: Context? = appContext): Boolean {
 
         val ctx = context ?: return false

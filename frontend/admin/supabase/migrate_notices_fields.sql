@@ -140,13 +140,13 @@ create policy notices_admin_all on public.notices
   using (public.is_admin())
   with check (public.is_admin());
 
--- 학생: 대상에 STUDENT 포함 + 게시중 + 기간 내 (DRAFT/ENDED 등 제외)
+-- 학생: 대상에 STUDENT 포함 + 게시/예약 + 기간 내
 create policy notices_student_select on public.notices
   for select to authenticated
   using (
     public.is_student()
     and 'STUDENT' = any (audience)
-    and status = 'PUBLISHED'
+    and status in ('PUBLISHED', 'SCHEDULED')
     and public.notice_in_publish_window(starts_at, ends_at)
   );
 
@@ -156,7 +156,7 @@ create policy notices_driver_select on public.notices
   using (
     public.is_driver()
     and 'DRIVER' = any (audience)
-    and status = 'PUBLISHED'
+    and status in ('PUBLISHED', 'SCHEDULED')
     and public.notice_in_publish_window(starts_at, ends_at)
   );
 

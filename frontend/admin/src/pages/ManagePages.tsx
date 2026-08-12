@@ -6,35 +6,41 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  Bell,
   Bold,
   CalendarDays,
+  ChevronRight,
   Eye,
-  Image as ImageIcon,
   Italic,
-  Link2,
   List,
   ListOrdered,
   Megaphone,
+  Paperclip,
   Underline,
 } from 'lucide-react'
 import { maintenances, notices, reports, routes, systemLogs as mockSystemLogs, users } from '../data/mock'
 import {
   createNotice,
+  endNotice,
   fetchNotices,
   fetchReports,
   fetchRoutes,
   fetchUsers,
+  updateNotice,
   type NoticeRow,
   type ReportRow,
   type RouteRow,
   type UserRow,
 } from '../lib/api'
+import type { NoticeAudience, NoticeStatus, NoticeType } from '../types/database'
+import { noticeAudienceLabel, normalizeNoticeAudience } from '../lib/noticeAudience'
 import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
 import { fetchGpsReceiveLogs, GPS_LOGS_MAX, type GpsReceiveLog } from '../lib/gpsLogsApi'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { fetchSystemLogs, type SystemLogRow } from '../lib/systemLogsApi'
 import { useAuth } from '../state/AuthContext'
 import { StatusBadge } from '../components/ui/Form'
+import { ListPagination } from '../components/ui/ListPagination'
 import '../styles/figma-pages.css'
 
 const reportStatusKo: Record<string, string> = {
@@ -44,6 +50,12 @@ const reportStatusKo: Record<string, string> = {
 }
 
 const NOTICE_BODY_MAX = 2000
+const NOTICE_PAGE_SIZE = 10
+const USERS_PAGE_SIZE = 10
+const REPORTS_PAGE_SIZE = 10
+const ROUTES_PAGE_SIZE = 10
+const SYSTEM_LOGS_PAGE_SIZE = 5
+const GPS_LOGS_PAGE_SIZE = 10
 
 const DEFAULT_NOTICE_BODY = [
   '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.',
@@ -73,9 +85,136 @@ function htmlToPlainText(html: string): string {
   return el.innerText.replace(/\u00a0/g, ' ')
 }
 
+const NOTICE_TYPE_KO: Record<NoticeType, string> = {
+  URGENT: '긴급',
+  IMPORTANT: '중요',
+  OPERATION_CHANGE: '운행 변경',
+  GENERAL: '일반',
+}
+
+const NOTICE_TYPE_FROM_KO: Record<string, NoticeType> = {
+  긴급: 'URGENT',
+  중요: 'IMPORTANT',
+  '운행 변경': 'OPERATION_CHANGE',
+  일반: 'GENERAL',
+}
+
+function noticeTypeTone(type: string): 'red' | 'orange' | 'blue' | 'gray' {
+  if (type === '긴급' || type === 'URGENT' || type === '중요' || type === 'IMPORTANT') return 'red'
+  if (type === '운행 변경' || type === 'OPERATION_CHANGE' || type === '일반' || type === 'GENERAL') {
+    return 'blue'
+  }
+  return 'gray'
+}
+
+function noticeTypeLabel(row: NoticeRow): string {
+  if (row.type && NOTICE_TYPE_KO[row.type]) return NOTICE_TYPE_KO[row.type]
+  const m = row.title.match(/^\[(.+?)\]/)
+  if (m?.[1]) return m[1].replace(/\s*공지$/, '')
+  return '일반'
+}
+
+function noticeTitlePlain(row: NoticeRow): string {
+  return row.title.replace(/^\[.*?\]\s*/, '')
+}
+
+function truncateChars(value: string, max: number): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}...`
+}
+
+function formatNoticeDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`
+}
+
+function noticePeriodLabel(row: NoticeRow): string {
+  const start = formatNoticeDate(row.starts_at)
+  const end = formatNoticeDate(row.ends_at)
+  if (!start && !end) return '-'
+  if (start && end) return `${start} ~ ${end}`
+  return start || end
+}
+
+function todayDateInputValue(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function noticeStatusLabel(row: NoticeRow): '예약' | '게시 중' | '종료' {
+  if (row.status === 'ENDED') return '종료'
+  const now = Date.now()
+  if (row.ends_at) {
+    const end = Date.parse(row.ends_at)
+    if (Number.isFinite(end) && end < now) return '종료'
+  }
+  if (row.status === 'SCHEDULED' || row.starts_at) {
+    const start = row.starts_at ? Date.parse(row.starts_at) : NaN
+    if (Number.isFinite(start) && start > now) return '예약'
+  }
+  return '게시 중'
+}
+
+function noticeStatusTone(label: '예약' | '게시 중' | '종료'): 'orange' | 'blue' | 'gray' {
+  if (label === '예약') return 'orange'
+  if (label === '게시 중') return 'blue'
+  return 'gray'
+}
+
+function resolveNoticeWriteStatus(opts: {
+  permanent: boolean
+  startsAt: string | null
+  endsAt: string | null
+}): NoticeStatus {
+  const now = Date.now()
+  if (!opts.permanent && opts.endsAt) {
+    const end = Date.parse(opts.endsAt)
+    if (Number.isFinite(end) && end < now) return 'ENDED'
+  }
+  if (!opts.permanent && opts.startsAt) {
+    const start = Date.parse(opts.startsAt)
+    if (Number.isFinite(start) && start > now) return 'SCHEDULED'
+  }
+  return 'PUBLISHED'
+}
+
+function noticeViewCount(row: NoticeRow): number {
+  const extra = row as NoticeRow & { view_count?: number | null; views?: number | null }
+  return Number(extra.view_count ?? extra.views ?? 0) || 0
+}
+
+type EditorCmdState = {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  ul: boolean
+  ol: boolean
+  left: boolean
+  center: boolean
+  right: boolean
+  full: boolean
+}
+
+const emptyEditorCmds: EditorCmdState = {
+  bold: false,
+  italic: false,
+  underline: false,
+  ul: false,
+  ol: false,
+  left: false,
+  center: false,
+  right: false,
+  full: false,
+}
+
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
   const [selected, setSelected] = useState(0)
+  const [listPage, setListPage] = useState(1)
   const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
 
   useEffect(() => {
@@ -85,8 +224,26 @@ export function ReportsPage() {
   }, [])
 
   const usingDb = Boolean(dbReports && dbReports.length >= 0 && isSupabaseConfigured && dbReports !== null)
+  const reportTotal = dbReports?.length ?? reports.length
+  const reportPageCount = Math.max(1, Math.ceil(reportTotal / REPORTS_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, reportPageCount)
+  const pagedDbReports = useMemo(() => {
+    if (!dbReports) return null
+    const start = (safeListPage - 1) * REPORTS_PAGE_SIZE
+    return dbReports.slice(start, start + REPORTS_PAGE_SIZE)
+  }, [dbReports, safeListPage])
+  const pagedMockReports = useMemo(() => {
+    if (dbReports) return null
+    const start = (safeListPage - 1) * REPORTS_PAGE_SIZE
+    return reports.slice(start, start + REPORTS_PAGE_SIZE)
+  }, [dbReports, safeListPage])
+
+  useEffect(() => {
+    if (listPage > reportPageCount) setListPage(reportPageCount)
+  }, [listPage, reportPageCount])
+
   const item = usingDb && dbReports?.[selected] ? dbReports[selected] : null
-  const mockItem = reports[selected]
+  const mockItem = reports[Math.min(selected, reports.length - 1)] ?? reports[0]
 
   return (
     <div className="page">
@@ -128,41 +285,71 @@ export function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {dbReports
-                ? dbReports.map((row, idx) => (
-                    <tr key={row.id} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
-                      <td style={{ fontWeight: 700 }}>{row.title}</td>
-                      <td>
-                        <StatusBadge tone={row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'}>
-                          {reportStatusKo[row.status] ?? row.status}
-                        </StatusBadge>
-                      </td>
-                      <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
-                      <td>
-                        <button className="btn btn-outline" type="button" style={{ height: 28 }} onClick={() => setSelected(idx)}>
-                          상세
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                : reports.map((row, idx) => (
-                    <tr key={row.type + row.time} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
-                      <td>{row.type}</td>
-                      <td>{row.target}</td>
-                      <td>{row.time}</td>
-                      <td>{row.likes}</td>
-                      <td>
-                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                      </td>
-                      <td>
-                        <button className="btn btn-outline" type="button" style={{ height: 28 }} onClick={() => setSelected(idx)}>
-                          상세
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+              {pagedDbReports
+                ? pagedDbReports.map((row, idx) => {
+                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
+                    return (
+                      <tr key={row.id} style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}>
+                        <td style={{ fontWeight: 700 }}>{row.title}</td>
+                        <td>
+                          <StatusBadge
+                            tone={
+                              row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'
+                            }
+                          >
+                            {reportStatusKo[row.status] ?? row.status}
+                          </StatusBadge>
+                        </td>
+                        <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
+                        <td>
+                          <button
+                            className="btn btn-outline"
+                            type="button"
+                            style={{ height: 28 }}
+                            onClick={() => setSelected(absoluteIdx)}
+                          >
+                            상세
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                : (pagedMockReports ?? []).map((row, idx) => {
+                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
+                    return (
+                      <tr
+                        key={row.type + row.time}
+                        style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
+                      >
+                        <td>{row.type}</td>
+                        <td>{row.target}</td>
+                        <td>{row.time}</td>
+                        <td>{row.likes}</td>
+                        <td>
+                          <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-outline"
+                            type="button"
+                            style={{ height: 28 }}
+                            onClick={() => setSelected(absoluteIdx)}
+                          >
+                            상세
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
             </tbody>
           </table>
+          <ListPagination
+            total={reportTotal}
+            page={safeListPage}
+            pageSize={REPORTS_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="제보 목록 페이지"
+          />
         </section>
 
         <section className="card card-pad">
@@ -208,31 +395,56 @@ export function NoticesPage() {
   const [targetStudent, setTargetStudent] = useState(true)
   const [targetDriver, setTargetDriver] = useState(false)
   const [permanent, setPermanent] = useState(false)
-  const [startDate, setStartDate] = useState('2024-05-20')
+  const [startDate, setStartDate] = useState(() => todayDateInputValue())
   const [startHour, setStartHour] = useState('00')
   const [startMinute, setStartMinute] = useState('00')
-  const [endDate, setEndDate] = useState('2024-05-20')
+  const [endDate, setEndDate] = useState(() => todayDateInputValue())
   const [endHour, setEndHour] = useState('23')
   const [endMinute, setEndMinute] = useState('59')
   const [saving, setSaving] = useState(false)
   const [flash, setFlash] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [listPage, setListPage] = useState(1)
+  const [listQuery, setListQuery] = useState('')
+  const [listTypeFilter, setListTypeFilter] = useState('전체 유형')
+  const [editorCmds, setEditorCmds] = useState<EditorCmdState>(emptyEditorCmds)
   const editorRef = useRef<HTMLDivElement | null>(null)
-  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), [])
   const minuteOptions = useMemo(() => Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')), [])
+
+  const refreshEditorCmds = () => {
+    try {
+      setEditorCmds({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        ul: document.queryCommandState('insertUnorderedList'),
+        ol: document.queryCommandState('insertOrderedList'),
+        left: document.queryCommandState('justifyLeft'),
+        center: document.queryCommandState('justifyCenter'),
+        right: document.queryCommandState('justifyRight'),
+        full: document.queryCommandState('justifyFull'),
+      })
+    } catch {
+      setEditorCmds(emptyEditorCmds)
+    }
+  }
 
   const syncEditorState = () => {
     const el = editorRef.current
     if (!el) return
     const plain = htmlToPlainText(el.innerHTML)
     if (plain.length > NOTICE_BODY_MAX) {
-      // 초과 시 마지막 입력을 되돌림
       document.execCommand('undo')
       return
     }
     setBodyHtml(el.innerHTML)
     setBodyLen(plain.replace(/\n$/g, '').length)
+    refreshEditorCmds()
   }
 
   const setEditorContent = (htmlOrPlain: string, asHtml = false) => {
@@ -248,29 +460,108 @@ export function NoticesPage() {
     el.focus()
     document.execCommand(command, false, value)
     syncEditorState()
+    refreshEditorCmds()
   }
 
-  const onInsertLink = () => {
-    const url = window.prompt('링크 URL을 입력하세요.', 'https://')
-    if (!url?.trim()) return
-    runEditorCommand('createLink', url.trim())
+  const onAttachFile = () => {
+    fileInputRef.current?.click()
   }
 
-  const onInsertImage = () => {
-    imageInputRef.current?.click()
-  }
-
-  const onImageFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const onFileAttachChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const src = typeof reader.result === 'string' ? reader.result : ''
-      if (!src) return
-      runEditorCommand('insertImage', src)
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const src = typeof reader.result === 'string' ? reader.result : ''
+        if (!src) return
+        runEditorCommand('insertImage', src)
+      }
+      reader.readAsDataURL(file)
+      return
     }
-    reader.readAsDataURL(file)
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    document.execCommand('insertText', false, `[첨부: ${file.name}]`)
+    syncEditorState()
+  }
+
+  const formLocked = Boolean(selectedNoticeId) && !editing
+
+  const buildNoticePayload = () => {
+    const contentPlain = htmlToPlainText(editorRef.current?.innerHTML ?? bodyHtml).trim()
+    const audience: NoticeAudience[] = []
+    if (targetStudent) audience.push('STUDENT')
+    if (targetDriver) audience.push('DRIVER')
+    const type = NOTICE_TYPE_FROM_KO[noticeType] ?? 'GENERAL'
+    const toIso = (date: string, hour: string, minute: string) =>
+      new Date(`${date}T${hour}:${minute}:00`).toISOString()
+    const startsAt = permanent ? null : toIso(startDate, startHour, startMinute)
+    const endsAt = permanent ? null : toIso(endDate, endHour, endMinute)
+    return {
+      title: title.trim(),
+      content: contentPlain,
+      type,
+      audience,
+      is_push: push,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      status: resolveNoticeWriteStatus({ permanent, startsAt, endsAt }),
+    }
+  }
+
+  const loadNoticeIntoForm = (row: NoticeRow) => {
+    setSelectedNoticeId(row.id)
+    setEditing(false)
+    setShowPreview(false)
+    const typeKo = noticeTypeLabel(row)
+    setNoticeType(typeKo)
+    setTitle(noticeTitlePlain(row))
+    setEditorContent(row.content)
+    const audience = normalizeNoticeAudience(row.audience)
+    setTargetStudent(audience.includes('STUDENT'))
+    setTargetDriver(audience.includes('DRIVER'))
+    const hasPeriod = Boolean(row.starts_at || row.ends_at)
+    setPermanent(!hasPeriod)
+    if (row.starts_at) {
+      const d = new Date(row.starts_at)
+      setStartDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      )
+      setStartHour(String(d.getHours()).padStart(2, '0'))
+      setStartMinute(String(d.getMinutes()).padStart(2, '0'))
+    }
+    if (row.ends_at) {
+      const d = new Date(row.ends_at)
+      setEndDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      )
+      setEndHour(String(d.getHours()).padStart(2, '0'))
+      setEndMinute(String(d.getMinutes()).padStart(2, '0'))
+    }
+    setPush(Boolean(row.is_push))
+  }
+
+  const resetFormForCreate = () => {
+    setSelectedNoticeId(null)
+    setEditing(false)
+    setShowPreview(false)
+    setNoticeType('긴급')
+    setTitle('')
+    setEditorContent(DEFAULT_NOTICE_BODY)
+    setTargetStudent(true)
+    setTargetDriver(false)
+    setPermanent(false)
+    const today = todayDateInputValue()
+    setStartDate(today)
+    setStartHour('00')
+    setStartMinute('00')
+    setEndDate(today)
+    setEndHour('23')
+    setEndMinute('59')
+    setPush(true)
   }
 
   useEffect(() => {
@@ -286,12 +577,19 @@ export function NoticesPage() {
   }, [])
 
   const onCreate = async () => {
+    if (selectedNoticeId) {
+      setFlash('목록 공지를 수정 중이면 「저장」을 눌러 주세요. 새 공지는 선택을 해제한 뒤 등록하세요.')
+      return
+    }
+    if (!targetStudent && !targetDriver) {
+      setFlash('대상을 학생 또는 기사 중 하나 이상 선택하세요.')
+      return
+    }
     setSaving(true)
     setFlash('')
-    const contentPlain = htmlToPlainText(editorRef.current?.innerHTML ?? bodyHtml).trim()
+    const payload = buildNoticePayload()
     const res = await createNotice({
-      title: `[${noticeType}] ${title.trim()}`,
-      content: contentPlain,
+      ...payload,
       author_id: user?.id ?? null,
     })
     setSaving(false)
@@ -299,9 +597,80 @@ export function NoticesPage() {
       setFlash(res.message ?? '등록 실패')
       return
     }
-    setFlash('공지 등록 완료 (notices.title/content)')
+    setFlash('공지 등록 완료')
+    setListPage(1)
     const data = await fetchNotices()
     if (data) setDbNotices(data)
+  }
+
+  const onStartEdit = () => {
+    if (!selectedNoticeId) {
+      setFlash('목록에서 수정할 공지를 먼저 선택하세요.')
+      return
+    }
+    const selected = dbNotices?.find((n) => n.id === selectedNoticeId)
+    if (selected && noticeStatusLabel(selected) === '종료') {
+      setFlash('종료된 공지는 수정할 수 없습니다.')
+      return
+    }
+    setEditing(true)
+    setFlash('수정 모드입니다. 내용을 바꾼 뒤 「저장」을 눌러 주세요.')
+  }
+
+  const onSave = async () => {
+    if (!selectedNoticeId) {
+      setFlash('저장할 공지가 없습니다.')
+      return
+    }
+    if (!targetStudent && !targetDriver) {
+      setFlash('대상을 학생 또는 기사 중 하나 이상 선택하세요.')
+      return
+    }
+    setSaving(true)
+    setFlash('')
+    const payload = buildNoticePayload()
+    const res = await updateNotice(selectedNoticeId, payload)
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '저장 실패')
+      return
+    }
+    setEditing(false)
+    setFlash('공지 저장 완료')
+    const data = await fetchNotices()
+    if (data) setDbNotices(data)
+  }
+
+  const onDelete = async () => {
+    if (!selectedNoticeId) {
+      setFlash('목록에서 종료할 공지를 먼저 선택하세요.')
+      return
+    }
+    const selected = dbNotices?.find((n) => n.id === selectedNoticeId)
+    if (selected && noticeStatusLabel(selected) === '종료') {
+      setFlash('이미 종료된 공지입니다.')
+      return
+    }
+    const ok = window.confirm(
+      '이 공지를 종료할까요?\n학생·기사 앱에서는 더 이상 보이지 않고, 관리자 목록에는 「종료」로 남습니다.',
+    )
+    if (!ok) return
+    setSaving(true)
+    setFlash('')
+    const res = await endNotice(selectedNoticeId)
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '종료 실패')
+      return
+    }
+    setEditing(false)
+    setFlash('공지를 종료했습니다. 앱에서는 더 이상 표시되지 않습니다.')
+    const data = await fetchNotices()
+    if (data) {
+      setDbNotices(data)
+      const updated = data.find((n) => n.id === selectedNoticeId)
+      if (updated) loadNoticeIntoForm(updated)
+    }
   }
 
   const noticeKpis = useMemo(() => {
@@ -313,15 +682,58 @@ export function NoticesPage() {
       const t = Date.parse(n.created_at)
       return Number.isFinite(t) && now - t <= day30
     })
-    const urgent = recent.filter((n) => /긴급|\[URGENT\]/i.test(n.title)).length
-    // type/starts_at/views 컬럼 전까지: 예약·조회수는 DB에 없으므로 0
+    const urgent = recent.filter((n) => noticeTypeLabel(n) === '긴급').length
+    const scheduled = recent.filter((n) => noticeStatusLabel(n) === '예약').length
+    const views = recent.reduce((sum, n) => sum + noticeViewCount(n), 0)
     return {
       total: recent.length,
       urgent,
-      scheduled: 0,
-      views: 0,
+      scheduled,
+      views,
     }
   }, [dbNotices])
+
+  const noticeRows = dbNotices
+  const filteredDbNotices = useMemo(() => {
+    if (!noticeRows) return null
+    const q = listQuery.trim().toLowerCase()
+    return noticeRows.filter((row) => {
+      if (listTypeFilter !== '전체 유형' && noticeTypeLabel(row) !== listTypeFilter) return false
+      if (q) {
+        const hay = `${noticeTitlePlain(row)} ${row.content ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [noticeRows, listQuery, listTypeFilter])
+  const filteredMockNotices = useMemo(() => {
+    if (noticeRows) return null
+    const q = listQuery.trim().toLowerCase()
+    return notices.filter((row) => {
+      if (listTypeFilter !== '전체 유형' && row.type !== listTypeFilter) return false
+      if (q && !`${row.title}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [noticeRows, listQuery, listTypeFilter])
+  const noticeTotal = filteredDbNotices?.length ?? filteredMockNotices?.length ?? 0
+  const noticePageCount = Math.max(1, Math.ceil(noticeTotal / NOTICE_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, noticePageCount)
+  const pagedDbNotices = useMemo(() => {
+    if (!filteredDbNotices) return null
+    const start = (safeListPage - 1) * NOTICE_PAGE_SIZE
+    return filteredDbNotices.slice(start, start + NOTICE_PAGE_SIZE)
+  }, [filteredDbNotices, safeListPage])
+  const pagedMockNotices = useMemo(() => {
+    if (filteredDbNotices) return null
+    const start = (safeListPage - 1) * NOTICE_PAGE_SIZE
+    return (filteredMockNotices ?? []).slice(start, start + NOTICE_PAGE_SIZE)
+  }, [filteredDbNotices, filteredMockNotices, safeListPage])
+  useEffect(() => {
+    if (listPage > noticePageCount) setListPage(noticePageCount)
+  }, [listPage, noticePageCount])
+  useEffect(() => {
+    setListPage(1)
+  }, [listQuery, listTypeFilter])
 
   const kpis = [
     {
@@ -354,6 +766,21 @@ export function NoticesPage() {
     },
   ] as const
 
+  const previewTypeLabel = noticeType === '긴급' || noticeType === '일반' ? `${noticeType} 공지` : noticeType
+  const driverAlarmTitle =
+    noticeType === '긴급'
+      ? '긴급 공지'
+      : noticeType === '중요'
+        ? '중요 공지'
+        : noticeType === '운행 변경'
+          ? '운행 변경'
+          : '일반 공지'
+  const previewPlainBody = htmlToPlainText(bodyHtml).trim()
+  const driverAlarmBody = previewPlainBody
+    ? `${title.trim() || '제목'} — ${previewPlainBody}`
+    : title.trim() || '제목'
+  const previewAsDriver = targetDriver
+
   return (
     <div className="page">
       {flash ? <div className="alert alert-info">{flash}</div> : null}
@@ -375,88 +802,114 @@ export function NoticesPage() {
           <div className="figma-panel-head">
             <h3>
               공지 목록{' '}
-              <span className="muted">(전체 {(dbNotices?.length ?? 0).toLocaleString('ko-KR')}건)</span>
+              <span className="muted">
+                (전체 {(dbNotices?.length ?? notices.length).toLocaleString('ko-KR')}건
+                {noticeTotal !== (dbNotices?.length ?? notices.length)
+                  ? ` · 검색 ${noticeTotal.toLocaleString('ko-KR')}건`
+                  : ''}
+                )
+              </span>
             </h3>
           </div>
           <div className="toolbar" style={{ marginBottom: 8 }}>
-            <select className="select" style={{ width: 110, height: 32 }}>
+            <select
+              className="select"
+              style={{ width: 110, height: 32 }}
+              value={listTypeFilter}
+              onChange={(e) => setListTypeFilter(e.target.value)}
+            >
               <option>전체 유형</option>
               <option>긴급</option>
               <option>중요</option>
               <option>운행 변경</option>
               <option>일반</option>
             </select>
-            <input className="input" style={{ flex: 1, height: 32 }} placeholder="제목 또는 내용을 검색하세요." />
-            <button className="btn btn-primary btn-xs" type="button">
+            <input
+              className="input"
+              style={{ flex: 1, height: 32 }}
+              placeholder="제목 또는 내용을 검색하세요."
+              value={listQuery}
+              onChange={(e) => setListQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setListPage(1)
+              }}
+            />
+            <button className="btn btn-primary btn-xs" type="button" onClick={() => setListPage(1)}>
               검색
             </button>
           </div>
           <table className="data-table dense">
             <thead>
               <tr>
-                <th>번호</th>
-                <th>유형</th>
+                <th className="notice-col-center">번호</th>
+                <th className="notice-col-center">유형</th>
                 <th>제목</th>
-                <th>대상</th>
-                <th>게시 기간</th>
-                <th>조회수</th>
-                <th>상태</th>
+                <th className="notice-col-center">대상</th>
+                <th className="notice-col-center">게시 기간</th>
+                <th className="notice-col-center">조회수</th>
+                <th className="notice-col-center">상태</th>
               </tr>
             </thead>
             <tbody>
-              {dbNotices
-                ? dbNotices.map((row) => (
-                    <tr
-                      key={row.id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => {
-                        setTitle(row.title.replace(/^\[.*?\]\s*/, ''))
-                        setEditorContent(row.content)
-                      }}
-                    >
-                      <td colSpan={2} style={{ fontWeight: 700 }}>
-                        {row.title}
+              {pagedDbNotices
+                ? pagedDbNotices.map((row, idx) => {
+                    const typeKo = noticeTypeLabel(row)
+                    const statusKo = noticeStatusLabel(row)
+                    const period = noticePeriodLabel(row)
+                    const no = (safeListPage - 1) * NOTICE_PAGE_SIZE + idx + 1
+                    return (
+                      <tr
+                        key={row.id}
+                        className={selectedNoticeId === row.id ? 'is-selected' : undefined}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => loadNoticeIntoForm(row)}
+                      >
+                        <td className="notice-col-center">{no}</td>
+                        <td className="notice-col-center">
+                          <StatusBadge tone={noticeTypeTone(typeKo)}>{typeKo}</StatusBadge>
+                        </td>
+                        <td title={noticeTitlePlain(row)}>{truncateChars(noticeTitlePlain(row), 8)}</td>
+                        <td className="notice-col-center">{noticeAudienceLabel(row.audience)}</td>
+                        <td className="notice-period-cell notice-col-center" title={period === '-' ? undefined : period}>
+                          {period}
+                        </td>
+                        <td className="notice-col-center">{noticeViewCount(row).toLocaleString('ko-KR')}</td>
+                        <td className="notice-col-center">
+                          <StatusBadge tone={noticeStatusTone(statusKo)}>{statusKo}</StatusBadge>
+                        </td>
+                      </tr>
+                    )
+                  })
+                : (pagedMockNotices ?? []).map((row, idx) => (
+                    <tr key={row.no}>
+                      <td className="notice-col-center">
+                        {(safeListPage - 1) * NOTICE_PAGE_SIZE + idx + 1}
                       </td>
-                      <td colSpan={3} style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.content}
+                      <td className="notice-col-center">
+                        <StatusBadge tone={row.tone}>{row.type}</StatusBadge>
                       </td>
-                      <td>{row.created_at ? new Date(row.created_at).toLocaleDateString('ko-KR') : '-'}</td>
-                      <td>
-                        <StatusBadge tone="blue">DB</StatusBadge>
+                      <td title={row.title}>{truncateChars(row.title, 8)}</td>
+                      <td className="notice-col-center">{row.target === '전체' ? '학생/기사' : row.target}</td>
+                      <td className="notice-period-cell notice-col-center">{row.period.replace(' - ', ' ~ ')}</td>
+                      <td className="notice-col-center">{row.views.toLocaleString()}</td>
+                      <td className="notice-col-center">
+                        <StatusBadge tone={row.status === '게시중' || row.status === '게시 중' ? 'blue' : 'gray'}>
+                          {row.status === '게시중' ? '게시 중' : row.status}
+                        </StatusBadge>
                       </td>
                     </tr>
-                  ))
-                : notices.map((row) => (
-                <tr key={row.no}>
-                  <td>{row.no}</td>
-                  <td>
-                    <StatusBadge tone={row.tone}>{row.type}</StatusBadge>
-                  </td>
-                  <td>{row.title}</td>
-                  <td>{row.target}</td>
-                  <td>{row.period}</td>
-                  <td>{row.views.toLocaleString()}</td>
-                  <td>
-                    <StatusBadge tone={row.status === '게시중' ? 'red' : 'gray'}>{row.status}</StatusBadge>
-                  </td>
-                </tr>
                   ))}
             </tbody>
           </table>
-          <div className="pagination">
-            <div className="pagination-pages">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} className={`page-chip${n === 1 ? ' active' : ''}`} type="button">
-                  {n}
-                </button>
-              ))}
-            </div>
-            <select className="select" style={{ width: 110, height: 28 }}>
-              <option>10개씩 보기</option>
-            </select>
-          </div>
+          <ListPagination
+            total={noticeTotal}
+            page={safeListPage}
+            pageSize={NOTICE_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="공지 목록 페이지"
+          />
           <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-            공지사항은 학생 앱 [알림] 탭과 푸시 알림으로 발송됩니다.
+            학생 대상은 학생 앱 공지·푸시로, 기사 대상은 기사 앱 [운행 알림](종) 목록으로 전달됩니다.
           </p>
         </section>
 
@@ -465,39 +918,89 @@ export function NoticesPage() {
             <h3>공지 등록/수정</h3>
           </div>
 
-          <div className="notice-form-grid">
-            <div className="notice-form-main">
+          <div className={`notice-form-grid${showPreview ? '' : ' preview-off'}`}>
+            <div className={`notice-form-main${formLocked ? ' is-readonly' : ''}`}>
               <div className="notice-form-actions">
-                <button className="btn btn-outline btn-xs" type="button">
+                <button
+                  className={`btn btn-outline btn-xs notice-preview-btn${showPreview ? ' is-active' : ''}`}
+                  type="button"
+                  onClick={() => setShowPreview((v) => !v)}
+                >
                   <Eye size={12} /> 미리보기
                 </button>
-                <button className="btn btn-outline btn-xs" type="button">
+                <button
+                  className="btn btn-outline btn-xs"
+                  type="button"
+                  disabled={saving || !selectedNoticeId}
+                  onClick={() => void onDelete()}
+                  title={selectedNoticeId ? '앱에서 숨기고 목록에는 종료로 남깁니다' : '목록에서 공지를 선택하세요'}
+                >
                   삭제
                 </button>
-                <button className="btn btn-outline btn-xs" type="button">
+                <button
+                  className={`btn btn-outline btn-xs${editing ? ' is-active' : ''}`}
+                  type="button"
+                  disabled={saving || !selectedNoticeId || editing}
+                  onClick={onStartEdit}
+                  title={!selectedNoticeId ? '목록에서 공지를 선택하세요' : '수정 모드로 전환'}
+                >
                   수정
                 </button>
-                <button className="btn btn-primary btn-xs" type="button" disabled={saving} onClick={() => void onCreate()}>
-                  {saving ? '등록 중...' : '공지 등록'}
-                </button>
+                {selectedNoticeId && editing ? (
+                  <button
+                    className="btn btn-primary btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void onSave()}
+                  >
+                    {saving ? '저장 중...' : '저장'}
+                  </button>
+                ) : null}
+                {!selectedNoticeId ? (
+                  <button
+                    className="btn btn-primary btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void onCreate()}
+                  >
+                    {saving ? '등록 중...' : '공지 등록'}
+                  </button>
+                ) : null}
+                {selectedNoticeId ? (
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={resetFormForCreate}
+                  >
+                    새 공지
+                  </button>
+                ) : null}
               </div>
+
+              {formLocked ? (
+                <p className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  목록에서 선택한 공지입니다. 내용을 바꾸려면 「수정」을 눌러 주세요.
+                </p>
+              ) : null}
 
               <div className="field">
                 <label>공지 유형</label>
                 <div className="type-pills">
                   {(
                     [
-                      ['긴급', true],
-                      ['중요', false],
-                      ['운행 변경', false],
-                      ['일반', false],
+                      ['긴급', 'danger'],
+                      ['중요', 'danger'],
+                      ['운행 변경', 'info'],
+                      ['일반', 'info'],
                     ] as const
-                  ).map(([t, danger]) => (
+                  ).map(([t, tone]) => (
                     <button
                       key={t}
                       type="button"
-                      className={`type-pill${noticeType === t ? ` active${danger ? ' danger' : ''}` : ''}`}
+                      className={`type-pill${noticeType === t ? ` active ${tone}` : ''}`}
                       onClick={() => setNoticeType(t)}
+                      disabled={formLocked}
                     >
                       {t === '긴급' || t === '일반' ? `${t} 공지` : t}
                     </button>
@@ -517,6 +1020,8 @@ export function NoticesPage() {
                   placeholder="제목을 입력하세요."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  disabled={formLocked}
+                  readOnly={formLocked}
                 />
               </div>
 
@@ -525,67 +1030,74 @@ export function NoticesPage() {
                 <div className="notice-editor">
                   <div className="notice-editor-toolbar" role="toolbar" aria-label="본문 서식">
                     <div className="notice-editor-group">
-                      <button type="button" className="notice-editor-btn" title="굵게" aria-label="굵게" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('bold')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.bold ? ' is-active' : ''}`} title="굵게" aria-label="굵게" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('bold')}>
                         <Bold size={14} strokeWidth={2.5} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="기울임" aria-label="기울임" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('italic')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.italic ? ' is-active' : ''}`} title="기울임" aria-label="기울임" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('italic')}>
                         <Italic size={14} strokeWidth={2.5} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="밑줄" aria-label="밑줄" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('underline')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.underline ? ' is-active' : ''}`} title="밑줄" aria-label="밑줄" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('underline')}>
                         <Underline size={14} strokeWidth={2.5} />
                       </button>
                     </div>
                     <span className="notice-editor-sep" />
                     <div className="notice-editor-group">
-                      <button type="button" className="notice-editor-btn" title="글머리 기호" aria-label="글머리 기호" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertUnorderedList')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.ul ? ' is-active' : ''}`} title="글머리 기호" aria-label="글머리 기호" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertUnorderedList')}>
                         <List size={14} strokeWidth={2.2} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="번호 목록" aria-label="번호 목록" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertOrderedList')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.ol ? ' is-active' : ''}`} title="번호 목록" aria-label="번호 목록" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertOrderedList')}>
                         <ListOrdered size={14} strokeWidth={2.2} />
                       </button>
                     </div>
                     <span className="notice-editor-sep" />
                     <div className="notice-editor-group">
-                      <button type="button" className="notice-editor-btn" title="왼쪽 정렬" aria-label="왼쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyLeft')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.left ? ' is-active' : ''}`} title="왼쪽 정렬" aria-label="왼쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyLeft')}>
                         <AlignLeft size={14} strokeWidth={2.2} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="가운데 정렬" aria-label="가운데 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyCenter')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.center ? ' is-active' : ''}`} title="가운데 정렬" aria-label="가운데 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyCenter')}>
                         <AlignCenter size={14} strokeWidth={2.2} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="오른쪽 정렬" aria-label="오른쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyRight')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.right ? ' is-active' : ''}`} title="오른쪽 정렬" aria-label="오른쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyRight')}>
                         <AlignRight size={14} strokeWidth={2.2} />
                       </button>
-                      <button type="button" className="notice-editor-btn" title="양쪽 정렬" aria-label="양쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyFull')}>
+                      <button type="button" className={`notice-editor-btn${editorCmds.full ? ' is-active' : ''}`} title="양쪽 정렬" aria-label="양쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyFull')}>
                         <AlignJustify size={14} strokeWidth={2.2} />
                       </button>
                     </div>
                     <span className="notice-editor-sep" />
                     <div className="notice-editor-group">
-                      <button type="button" className="notice-editor-btn is-chip" title="링크" aria-label="링크" onMouseDown={(e) => e.preventDefault()} onClick={onInsertLink}>
-                        <Link2 size={14} strokeWidth={2.2} />
-                      </button>
-                      <button type="button" className="notice-editor-btn" title="이미지" aria-label="이미지" onMouseDown={(e) => e.preventDefault()} onClick={onInsertImage}>
-                        <ImageIcon size={14} strokeWidth={2.2} />
+                      <button
+                        type="button"
+                        className="notice-editor-btn is-chip"
+                        title="파일 첨부"
+                        aria-label="파일 첨부"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={onAttachFile}
+                      >
+                        <Paperclip size={14} strokeWidth={2.2} />
                       </button>
                     </div>
                   </div>
                   <input
-                    ref={imageInputRef}
+                    ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.zip"
                     hidden
-                    onChange={onImageFileChange}
+                    onChange={onFileAttachChange}
                   />
                   <div
                     ref={editorRef}
                     className={`notice-editor-body${bodyLen === 0 ? ' is-empty' : ''}`}
-                    contentEditable
+                    contentEditable={!formLocked}
                     role="textbox"
                     aria-multiline="true"
                     aria-label="공지 내용"
+                    aria-readonly={formLocked}
                     data-placeholder="공지 내용을 입력하세요."
                     suppressContentEditableWarning
                     onInput={syncEditorState}
+                    onKeyUp={refreshEditorCmds}
+                    onMouseUp={refreshEditorCmds}
                   />
                   <div className="notice-editor-foot">
                     <span>
@@ -602,6 +1114,7 @@ export function NoticesPage() {
                     type="button"
                     className={`type-pill${targetStudent ? ' active' : ''}`}
                     onClick={() => setTargetStudent((v) => !v)}
+                    disabled={formLocked}
                   >
                     학생
                   </button>
@@ -609,15 +1122,26 @@ export function NoticesPage() {
                     type="button"
                     className={`type-pill${targetDriver ? ' active' : ''}`}
                     onClick={() => setTargetDriver((v) => !v)}
+                    disabled={formLocked}
                   >
                     기사
                   </button>
                   <label className="check-row notice-inline-check">
-                    <input type="checkbox" checked={permanent} onChange={(e) => setPermanent(e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={permanent}
+                      disabled={formLocked}
+                      onChange={(e) => setPermanent(e.target.checked)}
+                    />
                     게시 기간 없음 (상시 게시)
                   </label>
                   <label className="check-row notice-inline-check">
-                    <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={push}
+                      disabled={formLocked}
+                      onChange={(e) => setPush(e.target.checked)}
+                    />
                     푸시 알림 동시 발송
                   </label>
                 </div>
@@ -628,7 +1152,7 @@ export function NoticesPage() {
                 ) : null}
               </div>
 
-              <div className={`notice-datetime-stack${permanent ? ' is-disabled' : ''}`}>
+              <div className={`notice-datetime-stack${permanent || formLocked ? ' is-disabled' : ''}`}>
                 <div className="field">
                   <label>시작일</label>
                   <div className="notice-datetime">
@@ -637,7 +1161,11 @@ export function NoticesPage() {
                       type="date"
                       value={startDate}
                       disabled={permanent}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setStartDate(next)
+                        if (next) setEndDate(next)
+                      }}
                     />
                     <select
                       className="select notice-time-select"
@@ -708,37 +1236,109 @@ export function NoticesPage() {
               </div>
             </div>
 
-            <aside className="phone-preview">
-              <div className="cap">실제 학생 앱에 표시되는 화면입니다.</div>
-              <div className="screen">
-                <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
-                  공지사항
+            {showPreview ? (
+              <aside className="phone-preview">
+                {previewAsDriver ? (
+                  <>
+                    <div className="cap">기사 앱 [운행 알림] 목록 · 상세 미리보기입니다.</div>
+                    <div className="screen driver-alarm-preview">
+                      <div className="driver-alarm-preview-head">
+                        <span>운행 알림</span>
+                        <Bell size={14} strokeWidth={2.4} />
+                      </div>
+                      <div className="driver-alarm-chip-row">
+                        <span className="driver-alarm-chip is-active">전체</span>
+                        <span className="driver-alarm-chip">미확인</span>
+                        <span className="driver-alarm-chip">공지</span>
+                      </div>
+                      <div className="driver-alarm-card">
+                        <div className="driver-alarm-icon" aria-hidden>
+                          <Bell size={16} strokeWidth={2.4} />
+                        </div>
+                        <div className="driver-alarm-text">
+                          <strong>{driverAlarmTitle}</strong>
+                          <p>{driverAlarmBody}</p>
+                        </div>
+                        <ChevronRight size={16} className="driver-alarm-chevron" aria-hidden />
+                      </div>
+                    </div>
+                    <div className="screen" style={{ marginTop: 10 }}>
+                      <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
+                        공지사항
+                      </div>
+                      <span className={`tag tone-${noticeTypeTone(noticeType)}`}>{driverAlarmTitle}</span>
+                      <strong>{title || '제목'}</strong>
+                      <div className="time">
+                        {permanent
+                          ? '상시 게시'
+                          : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
+                      </div>
+                      <div
+                        className="notice-preview-body"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            bodyLen > 0
+                              ? bodyHtml
+                              : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
+                        }}
+                      />
+                      <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
+                        오늘 하루 보지 않기
+                      </div>
+                    </div>
+                    {targetStudent ? (
+                      <div className="muted" style={{ fontSize: 10, marginTop: 8 }}>
+                        학생도 선택됨 — 학생 앱 공지에도 함께 노출됩니다.
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <div className="cap">실제 학생 앱에 표시되는 화면입니다.</div>
+                    <div className="screen">
+                      <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
+                        공지사항
+                      </div>
+                      <span className={`tag tone-${noticeTypeTone(noticeType)}`}>{previewTypeLabel}</span>
+                      <strong>{title || '제목'}</strong>
+                      <div className="time">
+                        {permanent
+                          ? '상시 게시'
+                          : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
+                      </div>
+                      <div
+                        className="notice-preview-body"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            bodyLen > 0
+                              ? bodyHtml
+                              : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
+                        }}
+                      />
+                      <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
+                        오늘 하루 보지 않기
+                      </div>
+                    </div>
+                    <div className="push">
+                      <span className="app">ONDA 셔틀</span>
+                      <span className="when">지금</span>
+                      <div className="body">
+                        {previewPlainBody.split('\n')[0] || '푸시 미리보기'}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </aside>
+            ) : (
+              <aside className="phone-preview is-placeholder">
+                <div className="cap">미리보기</div>
+                <div className="notice-preview-empty">
+                  미리보기 버튼을 누르면
+                  <br />
+                  {previewAsDriver ? '기사 앱 알림 화면이' : '학생 앱 화면이'} 표시됩니다.
                 </div>
-                <span className="tag">{noticeType === '긴급' || noticeType === '일반' ? `${noticeType} 공지` : noticeType}</span>
-                <strong>{title || '제목'}</strong>
-                <div className="time">
-                  {permanent
-                    ? '상시 게시'
-                    : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
-                </div>
-                <div
-                  className="notice-preview-body"
-                  dangerouslySetInnerHTML={{
-                    __html: bodyLen > 0 ? bodyHtml : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
-                  }}
-                />
-                <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
-                  오늘 하루 보지 않기
-                </div>
-              </div>
-              <div className="push">
-                <span className="app">ONDA 셔틀</span>
-                <span className="when">지금</span>
-                <div className="body">
-                  {htmlToPlainText(bodyHtml).trim().split('\n')[0] || '푸시 미리보기'}
-                </div>
-              </div>
-            </aside>
+              </aside>
+            )}
           </div>
         </section>
       </div>
@@ -749,6 +1349,7 @@ export function NoticesPage() {
 /** ADM-04 노선·운행 관리 — Figma 430:18166 */
 export function RoutesPage() {
   const [selected, setSelected] = useState(0)
+  const [listPage, setListPage] = useState(1)
   const [dbRoutes, setDbRoutes] = useState<RouteRow[] | null>(null)
 
   useEffect(() => {
@@ -768,6 +1369,17 @@ export function RoutesPage() {
         desc: r.description ?? `${r.start_location ?? ''} → ${r.end_location ?? ''}`,
       }))
     : routes
+
+  const routePageCount = Math.max(1, Math.ceil(list.length / ROUTES_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, routePageCount)
+  const pagedList = useMemo(() => {
+    const start = (safeListPage - 1) * ROUTES_PAGE_SIZE
+    return list.slice(start, start + ROUTES_PAGE_SIZE)
+  }, [list, safeListPage])
+
+  useEffect(() => {
+    if (listPage > routePageCount) setListPage(routePageCount)
+  }, [listPage, routePageCount])
 
   const detail = list[selected] ?? list[0]
 
@@ -794,26 +1406,36 @@ export function RoutesPage() {
               </tr>
             </thead>
             <tbody>
-              {list.map((row, idx) => (
-                <tr
-                  key={row.name + idx}
-                  style={idx === selected ? { background: '#f5f8ff' } : undefined}
-                  onClick={() => setSelected(idx)}
-                >
-                  <td>{row.name}</td>
-                  <td>
-                    <StatusBadge tone="green">{row.status}</StatusBadge>
-                  </td>
-                  <td>{row.buses}</td>
-                  <td>
-                    <button className="btn btn-outline" type="button" style={{ height: 28 }}>
-                      수정
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {pagedList.map((row, idx) => {
+                const absoluteIdx = (safeListPage - 1) * ROUTES_PAGE_SIZE + idx
+                return (
+                  <tr
+                    key={row.name + absoluteIdx}
+                    style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
+                    onClick={() => setSelected(absoluteIdx)}
+                  >
+                    <td>{row.name}</td>
+                    <td>
+                      <StatusBadge tone="green">{row.status}</StatusBadge>
+                    </td>
+                    <td>{row.buses}</td>
+                    <td>
+                      <button className="btn btn-outline" type="button" style={{ height: 28 }}>
+                        수정
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+          <ListPagination
+            total={list.length}
+            page={safeListPage}
+            pageSize={ROUTES_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="노선 목록 페이지"
+          />
         </section>
 
         <section className="card card-pad">
@@ -1108,6 +1730,21 @@ export function StopsPage() {
 
 /** ADM-07 차량·정비 관리 — Figma 430:19461 */
 export function VehiclesPage() {
+  const [maintQuery, setMaintQuery] = useState('')
+  const [maintStatus, setMaintStatus] = useState('전체 상태')
+
+  const filteredMaintenances = useMemo(() => {
+    const q = maintQuery.trim().toLowerCase()
+    return maintenances.filter((row) => {
+      if (maintStatus !== '전체 상태' && row.status !== maintStatus) return false
+      if (q) {
+        const hay = `${row.plate} ${row.item} ${row.type} ${row.mechanic}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [maintQuery, maintStatus])
+
   const kpis = [
     { label: '전체 차량', value: '28', unit: '대', meta: '정상 20 · 정비중 4 · 점검 필요 4', tone: 'blue' },
     { label: '예정 정비', value: '6', unit: '건', meta: '이번 주 2 · 이번 달 6', tone: 'orange' },
@@ -1148,8 +1785,19 @@ export function VehiclesPage() {
           <div className="figma-panel-head">
             <h3>정비 이력</h3>
             <div className="toolbar">
-              <input className="input" style={{ width: 220, height: 32 }} placeholder="차량 번호 / 정비 항목 검색" />
-              <select className="select" style={{ width: 110, height: 32 }}>
+              <input
+                className="input"
+                style={{ width: 220, height: 32 }}
+                placeholder="차량 번호 / 정비 항목 검색"
+                value={maintQuery}
+                onChange={(e) => setMaintQuery(e.target.value)}
+              />
+              <select
+                className="select"
+                style={{ width: 110, height: 32 }}
+                value={maintStatus}
+                onChange={(e) => setMaintStatus(e.target.value)}
+              >
                 <option>전체 상태</option>
                 <option>완료</option>
                 <option>예정</option>
@@ -1170,7 +1818,14 @@ export function VehiclesPage() {
               </tr>
             </thead>
             <tbody>
-              {maintenances.map((row) => (
+              {filteredMaintenances.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                    검색 결과가 없습니다.
+                  </td>
+                </tr>
+              ) : (
+                filteredMaintenances.map((row) => (
                 <tr key={row.date + row.plate + row.item}>
                   <td>{row.date}</td>
                   <td>{row.plate}</td>
@@ -1182,7 +1837,8 @@ export function VehiclesPage() {
                     <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
 
@@ -1348,7 +2004,10 @@ export function DriversPage() {
 
 /** ADM-08 사용자 관리 — Figma 430:19862 */
 export function UsersPage() {
-  const [selected, setSelected] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [listPage, setListPage] = useState(1)
+  const [listQuery, setListQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('전체 역할')
   const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([])
   const [dbUsers, setDbUsers] = useState<UserRow[] | null>(null)
 
@@ -1369,7 +2028,44 @@ export function UsersPage() {
       }))
     : users
 
-  const user = list[selected] ?? list[0]
+  const filteredList = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
+    return list.filter((row) => {
+      if (roleFilter !== '전체 역할') {
+        if (roleFilter === '관리자' && !row.role.includes('관리')) return false
+        if (roleFilter === '운영자' && !row.role.includes('운영') && !row.role.includes('기사')) return false
+        if (roleFilter === '일반' && !row.role.includes('일반')) return false
+      }
+      if (q) {
+        const hay = `${row.id} ${row.name} ${row.email}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [list, listQuery, roleFilter])
+
+  const userPageCount = Math.max(1, Math.ceil(filteredList.length / USERS_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, userPageCount)
+  const pagedList = useMemo(() => {
+    const start = (safeListPage - 1) * USERS_PAGE_SIZE
+    return filteredList.slice(start, start + USERS_PAGE_SIZE)
+  }, [filteredList, safeListPage])
+
+  useEffect(() => {
+    if (listPage > userPageCount) setListPage(userPageCount)
+  }, [listPage, userPageCount])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [listQuery, roleFilter])
+
+  const user = filteredList.find((u) => u.id === selectedId) ?? filteredList[0] ?? list[0]
+
+  useEffect(() => {
+    if (selectedId && !filteredList.some((u) => u.id === selectedId)) {
+      setSelectedId(filteredList[0]?.id ?? null)
+    }
+  }, [filteredList, selectedId])
 
   useEffect(() => {
     let alive = true
@@ -1416,17 +2112,32 @@ export function UsersPage() {
         <section className="figma-panel">
           <div className="figma-panel-head">
             <h3>
-              사용자 목록 <span className="muted">({list.length}명{dbUsers ? ' · DB' : ''})</span>
+              사용자 목록{' '}
+              <span className="muted">
+                ({filteredList.length}명{dbUsers ? ' · DB' : ''}
+                {filteredList.length !== list.length ? ` / 전체 ${list.length}명` : ''})
+              </span>
             </h3>
           </div>
           <div className="toolbar" style={{ marginBottom: 8 }}>
-            <select className="select" style={{ width: 120, height: 32 }}>
+            <select
+              className="select"
+              style={{ width: 120, height: 32 }}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
               <option>전체 역할</option>
               <option>관리자</option>
               <option>운영자</option>
               <option>일반</option>
             </select>
-            <input className="input" style={{ flex: 1, height: 32 }} placeholder="이름, 아이디, 이메일 검색" />
+            <input
+              className="input"
+              style={{ flex: 1, height: 32 }}
+              placeholder="이름, 아이디, 이메일 검색"
+              value={listQuery}
+              onChange={(e) => setListQuery(e.target.value)}
+            />
             <button className="btn btn-primary btn-xs" type="button">
               사용자 추가
             </button>
@@ -1444,41 +2155,51 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {list.map((row, idx) => (
-                <tr key={row.id} style={idx === selected ? { background: '#f5f8ff' } : undefined}>
-                  <td>{row.id}</td>
-                  <td>{row.name}</td>
-                  <td>{row.email}</td>
-                  <td>
-                    <StatusBadge tone={row.role === '관리자' ? 'blue' : row.role === '운영자' ? 'purple' : 'gray'}>
-                      {row.role}
-                    </StatusBadge>
-                  </td>
-                  <td>
-                    <StatusBadge tone={row.status === '활성' ? 'green' : 'gray'}>{row.status}</StatusBadge>
-                  </td>
-                  <td>{lastLoginByUser.get(row.id) ?? row.lastLogin}</td>
-                  <td>
-                    <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelected(idx)}>
-                      상세
-                    </button>
+              {pagedList.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                    검색 결과가 없습니다.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                pagedList.map((row) => {
+                  const isSelected = (selectedId ?? filteredList[0]?.id) === row.id
+                  return (
+                  <tr key={row.id} style={isSelected ? { background: '#f5f8ff' } : undefined}>
+                    <td>{row.id}</td>
+                    <td>{row.name}</td>
+                    <td>{row.email}</td>
+                    <td>
+                      <StatusBadge tone={row.role === '관리자' ? 'blue' : row.role === '운영자' ? 'purple' : 'gray'}>
+                        {row.role}
+                      </StatusBadge>
+                    </td>
+                    <td>
+                      <StatusBadge tone={row.status === '활성' ? 'green' : 'gray'}>{row.status}</StatusBadge>
+                    </td>
+                    <td>{lastLoginByUser.get(row.id) ?? row.lastLogin}</td>
+                    <td>
+                      <button
+                        className="btn btn-outline btn-xs"
+                        type="button"
+                        onClick={() => setSelectedId(row.id)}
+                      >
+                        상세
+                      </button>
+                    </td>
+                  </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
-          <div className="pagination">
-            <div className="pagination-pages">
-              {[1, 2, 3, 4].map((n) => (
-                <button key={n} className={`page-chip${n === 1 ? ' active' : ''}`} type="button">
-                  {n}
-                </button>
-              ))}
-            </div>
-            <select className="select" style={{ width: 110, height: 28 }}>
-              <option>10개씩 보기</option>
-            </select>
-          </div>
+          <ListPagination
+            total={filteredList.length}
+            page={safeListPage}
+            pageSize={USERS_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="사용자 목록 페이지"
+          />
         </section>
 
         <div className="stack">
@@ -1562,23 +2283,123 @@ export function UsersPage() {
 }
 
 /** ADM-09 시스템 기록 조회 — Figma 430:20246 */
+function matchesSystemLogType(type: string, result: string, filter: string): boolean {
+  if (filter === '전체') return true
+  const t = type.toLowerCase()
+  if (filter === '운영 기록') {
+    return /운행|노선|차량|배차|정비|공지/.test(t)
+  }
+  if (filter === '사용자 활동') {
+    return /로그인|사용자|권한/.test(t)
+  }
+  if (filter === '시스템 변경') {
+    return /시스템|설정|내보내기/.test(t)
+  }
+  if (filter === '오류 / 경고') {
+    return result === '실패' || result === '경고' || /실패|오류|경고/.test(t)
+  }
+  return true
+}
+
+function parseSystemLogPeriod(period: string): { start: Date | null; end: Date | null } {
+  const m = period.trim().match(
+    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s*[~～-]\s*(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/,
+  )
+  if (!m) return { start: null, end: null }
+  const start = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0)
+  const end = new Date(Number(m[4]), Number(m[5]) - 1, Number(m[6]), 23, 59, 59)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { start: null, end: null }
+  return { start, end }
+}
+
+function systemLogTimeMs(time: string): number | null {
+  const m = time.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/)
+  if (!m) return null
+  const d = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] ?? 0),
+  )
+  const t = d.getTime()
+  return Number.isFinite(t) ? t : null
+}
+
 export function SystemPage() {
   const [gpsLogs, setGpsLogs] = useState<GpsReceiveLog[]>([])
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [gpsUpdatedAt, setGpsUpdatedAt] = useState<string | null>(null)
-  const [gpsPage, setGpsPage] = useState(0)
-  const GPS_PAGE_SIZE = 10
+  const [gpsPage, setGpsPage] = useState(1)
 
   const [dbSystemLogs, setDbSystemLogs] = useState<SystemLogRow[]>([])
   const [systemLogsStatus, setSystemLogsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
-  const [systemLogsPage, setSystemLogsPage] = useState(0)
-  const SYSTEM_LOGS_PAGE_SIZE = 5
-  const systemLogsToShow: SystemLogRow[] = isSupabaseConfigured
+  const [systemLogsPage, setSystemLogsPage] = useState(1)
+  const allSystemLogs: SystemLogRow[] = isSupabaseConfigured
     ? dbSystemLogs
     : (mockSystemLogs as SystemLogRow[])
 
+  const [draftTypeFilter, setDraftTypeFilter] = useState('전체')
+  const [draftActorFilter, setDraftActorFilter] = useState('전체')
+  const [draftPeriod, setDraftPeriod] = useState('')
+  const [draftKeyword, setDraftKeyword] = useState('')
+  const [appliedTypeFilter, setAppliedTypeFilter] = useState('전체')
+  const [appliedActorFilter, setAppliedActorFilter] = useState('전체')
+  const [appliedPeriod, setAppliedPeriod] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
+
   const [selectedSystemLog, setSelectedSystemLog] = useState<SystemLogRow | null>(null)
   const [selectedGpsLog, setSelectedGpsLog] = useState<GpsReceiveLog | null>(null)
+
+  const actorOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const row of allSystemLogs) {
+      const actor = (row.actor ?? '').trim()
+      if (actor) set.add(actor)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [allSystemLogs])
+
+  const systemLogsToShow = useMemo(() => {
+    const q = appliedKeyword.trim().toLowerCase()
+    const { start, end } = parseSystemLogPeriod(appliedPeriod)
+    return allSystemLogs.filter((row) => {
+      if (!matchesSystemLogType(row.type, row.result, appliedTypeFilter)) return false
+      if (appliedActorFilter !== '전체' && (row.actor ?? '') !== appliedActorFilter) return false
+      if (start && end) {
+        const t = systemLogTimeMs(row.time)
+        if (t != null && (t < start.getTime() || t > end.getTime())) return false
+      }
+      if (q) {
+        const hay = `${row.type} ${row.action} ${row.actor ?? ''} ${row.target ?? ''} ${row.result} ${row.ip ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [allSystemLogs, appliedTypeFilter, appliedActorFilter, appliedPeriod, appliedKeyword])
+
+  const applySystemLogFilters = () => {
+    setAppliedTypeFilter(draftTypeFilter)
+    setAppliedActorFilter(draftActorFilter)
+    setAppliedPeriod(draftPeriod)
+    setAppliedKeyword(draftKeyword)
+    setSystemLogsPage(1)
+    setSelectedSystemLog(null)
+  }
+
+  const resetSystemLogFilters = () => {
+    setDraftTypeFilter('전체')
+    setDraftActorFilter('전체')
+    setDraftPeriod('')
+    setDraftKeyword('')
+    setAppliedTypeFilter('전체')
+    setAppliedActorFilter('전체')
+    setAppliedPeriod('')
+    setAppliedKeyword('')
+    setSystemLogsPage(1)
+    setSelectedSystemLog(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -1600,7 +2421,7 @@ export function SystemPage() {
       setGpsLogs(rows)
       setGpsStatus('ok')
       setGpsUpdatedAt(new Date().toLocaleTimeString('ko-KR', { hour12: false }))
-      setGpsPage(0) // 실시간 갱신 시 가장 최신 페이지(1)로 이동
+      setGpsPage(1)
       setSelectedGpsLog(null)
     }
     void load()
@@ -1643,15 +2464,19 @@ export function SystemPage() {
     }
   }, [])
 
-  const gpsTotalPages = Math.max(1, Math.ceil(gpsLogs.length / GPS_PAGE_SIZE))
-  const pageClamped = Math.min(gpsPage, gpsTotalPages - 1)
-  const visibleGpsLogs = gpsLogs.slice(pageClamped * GPS_PAGE_SIZE, (pageClamped + 1) * GPS_PAGE_SIZE)
+  const gpsPageClamped = Math.min(gpsPage, Math.max(1, Math.ceil(gpsLogs.length / GPS_LOGS_PAGE_SIZE)))
+  const visibleGpsLogs = gpsLogs.slice(
+    (gpsPageClamped - 1) * GPS_LOGS_PAGE_SIZE,
+    gpsPageClamped * GPS_LOGS_PAGE_SIZE,
+  )
 
-  const systemLogsTotalPages = Math.max(1, Math.ceil(systemLogsToShow.length / SYSTEM_LOGS_PAGE_SIZE))
-  const systemLogsPageClamped = Math.min(systemLogsPage, systemLogsTotalPages - 1)
+  const systemLogsPageClamped = Math.min(
+    systemLogsPage,
+    Math.max(1, Math.ceil(systemLogsToShow.length / SYSTEM_LOGS_PAGE_SIZE)),
+  )
   const visibleSystemLogs = systemLogsToShow.slice(
+    (systemLogsPageClamped - 1) * SYSTEM_LOGS_PAGE_SIZE,
     systemLogsPageClamped * SYSTEM_LOGS_PAGE_SIZE,
-    (systemLogsPageClamped + 1) * SYSTEM_LOGS_PAGE_SIZE,
   )
 
   return (
@@ -1663,7 +2488,11 @@ export function SystemPage() {
         <div className="toolbar" style={{ flexWrap: 'wrap' }}>
           <div className="field" style={{ minWidth: 120 }}>
             <label>기록 유형</label>
-            <select className="select">
+            <select
+              className="select"
+              value={draftTypeFilter}
+              onChange={(e) => setDraftTypeFilter(e.target.value)}
+            >
               <option>전체</option>
               <option>운영 기록</option>
               <option>사용자 활동</option>
@@ -1673,22 +2502,54 @@ export function SystemPage() {
           </div>
           <div className="field" style={{ minWidth: 120 }}>
             <label>사용자</label>
-            <select className="select">
+            <select
+              className="select"
+              value={draftActorFilter}
+              onChange={(e) => setDraftActorFilter(e.target.value)}
+            >
               <option>전체</option>
+              {actorOptions.map((actor) => (
+                <option key={actor} value={actor}>
+                  {actor}
+                </option>
+              ))}
             </select>
           </div>
           <div className="field" style={{ minWidth: 220 }}>
             <label>기간</label>
-            <input className="input" defaultValue="2026.07.13 ~ 2026.07.20" />
+            <input
+              className="input"
+              value={draftPeriod}
+              onChange={(e) => setDraftPeriod(e.target.value)}
+              placeholder="YYYY.MM.DD ~ YYYY.MM.DD"
+            />
           </div>
           <div className="field" style={{ flex: 1, minWidth: 180 }}>
             <label>키워드 검색</label>
-            <input className="input" placeholder="검색어를 입력하세요." />
+            <input
+              className="input"
+              placeholder="검색어를 입력하세요."
+              value={draftKeyword}
+              onChange={(e) => setDraftKeyword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySystemLogFilters()
+              }}
+            />
           </div>
-          <button className="btn btn-outline" type="button" style={{ alignSelf: 'end' }}>
+          <button
+            className="btn btn-outline"
+            type="button"
+            style={{ alignSelf: 'end' }}
+            onClick={resetSystemLogFilters}
+          >
             초기화
           </button>
-          <button className="btn btn-primary" type="button" style={{ alignSelf: 'end' }}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            style={{ alignSelf: 'end' }}
+            onClick={applySystemLogFilters}
+          >
             조회하기
           </button>
         </div>
@@ -1696,7 +2557,7 @@ export function SystemPage() {
 
       <div className="card-head">
         <h3>
-          기록 요약 <span className="muted">(2026.07.13 ~ 2026.07.20)</span>
+          기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
         </h3>
         <button className="btn btn-outline" type="button">
           엑셀 다운로드
@@ -1794,27 +2655,13 @@ export function SystemPage() {
               )}
             </tbody>
           </table>
-          <div className="pagination">
-            <div className="pagination-pages">
-              {Array.from({ length: systemLogsTotalPages }).map((_, i) => {
-                const n = i + 1
-                const active = n - 1 === systemLogsPageClamped
-                return (
-                  <button
-                    key={n}
-                    className={`page-chip${active ? ' active' : ''}`}
-                    type="button"
-                    onClick={() => setSystemLogsPage(i)}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            <span className="muted" style={{ fontSize: 12 }}>
-              {SYSTEM_LOGS_PAGE_SIZE}개씩 보기
-            </span>
-          </div>
+          <ListPagination
+            total={systemLogsToShow.length}
+            page={systemLogsPageClamped}
+            pageSize={SYSTEM_LOGS_PAGE_SIZE}
+            onPageChange={setSystemLogsPage}
+            ariaLabel="시스템 로그 페이지"
+          />
           <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
             시스템 시간 기준으로 기록이 저장됩니다.
           </p>
@@ -1923,24 +2770,13 @@ export function SystemPage() {
               )}
             </tbody>
           </table>
-          <div className="pagination" style={{ marginTop: 10 }}>
-            <div className="pagination-pages">
-              {Array.from({ length: gpsTotalPages }).map((_, i) => {
-                const n = i + 1
-                const active = n - 1 === pageClamped
-                return (
-                  <button
-                    key={n}
-                    className={`page-chip${active ? ' active' : ''}`}
-                    type="button"
-                    onClick={() => setGpsPage(i)}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          <ListPagination
+            total={gpsLogs.length}
+            page={gpsPageClamped}
+            pageSize={GPS_LOGS_PAGE_SIZE}
+            onPageChange={setGpsPage}
+            ariaLabel="GPS 로그 페이지"
+          />
           <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
             DB `operation_logs`의 GPS 수신만 표시합니다. {GPS_LOGS_MAX}건을 넘으면 오래된 로그부터 삭제됩니다.
           </p>

@@ -22,7 +22,11 @@ import android.os.IBinder
 
 import android.os.Looper
 
+import android.os.SystemClock
+
 import android.util.Log
+
+import java.time.Instant
 
 import androidx.core.app.NotificationCompat
 
@@ -64,6 +68,34 @@ class OperationLocationService : Service() {
 
             val location = result.lastLocation ?: return
 
+            val systemNow = System.currentTimeMillis()
+
+            val locationTime = location.time
+
+            val elapsedAgeMs = if (location.elapsedRealtimeNanos > 0L) {
+
+                ((SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L)
+
+                    .coerceAtLeast(0L)
+
+            } else {
+
+                -1L
+
+            }
+
+            // recorded_at = 실제 측정 시각 (location.time 왜곡 시 elapsedRealtime 나이로 보정)
+
+            val measuredAtMillis = if (elapsedAgeMs >= 0L) {
+
+                systemNow - elapsedAgeMs
+
+            } else {
+
+                locationTime.takeIf { it > 0L } ?: systemNow
+
+            }
+
             LatestLocationHolder.update(
 
                 operationId = operationId,
@@ -74,7 +106,29 @@ class OperationLocationService : Service() {
 
                 accuracy = location.accuracy,
 
-                recordedAtMillis = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                recordedAtMillis = measuredAtMillis,
+
+            )
+
+            val ageSec = if (elapsedAgeMs >= 0L) elapsedAgeMs / 1000.0
+
+            else if (locationTime > 0L) (systemNow - locationTime) / 1000.0
+
+            else 0.0
+
+            Log.d(
+
+                TIME_TAG,
+
+                "location callback: lat=${location.latitude} lng=${location.longitude} " +
+
+                    "location.time=$locationTime locationTimeIso=${iso(locationTime)} " +
+
+                    "systemNow=$systemNow systemNowIso=${iso(systemNow)} " +
+
+                    "elapsedAgeMs=$elapsedAgeMs ageSec=$ageSec " +
+
+                    "measuredAtIso=${iso(measuredAtMillis)} batch=${result.locations.size}",
 
             )
 
@@ -322,11 +376,17 @@ class OperationLocationService : Service() {
 
         private const val TAG = "OperationLocation"
 
+        private const val TIME_TAG = "ONDA_LOCATION_TIME"
+
+        private fun iso(epochMs: Long): String =
+
+            if (epochMs > 0L) Instant.ofEpochMilli(epochMs).toString() else "-"
+
         private const val CHANNEL_ID = "operation_location"
 
         private const val NOTIFICATION_ID = 1001
 
-        /** GPS 샘플링 — 업로드(3초)와 맞춤 */
+        /** Fused GPS 요청 주기 — heartbeat(3초)와 맞춰 최신 fix를 확보 */
         private const val INTERVAL_MS = 3_000L
 
     }

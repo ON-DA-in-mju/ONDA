@@ -15,12 +15,18 @@ import org.json.JSONObject
  */
 object OperationGpsApi {
     private const val TAG = "OperationGpsApi"
+    private const val TIME_TAG = "ONDA_LOCATION_TIME"
     const val MAX_LOGS = 100
     /** 매 report마다 trim 하면 INSERT 루프가 수십 초 막힐 수 있음 → 주기 제한 */
     private const val TRIM_INTERVAL_MS = 60_000L
 
     @Volatile
     private var lastTrimAtMs: Long = 0L
+
+    @Volatile
+    private var lastSentLat: Double? = null
+    @Volatile
+    private var lastSentLng: Double? = null
 
     suspend fun report(
         operationId: String,
@@ -29,6 +35,7 @@ object OperationGpsApi {
         accuracy: Float?,
         vehicleName: String? = null,
         driverName: String? = null,
+        recordedAtMillis: Long? = null,
     ): Boolean = withContext(Dispatchers.IO) {
         if (!SupabaseClient.isConfigured || SupabaseClient.accessToken.isNullOrBlank()) {
             Log.d(TAG, "skip: supabase not ready")
@@ -39,8 +46,25 @@ object OperationGpsApi {
             return@withContext false
         }
 
-        val recordedAt = Instant.now().toString()
+        val nowMs = System.currentTimeMillis()
+        val nowIso = Instant.ofEpochMilli(nowMs).toString()
+        val measuredMs = recordedAtMillis?.takeIf { it > 0L } ?: nowMs
+        val measuredAgeMs = (nowMs - measuredMs).coerceAtLeast(0L)
+        val ageSec = measuredAgeMs / 1000.0
+        // 학생 앱 「마지막 갱신 N초 전」= now - recorded_at.
+        // 에뮬/기기 Location.time·시계 오차로 GPS time 이 수십 초 과거일 수 있어
+        // vehicle_locations.recorded_at 은 항상 업로드 시각(now)을 쓴다.
         // 위치 INSERT를 먼저 — 로그/trim 지연이 Realtime에 영향 주지 않게
+        val recordedAt = nowIso
+        val sameAsPrevious = lastSentLat == latitude && lastSentLng == longitude
+        lastSentLat = latitude
+        lastSentLng = longitude
+        Log.d(
+            TIME_TAG,
+            "vehicle_locations insert: recordedAt=$recordedAt now=$nowIso " +
+                "gpsTimeAgeSec=$ageSec source=upload_now " +
+                "lat=$latitude lng=$longitude sameAsPrevious=$sameAsPrevious",
+        )
         val locOk = insertVehicleLocation(opUuid, latitude, longitude, recordedAt)
         val logOk = insertOperationLog(
             opUuid = opUuid,
@@ -49,7 +73,7 @@ object OperationGpsApi {
             accuracy = accuracy,
             vehicleName = vehicleName,
             driverName = driverName,
-            recordedAt = recordedAt,
+            recordedAt = nowIso,
         )
         if (logOk) maybeTrimOperationLogs()
         locOk || logOk
@@ -157,7 +181,7 @@ object OperationGpsApi {
         }
     }
 
-    private fun resolveOperationUuid(operationId: String): String? {
+    fun resolveOperationUuid(operationId: String): String? {
         if (operationId.isBlank()) return null
         val uuidRegex = Regex(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",

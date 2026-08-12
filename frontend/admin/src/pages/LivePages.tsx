@@ -18,6 +18,7 @@ import { markNotificationRead } from '../lib/adminNotificationsApi'
 import { LiveVehiclesMap } from '../components/LiveVehiclesMap'
 import { LIVE_MAP_ROUTES } from '../data/cityShuttleStops'
 import { StatusBadge } from '../components/ui/Form'
+import { ListPagination } from '../components/ui/ListPagination'
 
 /** "명지대역 셔틀 (18시 이후)" → base + suffix 두 줄 표시용 */
 function splitRouteName(routeName: string): { base: string; suffix: string | null } {
@@ -219,26 +220,6 @@ export function LivePage() {
     const start = (safeListPage - 1) * LIVE_LIST_PAGE_SIZE
     return vehicles.slice(start, start + LIVE_LIST_PAGE_SIZE)
   }, [vehicles, safeListPage])
-
-  const pageRangeLabel = useMemo(() => {
-    if (vehicles.length === 0) return '0-0'
-    const start = (safeListPage - 1) * LIVE_LIST_PAGE_SIZE + 1
-    const end = Math.min(safeListPage * LIVE_LIST_PAGE_SIZE, vehicles.length)
-    return `${start}-${end}`
-  }, [vehicles.length, safeListPage])
-
-  const visiblePageNumbers = useMemo(() => {
-    if (listPageCount <= LIVE_PAGE_WINDOW) {
-      return Array.from({ length: listPageCount }, (_, i) => i + 1)
-    }
-    let start = Math.max(1, safeListPage - Math.floor(LIVE_PAGE_WINDOW / 2))
-    let end = start + LIVE_PAGE_WINDOW - 1
-    if (end > listPageCount) {
-      end = listPageCount
-      start = end - LIVE_PAGE_WINDOW + 1
-    }
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-  }, [listPageCount, safeListPage])
 
   useEffect(() => {
     setListPage(1)
@@ -449,62 +430,14 @@ export function LivePage() {
             </tbody>
           </table>
           <div className="live-list-footer">
-            {vehicles.length > 0 ? (
-              <div className="live-list-pagination">
-                <div className="live-list-pagination-meta">
-                  총 {vehicles.length}건 · {pageRangeLabel}
-                </div>
-                <div className="live-list-pagination-pages" role="navigation" aria-label="목록 페이지">
-                  <button
-                    type="button"
-                    className="page-chip"
-                    disabled={safeListPage <= 1}
-                    onClick={() => setListPage(1)}
-                    aria-label="첫 페이지"
-                  >
-                    «
-                  </button>
-                  <button
-                    type="button"
-                    className="page-chip"
-                    disabled={safeListPage <= 1}
-                    onClick={() => setListPage((p) => Math.max(1, p - 1))}
-                    aria-label="이전 페이지"
-                  >
-                    ‹
-                  </button>
-                  {visiblePageNumbers.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      className={`page-chip${n === safeListPage ? ' active' : ''}`}
-                      onClick={() => setListPage(n)}
-                      aria-current={n === safeListPage ? 'page' : undefined}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="page-chip"
-                    disabled={safeListPage >= listPageCount}
-                    onClick={() => setListPage((p) => Math.min(listPageCount, p + 1))}
-                    aria-label="다음 페이지"
-                  >
-                    ›
-                  </button>
-                  <button
-                    type="button"
-                    className="page-chip"
-                    disabled={safeListPage >= listPageCount}
-                    onClick={() => setListPage(listPageCount)}
-                    aria-label="마지막 페이지"
-                  >
-                    »
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            <ListPagination
+              total={vehicles.length}
+              page={safeListPage}
+              pageSize={LIVE_LIST_PAGE_SIZE}
+              onPageChange={setListPage}
+              ariaLabel="운행 목록 페이지"
+              windowSize={LIVE_PAGE_WINDOW}
+            />
             {staleAlert.length > 0 ? (
               <div className="alert alert-danger live-list-gps-alert">
                 GPS 미수신·오류 차량: {staleAlert[0].vehicleName} ({staleAlert[0].driverName})

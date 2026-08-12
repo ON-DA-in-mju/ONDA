@@ -5,6 +5,8 @@ enum class AlarmCategory {
     AssignmentChange,
     DepartureTimeChange,
     OperationCancel,
+    /** 관리자 공지(기사 대상) */
+    Notice,
 }
 
 enum class AlarmFilter {
@@ -12,6 +14,7 @@ enum class AlarmFilter {
     Unread,
     Operation,
     AssignmentChange,
+    Notice,
 }
 
 data class OperationAlarm(
@@ -21,6 +24,11 @@ data class OperationAlarm(
     val timeLabel: String,
     val category: AlarmCategory,
     val isUnread: Boolean,
+    /** 공지 상세 다이얼로그용 (관리자 미리보기와 동일 구성) */
+    val noticeHeadline: String? = null,
+    val noticeType: String? = null,
+    val noticeDateTime: String? = null,
+    val noticeContent: String? = null,
 )
 
 object MockOperationAlarms {
@@ -29,6 +37,7 @@ object MockOperationAlarms {
     val filters: List<Pair<AlarmFilter, String>> = listOf(
         AlarmFilter.All to "전체",
         AlarmFilter.Unread to "미확인",
+        AlarmFilter.Notice to "공지",
         AlarmFilter.Operation to "운행",
         AlarmFilter.AssignmentChange to "배정 변경",
     )
@@ -48,6 +57,7 @@ object MockOperationAlarms {
         return when (filter) {
             AlarmFilter.All -> current
             AlarmFilter.Unread -> current.filter { it.isUnread }
+            AlarmFilter.Notice -> current.filter { it.category == AlarmCategory.Notice }
             AlarmFilter.Operation -> current.filter {
                 it.category == AlarmCategory.Operation ||
                     it.category == AlarmCategory.DepartureTimeChange ||

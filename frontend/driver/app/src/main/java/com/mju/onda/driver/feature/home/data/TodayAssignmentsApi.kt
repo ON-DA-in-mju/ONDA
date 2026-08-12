@@ -49,9 +49,9 @@ object TodayAssignmentsApi {
                 "operation_date",
                 "status",
                 "round",
-                "origin",
-                "destination",
                 "expected_end_time",
+                "origin_stop:origin_stop_id(stop_name)",
+                "destination_stop:destination_stop_id(stop_name)",
                 "buses:bus_id(bus_name)",
                 "schedules:schedule_id(departure_time,routes:route_id(route_name))",
             ).joinToString(",")
@@ -87,6 +87,8 @@ object TodayAssignmentsApi {
             val schedules = o.optJSONObject("schedules")
             val routes = schedules?.optJSONObject("routes")
             val buses = o.optJSONObject("buses")
+            val originStop = o.optJSONObject("origin_stop")
+            val destinationStop = o.optJSONObject("destination_stop")
             val externalId = o.optString("external_id")
             val uuid = o.optString("id")
             out.add(
@@ -95,8 +97,8 @@ object TodayAssignmentsApi {
                     routeName = routes?.optString("route_name").orEmpty(),
                     vehicleName = buses?.optString("bus_name").orEmpty(),
                     departTime = hhmm(schedules?.optString("departure_time")),
-                    origin = o.optString("origin"),
-                    destination = o.optString("destination"),
+                    origin = originStop?.optString("stop_name").orEmpty(),
+                    destination = destinationStop?.optString("stop_name").orEmpty(),
                     round = o.optInt("round", 1),
                     expectedEndTime = hhmm(o.optString("expected_end_time")),
                     status = mapStatus(o.optString("status", "SCHEDULED")),

@@ -10,15 +10,15 @@ const OPS_SELECT = `
   operation_date,
   status,
   round,
-  origin,
-  destination,
   expected_end_time,
   driver_id,
   bus_id,
   schedule_id,
   users:driver_id ( id, name, login_id, email ),
   buses:bus_id ( bus_name ),
-  schedules:schedule_id ( departure_time, routes:route_id ( route_name ) )
+  schedules:schedule_id ( departure_time, routes:route_id ( route_name ) ),
+  origin_stop:origin_stop_id ( stop_name ),
+  destination_stop:destination_stop_id ( stop_name )
 `
 
 type OpRow = {
@@ -27,8 +27,6 @@ type OpRow = {
   operation_date: string
   status: string
   round: number | null
-  origin: string | null
-  destination: string | null
   expected_end_time: string | null
   driver_id: string
   bus_id: string
@@ -39,6 +37,8 @@ type OpRow = {
     departure_time: string
     routes: { route_name: string } | null
   } | null
+  origin_stop: { stop_name: string } | null
+  destination_stop: { stop_name: string } | null
 }
 
 function hhmm(value: string | null | undefined): string {
@@ -80,8 +80,8 @@ function rowToAssignment(row: OpRow): TodayAssignment {
     vehicleName: row.buses?.bus_name || '',
     departTime: hhmm(row.schedules?.departure_time),
     expectedEndTime: hhmm(row.expected_end_time),
-    origin: row.origin || '',
-    destination: row.destination || '',
+    origin: row.origin_stop?.stop_name || '',
+    destination: row.destination_stop?.stop_name || '',
     round: row.round ?? 1,
     status: mapDbStatus(row.status),
   }
@@ -135,6 +135,14 @@ async function resolveScheduleId(routeName: string, departTime: string, date: st
     .maybeSingle()
   if (error || !sch?.id) return null
   return sch.id
+}
+
+async function resolveStopId(stopName: string): Promise<string | null> {
+  const name = stopName.trim()
+  if (!name) return null
+  const { data, error } = await supabase.from('stops').select('id').eq('stop_name', name).maybeSingle()
+  if (error || !data?.id) return null
+  return data.id
 }
 
 async function findOpUuid(idOrExternal: string): Promise<string | null> {
@@ -192,6 +200,15 @@ export async function createAssignment(
     }
   }
 
+  const originStopId = payload.origin ? await resolveStopId(payload.origin) : null
+  if (payload.origin && !originStopId) {
+    return { ok: false, message: `출발 정류장 없음: ${payload.origin} (stops.stop_name)` }
+  }
+  const destinationStopId = payload.destination ? await resolveStopId(payload.destination) : null
+  if (payload.destination && !destinationStopId) {
+    return { ok: false, message: `도착 정류장 없음: ${payload.destination} (stops.stop_name)` }
+  }
+
   const externalId =
     payload.id?.trim() ||
     `op-${payload.driverId}-${payload.departTime.replace(':', '')}-${Date.now().toString(36)}`
@@ -204,8 +221,8 @@ export async function createAssignment(
     status: mapUiStatusToDb(payload.status) ?? 'SCHEDULED',
     external_id: externalId,
     round: payload.round ?? 1,
-    origin: payload.origin,
-    destination: payload.destination,
+    origin_stop_id: originStopId,
+    destination_stop_id: destinationStopId,
     expected_end_time: payload.expectedEndTime.length === 5 ? `${payload.expectedEndTime}:00` : payload.expectedEndTime,
   }
 
@@ -226,8 +243,24 @@ export async function updateAssignment(
 
   const dbPatch: Database['public']['Tables']['operations']['Update'] = {}
   if (patch.status) dbPatch.status = mapUiStatusToDb(patch.status)
-  if (patch.origin != null) dbPatch.origin = patch.origin
-  if (patch.destination != null) dbPatch.destination = patch.destination
+  if (patch.origin != null) {
+    if (!patch.origin.trim()) {
+      dbPatch.origin_stop_id = null
+    } else {
+      const stopId = await resolveStopId(patch.origin)
+      if (!stopId) return { ok: false, message: `출발 정류장 없음: ${patch.origin}` }
+      dbPatch.origin_stop_id = stopId
+    }
+  }
+  if (patch.destination != null) {
+    if (!patch.destination.trim()) {
+      dbPatch.destination_stop_id = null
+    } else {
+      const stopId = await resolveStopId(patch.destination)
+      if (!stopId) return { ok: false, message: `도착 정류장 없음: ${patch.destination}` }
+      dbPatch.destination_stop_id = stopId
+    }
+  }
   if (patch.round != null) dbPatch.round = patch.round
   if (patch.expectedEndTime != null) {
     dbPatch.expected_end_time =

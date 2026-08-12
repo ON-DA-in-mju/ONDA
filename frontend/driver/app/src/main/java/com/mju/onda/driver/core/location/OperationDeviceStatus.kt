@@ -8,7 +8,6 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import androidx.core.content.ContextCompat
-import androidx.core.location.LocationManagerCompat
 
 /** 운행 시작·상세 상태 등에서 기기/전송 상태를 공통으로 읽는다. */
 object OperationDeviceStatus {
@@ -35,10 +34,19 @@ object OperationDeviceStatus {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    /**
+     * Android 시스템 위치 서비스(Location) ON/OFF.
+     * 위치 권한 여부와 무관하다. `operation_device_status.gps_enabled` 와 동일 의미.
+     */
     fun isGpsEnabled(context: Context): Boolean {
         return try {
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            LocationManagerCompat.isLocationEnabled(lm)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                lm.isLocationEnabled
+            } else {
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                    lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            }
         } catch (_: Throwable) {
             false
         }

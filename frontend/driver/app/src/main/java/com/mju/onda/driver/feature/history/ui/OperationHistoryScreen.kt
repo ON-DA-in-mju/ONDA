@@ -32,10 +32,10 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.SportsMotorsports
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material3.Button
@@ -425,7 +425,7 @@ private fun HistoryEmptyContent(
             contentPadding = PaddingValues(horizontal = 16.dp),
         ) {
             Icon(
-                imageVector = Icons.Outlined.SportsMotorsports,
+                imageVector = Icons.Outlined.DirectionsCar,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

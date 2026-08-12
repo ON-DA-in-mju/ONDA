@@ -3,7 +3,6 @@ package com.mju.onda.driver.feature.precheck.data
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
@@ -20,7 +19,7 @@ import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.core.content.ContextCompat
-import androidx.core.location.LocationManagerCompat
+import com.mju.onda.driver.core.location.OperationDeviceStatus
 
 /**
  * 운행 전 점검 항목을 실제 기기·권한 상태로 구성한다.
@@ -100,7 +99,7 @@ object PreCheckDeviceStatus {
         } else {
             fineGranted || coarseGranted
         }
-        val locationEnabled = isLocationEnabled(context)
+        val gpsEnabled = OperationDeviceStatus.isGpsEnabled(context)
 
         val locationItem = when {
             fineGranted || coarseGranted ->
@@ -125,7 +124,7 @@ object PreCheckDeviceStatus {
                 PreCheckItem("background", Icons.Outlined.Layers, "백그라운드 위치", "거부됨", CheckStatus.ActionRequired)
         }
 
-        val gpsItem = if (locationEnabled) {
+        val gpsItem = if (gpsEnabled) {
             PreCheckItem("gps", Icons.Outlined.Settings, "GPS", "켜짐", CheckStatus.Normal)
         } else {
             PreCheckItem("gps", Icons.Outlined.Settings, "GPS", "꺼짐", CheckStatus.ActionRequired)
@@ -242,16 +241,6 @@ object PreCheckDeviceStatus {
                 "확인 실패",
                 CheckStatus.Caution,
             )
-        }
-    }
-
-    private fun isLocationEnabled(context: Context): Boolean {
-        return try {
-            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            LocationManagerCompat.isLocationEnabled(lm)
-        } catch (t: Throwable) {
-            Log.w(TAG, "location enabled check failed", t)
-            false
         }
     }
 

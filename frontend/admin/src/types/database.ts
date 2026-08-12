@@ -185,8 +185,10 @@ type Tables = {
       /** 로컬 mock 배차 id (op-0905 …) */
       external_id: string | null
       round: number | null
-      origin: string | null
-      destination: string | null
+      /** 출발 정류장 (stops.id) */
+      origin_stop_id: string | null
+      /** 도착 정류장 (stops.id) */
+      destination_stop_id: string | null
       expected_end_time: string | null
     }
     Insert: {
@@ -202,8 +204,8 @@ type Tables = {
       updated_at?: string | null
       external_id?: string | null
       round?: number | null
-      origin?: string | null
-      destination?: string | null
+      origin_stop_id?: string | null
+      destination_stop_id?: string | null
       expected_end_time?: string | null
     }
     Update: Partial<Tables['operations']['Insert']>
@@ -457,6 +459,26 @@ type Tables = {
       created_at?: string
     }
     Update: Partial<Tables['safe_stop_requests']['Insert']>
+    Relationships: []
+  }
+  operation_device_status: {
+    Row: {
+      operation_id: string
+      gps_ok: boolean
+      gps_enabled: boolean
+      last_location_at: string | null
+      last_accuracy: number | null
+      updated_at: string
+    }
+    Insert: {
+      operation_id: string
+      gps_ok?: boolean
+      gps_enabled?: boolean
+      last_location_at?: string | null
+      last_accuracy?: number | null
+      updated_at?: string
+    }
+    Update: Partial<Tables['operation_device_status']['Insert']>
     Relationships: []
   }
 }

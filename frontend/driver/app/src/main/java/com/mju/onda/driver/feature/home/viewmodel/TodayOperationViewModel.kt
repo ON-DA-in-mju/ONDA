@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
+import com.mju.onda.driver.feature.alarm.data.DriverNoticesPoller
 import com.mju.onda.driver.feature.alarm.data.MockOperationAlarms
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 import com.mju.onda.driver.feature.home.data.AssignedOperation
@@ -37,7 +38,7 @@ data class TodayOperationUiState(
     val showPermissionRequiredDialog: Boolean = false,
     /** 배차 API 실패 시 안내 (빈 목록과 구분) */
     val loadError: String? = null,
-    /** 기본 None — 하단 테스트 버튼으로만 표시 */
+    /** DRI-01-02E/F — 출발 임박·미시작 배너 (시각 기준 자동) */
     val departureAlert: DepartureHomeAlert = DepartureHomeAlert.None,
 ) {
     val assignedCount: Int get() = operations.size
@@ -155,7 +156,6 @@ class TodayOperationViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true, loadError = null) }
             val previousOps = _uiState.value.operations
-            val cachedBefore = TodayAssignmentsHolder.getOrNull().orEmpty()
             val userId = SessionStateHolder.currentUserId
             var loadError: String? = null
             when (
@@ -166,34 +166,27 @@ class TodayOperationViewModel : ViewModel() {
                 }
             ) {
                 is TodayAssignmentsApi.Result.Ok -> {
-                    if (result.items.isEmpty() && cachedBefore.isNotEmpty()) {
-                        // 서버가 일시적으로 0건이어도 기존 목록을 지우지 않음
-                        loadError =
-                            "서버에서 오늘 배차 0건이 내려왔습니다. 이전 목록을 유지합니다. (DB 시드/날짜를 확인하세요)"
-                    } else if (result.items.isEmpty()) {
-                        TodayAssignmentsHolder.set(emptyList())
-                        loadError =
-                            "오늘 배차가 DB에 없습니다. 관리자에게 배차 등록(시드)을 요청하세요."
-                    } else {
-                        TodayAssignmentsHolder.set(result.items)
-                        OperationRuntimeStateHolder.reconcileWithFetchedAssignments(result.items)
-                    }
+                    // DB 결과를 그대로 반영 (0건이면 목록도 비움 — 로컬 캐시 유지하지 않음)
+                    TodayAssignmentsHolder.set(result.items)
+                    OperationRuntimeStateHolder.reconcileWithFetchedAssignments(result.items)
                 }
                 is TodayAssignmentsApi.Result.Failed -> {
-                    // 실패 시 기존 목록은 유지하고 안내만 표시
+                    // 네트워크/권한 실패 시에만 기존 목록 유지 + 안내
                     loadError = result.reason
                 }
             }
             SessionStateHolder.markAssignmentsLoaded()
             val newOps = restoredHomeOperations()
-            AlarmGenerator.checkDepartureOverdue(newOps)
+            applyDepartureAlerts(newOps)
             AlarmGenerator.checkNewAssignments(previousOps, newOps)
+            DriverNoticesPoller.pollOnce()
             _uiState.update {
                 it.copy(
                     isRefreshing = false,
                     operations = newOps,
                     loadError = loadError,
                     unreadAlarmCount = MockOperationAlarms.unreadCount(),
+                    departureAlert = resolveDepartureHomeAlert(newOps),
                 )
             }
         }
@@ -202,28 +195,30 @@ class TodayOperationViewModel : ViewModel() {
     /** 운행 시작 후 홈 복귀·시계 진행 시 배지(운행 예정 ↔ 곧 출발 ↔ 운행 중) 반영 */
     fun syncRuntimeStatus() {
         if (!SessionStateHolder.assignmentsLoaded) return
-        val base = MockTodayOperations.assignedOperations
-        val ops = OperationRuntimeStateHolder.withRuntimeStatus(base)
-        AlarmGenerator.checkDepartureOverdue(ops)
-        _uiState.update {
-            it.copy(
-                operations = ops,
-                unreadAlarmCount = MockOperationAlarms.unreadCount(),
-            )
+        viewModelScope.launch {
+            val base = MockTodayOperations.assignedOperations
+            val ops = OperationRuntimeStateHolder.withRuntimeStatus(base)
+            applyDepartureAlerts(ops)
+            DriverNoticesPoller.pollOnce()
+            _uiState.update {
+                it.copy(
+                    operations = ops,
+                    unreadAlarmCount = MockOperationAlarms.unreadCount(),
+                    departureAlert = resolveDepartureHomeAlert(ops),
+                )
+            }
         }
     }
 
-    /** 서버/관리자 연동 시 호출: DRI-01-02E 출발시간 임박 배너 */
-    fun onDemoShowImminentAlert() {
-        _uiState.update { it.copy(departureAlert = DepartureHomeAlert.Imminent) }
+    private fun applyDepartureAlerts(ops: List<AssignedOperation>) {
+        AlarmGenerator.checkDepartureImminent(ops)
+        AlarmGenerator.checkDepartureOverdue(ops)
     }
 
-    /** 서버/관리자 연동 시 호출: DRI-01-02F 예정시간 경과_미시작 배너 */
-    fun onDemoShowOverdueAlert() {
-        _uiState.update { it.copy(departureAlert = DepartureHomeAlert.Overdue) }
-    }
-
-    fun onDemoHideDepartureAlert() {
-        _uiState.update { it.copy(departureAlert = DepartureHomeAlert.None) }
-    }
+    private fun resolveDepartureHomeAlert(ops: List<AssignedOperation>): DepartureHomeAlert =
+        when (AlarmGenerator.resolveDepartureAlertKind(ops)) {
+            AlarmGenerator.DepartureAlertKind.Imminent -> DepartureHomeAlert.Imminent
+            AlarmGenerator.DepartureAlertKind.Overdue -> DepartureHomeAlert.Overdue
+            AlarmGenerator.DepartureAlertKind.None -> DepartureHomeAlert.None
+        }
 }

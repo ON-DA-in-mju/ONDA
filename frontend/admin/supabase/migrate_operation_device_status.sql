@@ -1,6 +1,10 @@
 -- operation_device_status: 운행 중 기기 heartbeat (GPS vs 네트워크 구분용)
 -- Supabase Dashboard → SQL Editor에서 실행 (postgres)
 -- vehicle_locations 와 별개. 네트워크가 살아 있을 때만 upsert 가능 → updated_at 이 생존 신호.
+--
+-- Upsert key: operation_id (PK)
+-- Driver: INSERT/UPDATE own ops
+-- Student/Admin: SELECT
 
 -- =============================================================================
 -- 1) 테이블
@@ -10,20 +14,23 @@ create table if not exists public.operation_device_status (
   gps_ok boolean not null default false,
   gps_enabled boolean not null default false,
   last_location_at timestamptz,
-  last_accuracy real,
+  last_accuracy double precision,
   updated_at timestamptz not null default now()
 );
 
 comment on table public.operation_device_status is
   '운행당 최신 1행. updated_at=네트워크 생존, gps_ok/gps_enabled=GPS 상태';
 comment on column public.operation_device_status.gps_ok is
-  '최근 fix 있음 (기사 앱 기준, 예: 15초 이내)';
+  '최근 fix 있음 (기사 앱 기준)';
 comment on column public.operation_device_status.gps_enabled is
-  '기기 위치 서비스(GPS) on/off';
+  '기기 위치 서비스(Location) on/off';
 comment on column public.operation_device_status.last_location_at is
   '마지막 GPS fix 시각';
 comment on column public.operation_device_status.updated_at is
   'heartbeat 시각. 오래되면 네트워크/앱 오프라인으로 판정';
+
+create index if not exists operation_device_status_updated_at_idx
+  on public.operation_device_status (updated_at desc);
 
 create or replace function public.touch_operation_device_status()
 returns trigger
@@ -100,6 +107,11 @@ drop policy if exists ods_student_select on public.operation_device_status;
 drop policy if exists ods_driver_select on public.operation_device_status;
 drop policy if exists ods_driver_insert on public.operation_device_status;
 drop policy if exists ods_driver_update on public.operation_device_status;
+-- legacy names from earlier local migration
+drop policy if exists operation_device_status_admin_all on public.operation_device_status;
+drop policy if exists operation_device_status_driver_insert on public.operation_device_status;
+drop policy if exists operation_device_status_driver_update on public.operation_device_status;
+drop policy if exists operation_device_status_driver_select on public.operation_device_status;
 
 create policy ods_admin_all on public.operation_device_status
   for all to authenticated

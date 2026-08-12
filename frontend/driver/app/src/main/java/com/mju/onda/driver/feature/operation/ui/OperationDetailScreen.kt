@@ -1,6 +1,5 @@
 package com.mju.onda.driver.feature.operation.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,10 +86,10 @@ fun OperationDetailScreen(
     onOpenPreCheck: (operationId: String) -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onContactAdmin: () -> Unit = {},
     viewModel: OperationDetailViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     LaunchedEffect(operationId) {
         viewModel.load(operationId)
@@ -103,9 +101,7 @@ fun OperationDetailScreen(
                 OperationDetailEvent.NavigateBack -> onBack()
                 OperationDetailEvent.GoHome -> onGoHome()
                 OperationDetailEvent.PrepareConfirmed -> onOpenPreCheck(uiState.info.id)
-                OperationDetailEvent.ContactAdmin -> {
-                    Toast.makeText(context, MockOperationDetail.CONTACT_ADMIN_TOAST, Toast.LENGTH_SHORT).show()
-                }
+                OperationDetailEvent.ContactAdmin -> onContactAdmin()
                 OperationDetailEvent.OpenHistory -> onOpenHistory()
                 OperationDetailEvent.OpenSettings -> onOpenSettings()
             }
