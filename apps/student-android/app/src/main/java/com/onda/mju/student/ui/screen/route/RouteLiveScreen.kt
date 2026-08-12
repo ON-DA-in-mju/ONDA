@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,20 +46,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeParseException
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -79,12 +80,14 @@ fun RouteLiveScreen(
     onTimetableClick: () -> Unit = {},
 ) {
     val data = liveData ?: remember(routeId) { sampleRouteLive(routeId) }
-    var directionIndex by remember { mutableIntStateOf(0) }
+    val stopConfig = remember(data.routeId) { routeStopConfig(data.routeId) }
+    val directions = remember(stopConfig) { stopConfig.directions }
+    var directionIndex by remember(routeId) { mutableIntStateOf(0) }
+    val waypoints = remember(stopConfig, directionIndex) {
+        stopWaypointsForDirection(stopConfig, directionIndex)
+    }
     var selectedVehicle by remember(routeId) {
         mutableStateOf(data.vehicles.firstOrNull()?.id.orEmpty())
-    }
-    var alertStops by remember {
-        mutableStateOf(data.stops.filter { it.alertOn }.map { it.id }.toSet())
     }
 
     // If the selected operation ended / left the list, move selection to a remaining vehicle.
@@ -111,6 +114,51 @@ fun RouteLiveScreen(
 
     val selectedLiveVehicle = data.vehicles.firstOrNull { it.id == selectedVehicle }
     val selectedDeviceStatus = selectedLiveVehicle?.let { deviceStatuses[it.id] }
+
+    // Per-vehicle tracker (passed index + start enter flag), reset on route/direction change.
+    var trackerByVehicle by remember(routeId, directionIndex) {
+        mutableStateOf<Map<String, VehicleStopTracker>>(emptyMap())
+    }
+
+    val effectiveLat = selectedLiveVehicle?.latitude
+    val effectiveLng = selectedLiveVehicle?.longitude
+    val trackerKey = selectedLiveVehicle?.id ?: "none"
+    val tracker = trackerByVehicle[trackerKey] ?: VehicleStopTracker()
+
+    val timelineProgress = remember(
+        waypoints,
+        trackerKey,
+        effectiveLat,
+        effectiveLng,
+        tracker,
+    ) {
+        resolveStopTimelineProgress(
+            waypoints = waypoints,
+            latitude = effectiveLat,
+            longitude = effectiveLng,
+            tracker = tracker,
+        )
+    }
+    LaunchedEffect(
+        trackerKey,
+        timelineProgress.lastPassedStopIndex,
+        timelineProgress.hasEnteredStart,
+        directionIndex,
+    ) {
+        val next = VehicleStopTracker(
+            lastPassedStopIndex = timelineProgress.lastPassedStopIndex,
+            hasEnteredStart = timelineProgress.hasEnteredStart,
+        )
+        val prev = trackerByVehicle[trackerKey]
+        if (prev != next) {
+            trackerByVehicle = trackerByVehicle + (trackerKey to next)
+        }
+    }
+
+    var alertStops by remember(routeId, directionIndex) {
+        mutableStateOf(emptySet<String>())
+    }
+
     val locationAgeSeconds = remember(selectedLiveVehicle?.recordedAt, nowMillis) {
         timestampAgeSeconds(selectedLiveVehicle?.recordedAt, nowMillis)
     }
@@ -129,22 +177,25 @@ fun RouteLiveScreen(
         )
     }
 
-    LaunchedEffect(
-        selectedLiveVehicle?.id,
-        connectionStatus.label,
-        selectedDeviceStatus?.gpsOk,
-        selectedDeviceStatus?.gpsEnabled,
-        connectionStatus.heartbeatAgeSeconds,
-        connectionStatus.locationAgeSeconds,
-    ) {
+    var lastLoggedConnection by remember {
+        mutableStateOf<Pair<String, String>?>(null) // operationId to label
+    }
+    LaunchedEffect(selectedLiveVehicle?.id, connectionStatus.label) {
         val vehicle = selectedLiveVehicle ?: return@LaunchedEffect
+        val previous = lastLoggedConnection
+        val oldStatus = previous?.takeIf { it.first == vehicle.id }?.second
+        if (previous?.first == vehicle.id && previous.second == connectionStatus.label) {
+            return@LaunchedEffect
+        }
         Log.d(
             "ONDA_SUPABASE",
-            "connection status operationId=${vehicle.id}, status=${connectionStatus.label}, " +
-                "gpsOk=${selectedDeviceStatus?.gpsOk}, gpsEnabled=${selectedDeviceStatus?.gpsEnabled}, " +
+            "connection status changed operationId=${vehicle.id}, " +
+                "oldStatus=${oldStatus ?: "-"}, newStatus=${connectionStatus.label}, " +
+                "gpsEnabled=${selectedDeviceStatus?.gpsEnabled}, " +
                 "heartbeatAge=${connectionStatus.heartbeatAgeSeconds}, " +
                 "locationAge=${connectionStatus.locationAgeSeconds}",
         )
+        lastLoggedConnection = vehicle.id to connectionStatus.label
     }
 
     // Temporary: verify live vehicles passed from shell.
@@ -202,7 +253,7 @@ fun RouteLiveScreen(
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                data.directions.forEachIndexed { index, pair ->
+                directions.forEachIndexed { index, pair ->
                     val selected = directionIndex == index
                     Text(
                         text = "${pair.first} → ${pair.second}",
@@ -340,130 +391,18 @@ fun RouteLiveScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Column(
+            StopTimeline(
+                progress = timelineProgress,
+                alertStops = alertStops,
+                onToggleAlert = { stopId ->
+                    alertStops = if (stopId in alertStops) alertStops - stopId else alertStops + stopId
+                },
+                onStopClick = onStopClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            ) {
-                data.stops.forEachIndexed { index, stop ->
-                    val isCurrent = stop.state == StopPassState.Current
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.width(28.dp),
-                        ) {
-                            if (index > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(2.dp)
-                                        .height(10.dp)
-                                        .background(
-                                            if (data.stops[index - 1].state == StopPassState.Upcoming) {
-                                                CardBorder
-                                            } else {
-                                                Teal
-                                            },
-                                        ),
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-                            when (stop.state) {
-                                StopPassState.Departed, StopPassState.Passed -> {
-                                    Box(
-                                        modifier = Modifier.size(22.dp).background(Teal, CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    }
-                                }
-                                StopPassState.Current -> {
-                                    Box(
-                                        modifier = Modifier.size(28.dp).background(OndaBlue, CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(Icons.Filled.DirectionsBus, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                                StopPassState.Destination -> {
-                                    Icon(Icons.Filled.Flag, null, tint = BodyGray, modifier = Modifier.size(20.dp))
-                                }
-                                StopPassState.Upcoming -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(18.dp)
-                                            .border(2.dp, CardBorder, CircleShape)
-                                            .background(Color.White, CircleShape),
-                                    )
-                                }
-                            }
-                            if (index < data.stops.lastIndex) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(2.dp)
-                                        .height(28.dp)
-                                        .background(
-                                            if (stop.state == StopPassState.Upcoming || stop.state == StopPassState.Destination) {
-                                                CardBorder
-                                            } else {
-                                                Teal
-                                            },
-                                        ),
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onStopClick(stop.id) }
-                                .padding(vertical = 8.dp),
-                        ) {
-                            Text(
-                                stop.name,
-                                color = if (isCurrent) OndaBlue else TitleBlack,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            when (stop.state) {
-                                StopPassState.Departed, StopPassState.Passed -> {
-                                    Text(
-                                        stop.statusText,
-                                        color = Teal,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .background(Color(0xFFCCFBF1), RoundedCornerShape(999.dp))
-                                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                                    )
-                                    stop.subText?.let {
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(it, color = BodyGray, fontSize = 11.sp)
-                                    }
-                                }
-                                else -> Text(stop.statusText, color = if (isCurrent) OndaBlue else BodyGray, fontSize = 12.sp)
-                            }
-                        }
-                        IconButton(
-                            onClick = {
-                                alertStops = if (stop.id in alertStops) alertStops - stop.id else alertStops + stop.id
-                            },
-                        ) {
-                            Icon(
-                                imageVector = if (stop.id in alertStops) {
-                                    Icons.Filled.Notifications
-                                } else {
-                                    Icons.Filled.NotificationsOff
-                                },
-                                contentDescription = "하차 알림",
-                                tint = if (stop.id in alertStops) OndaBlue else BodyGray,
-                            )
-                        }
-                    }
-                }
-            }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
             Column(
@@ -489,39 +428,232 @@ fun RouteLiveScreen(
 
 private val SeoulZone: ZoneId = ZoneId.of("Asia/Seoul")
 
-private fun parseRecordedAtInstant(recordedAt: String): Instant? {
-    val trimmed = recordedAt.trim()
-    if (trimmed.isEmpty()) return null
-    return try {
-        Instant.parse(trimmed)
-    } catch (_: DateTimeParseException) {
-        try {
-            OffsetDateTime.parse(trimmed).toInstant()
-        } catch (_: DateTimeParseException) {
-            try {
-                ZonedDateTime.parse(trimmed).toInstant()
-            } catch (_: DateTimeParseException) {
-                null
+private val TimelineRowHeight = 64.dp
+private val TimelineRailWidth = 28.dp
+
+@Composable
+private fun StopTimeline(
+    progress: StopTimelineProgress,
+    alertStops: Set<String>,
+    onToggleAlert: (String) -> Unit,
+    onStopClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val stops = progress.nodes
+    if (stops.isEmpty()) return
+
+    val density = LocalDensity.current
+    val rowHeightPx = with(density) { TimelineRowHeight.toPx() }
+    val railWidthPx = with(density) { TimelineRailWidth.toPx() }
+    val lastPassed = progress.lastPassedStopIndex
+    val showFloatingBus = progress.busOnStopIndex == null &&
+        progress.busSegmentFromIndex >= 0 &&
+        progress.busSegmentFromIndex < stops.lastIndex
+
+    val busIconPx = with(density) { 28.dp.toPx() }
+    val busX = ((railWidthPx - busIconPx) / 2f).roundToInt()
+
+    Box(modifier = modifier) {
+        // Continuous rail behind icons.
+        Box(
+            modifier = Modifier
+                .width(TimelineRailWidth)
+                .height(TimelineRowHeight * stops.size)
+                .align(Alignment.TopStart)
+                .zIndex(0f),
+        ) {
+            val topPad = TimelineRowHeight / 2
+            val lineHeight = TimelineRowHeight * (stops.size - 1).coerceAtLeast(0)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = topPad)
+                    .width(2.dp)
+                    .height(lineHeight)
+                    .background(CardBorder),
+            )
+            val activeEndIndex: Float = when {
+                progress.busOnStopIndex != null -> progress.busOnStopIndex!!.toFloat()
+                showFloatingBus -> progress.busSegmentFromIndex + progress.busSegmentProgress
+                lastPassed >= 0 -> lastPassed.toFloat()
+                else -> 0f
+            }
+            val maxSegment = (stops.size - 1).coerceAtLeast(0).toFloat()
+            val clampedEnd = activeEndIndex.coerceIn(0f, maxSegment)
+            val activeHeight = TimelineRowHeight * clampedEnd
+            if (clampedEnd > 0f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = topPad)
+                        .width(2.dp)
+                        .height(activeHeight)
+                        .background(Teal),
+                )
+            }
+        }
+
+        // Stop markers / checks / flags (under bus).
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(1f),
+        ) {
+            stops.forEachIndexed { index, stop ->
+                val isCurrent = stop.state == StopPassState.Current || progress.busOnStopIndex == index
+                val arrivedDestination =
+                    index == stops.lastIndex && lastPassed >= stops.lastIndex
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TimelineRowHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.size(TimelineRailWidth),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        // Placeholder when bus sits here — bus is drawn in the top overlay.
+                        // At terminus keep the flag under the bus so arrival reads as "on the flag".
+                        TimelineStopIcon(
+                            stop = stop,
+                            hideForBusOverlay = (progress.busOnStopIndex == index ||
+                                stop.state == StopPassState.Current) && !arrivedDestination,
+                            arrivedDestination = arrivedDestination,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onStopClick(stop.id) }
+                            .padding(vertical = 2.dp),
+                    ) {
+                        Text(
+                            stop.name,
+                            color = if (isCurrent) OndaBlue else TitleBlack,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        when {
+                            stop.state == StopPassState.Departed || stop.state == StopPassState.Passed ||
+                                (arrivedDestination && stop.statusText == "도착 완료") -> {
+                                Text(
+                                    stop.statusText,
+                                    color = Teal,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .background(Color(0xFFCCFBF1), RoundedCornerShape(999.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                )
+                            }
+                            else -> Text(
+                                stop.statusText,
+                                color = if (isCurrent) OndaBlue else BodyGray,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onToggleAlert(stop.id) }) {
+                        Icon(
+                            imageVector = if (stop.id in alertStops) {
+                                Icons.Filled.Notifications
+                            } else {
+                                Icons.Filled.NotificationsOff
+                            },
+                            contentDescription = "하차 알림",
+                            tint = if (stop.id in alertStops) OndaBlue else BodyGray,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Bus always on top of rail / checks / flags.
+        Box(
+            modifier = Modifier
+                .width(TimelineRailWidth)
+                .height(TimelineRowHeight * stops.size)
+                .align(Alignment.TopStart)
+                .zIndex(2f),
+        ) {
+            val busRowIndex = progress.busOnStopIndex
+            if (busRowIndex != null) {
+                val busY = rowHeightPx * busRowIndex + rowHeightPx / 2f - busIconPx / 2f
+                TimelineBusIcon(
+                    modifier = Modifier.offset {
+                        IntOffset(busX, busY.roundToInt())
+                    },
+                )
+            } else if (showFloatingBus) {
+                val busY = rowHeightPx * (progress.busSegmentFromIndex + progress.busSegmentProgress) +
+                    rowHeightPx / 2f - busIconPx / 2f
+                TimelineBusIcon(
+                    modifier = Modifier.offset {
+                        IntOffset(busX, busY.roundToInt())
+                    },
+                )
             }
         }
     }
 }
 
-private fun timestampAgeSeconds(timestamp: String?, nowMillis: Long): Long? {
-    if (timestamp.isNullOrBlank()) return null
-    val instant = parseRecordedAtInstant(timestamp) ?: return null
-    val ageMillis = (nowMillis - instant.toEpochMilli()).coerceAtLeast(0L)
-    return ageMillis / 1_000L
-}
-
-private fun lastUpdatedLabel(ageSeconds: Long?): String {
-    if (ageSeconds == null) return "위치 정보 없음"
-    return when {
-        ageSeconds < 60L -> "마지막 갱신 ${ageSeconds}초 전"
-        ageSeconds < 3_600L -> "마지막 갱신 ${ageSeconds / 60L}분 전"
-        else -> "마지막 갱신 1시간 이상 전"
+@Composable
+private fun TimelineBusIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(28.dp)
+            .background(OndaBlue, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.DirectionsBus,
+            contentDescription = "현재 버스 위치",
+            tint = Color.White,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
+
+@Composable
+private fun TimelineStopIcon(
+    stop: LiveStopNode,
+    hideForBusOverlay: Boolean,
+    arrivedDestination: Boolean,
+) {
+    when {
+        arrivedDestination -> {
+            Icon(Icons.Filled.Flag, null, tint = Teal, modifier = Modifier.size(20.dp))
+        }
+        hideForBusOverlay -> {
+            // Keep layout slot; bus is painted in the zIndex overlay above.
+            Spacer(modifier = Modifier.size(28.dp))
+        }
+        stop.state == StopPassState.Departed || stop.state == StopPassState.Passed -> {
+            Box(
+                modifier = Modifier.size(22.dp).background(Teal, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            }
+        }
+        stop.state == StopPassState.Destination -> {
+            Icon(Icons.Filled.Flag, null, tint = BodyGray, modifier = Modifier.size(20.dp))
+        }
+        else -> {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .border(2.dp, CardBorder, CircleShape)
+                    .background(Color.White, CircleShape),
+            )
+        }
+    }
+}
+
+private fun lastUpdatedLabel(ageSeconds: Long?): String = formatLastUpdatedShortLabel(ageSeconds)
 
 private data class ConnectionStatusUi(
     val label: String,
@@ -536,6 +668,7 @@ private fun resolveConnectionStatus(
     nowMillis: Long,
 ): ConnectionStatusUi {
     val heartbeatAge = timestampAgeSeconds(deviceStatus?.updatedAt, nowMillis)
+    // Age is based only on latest vehicle_locations.recorded_at — same lat/lng is OK if row is fresh.
     val locationAge = timestampAgeSeconds(locationRecordedAt, nowMillis)
 
     return when {
@@ -545,8 +678,8 @@ private fun resolveConnectionStatus(
             heartbeatAgeSeconds = heartbeatAge,
             locationAgeSeconds = locationAge,
         )
-        heartbeatAge == null || heartbeatAge > 30L -> ConnectionStatusUi(
-            label = "네트워크 이상",
+        heartbeatAge == null || heartbeatAge > HEARTBEAT_STALE_THRESHOLD_SECONDS -> ConnectionStatusUi(
+            label = "연결 확인 불가",
             color = Color(0xFFDC2626),
             heartbeatAgeSeconds = heartbeatAge,
             locationAgeSeconds = locationAge,
@@ -557,14 +690,8 @@ private fun resolveConnectionStatus(
             heartbeatAgeSeconds = heartbeatAge,
             locationAgeSeconds = locationAge,
         )
-        deviceStatus.gpsOk == false -> ConnectionStatusUi(
-            label = "GPS 이상",
-            color = Color(0xFFEA580C),
-            heartbeatAgeSeconds = heartbeatAge,
-            locationAgeSeconds = locationAge,
-        )
-        locationAge == null || locationAge > 30L -> ConnectionStatusUi(
-            label = "위치 수신 지연",
+        locationAge == null || locationAge > LOCATION_STALE_THRESHOLD_SECONDS -> ConnectionStatusUi(
+            label = "위치 확인 불가",
             color = Color(0xFFEA580C),
             heartbeatAgeSeconds = heartbeatAge,
             locationAgeSeconds = locationAge,

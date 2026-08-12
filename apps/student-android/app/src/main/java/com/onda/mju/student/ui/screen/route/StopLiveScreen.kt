@@ -33,7 +33,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
+import kotlinx.coroutines.delay
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -59,11 +62,54 @@ private val StarYellow = Color(0xFFFBBF24)
 fun StopLiveScreen(
     stopId: String,
     modifier: Modifier = Modifier,
+    routeId: String? = null,
+    vehicles: List<LiveVehicle> = emptyList(),
     onBackClick: () -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
 ) {
-    val data = remember(stopId) { sampleStopLive(stopId) }
     var favorite by remember { mutableStateOf(false) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+
+    val directionKey = remember(stopId, routeId) {
+        resolveStopSelection(stopId, routeId)?.let { "${it.routeId}_${it.directionIndex}" } ?: stopId
+    }
+    var trackerByVehicle by remember(directionKey) {
+        mutableStateOf<Map<String, VehicleStopTracker>>(emptyMap())
+    }
+
+    val vehicleSignature = remember(vehicles) {
+        vehicles.joinToString("|") {
+            "${it.id}:${it.latitude}:${it.longitude}:${it.recordedAt}:${it.speed}"
+        }
+    }
+    val data = remember(stopId, routeId, vehicleSignature, nowMillis, trackerByVehicle) {
+        val built = buildStopLiveData(
+            stopId = stopId,
+            routeIdHint = routeId,
+            vehicles = vehicles,
+            nowMillis = nowMillis,
+            trackerByVehicle = trackerByVehicle,
+        )
+        built.first
+    }
+    LaunchedEffect(stopId, routeId, vehicleSignature) {
+        val built = buildStopLiveData(
+            stopId = stopId,
+            routeIdHint = routeId,
+            vehicles = vehicles,
+            nowMillis = System.currentTimeMillis(),
+            trackerByVehicle = trackerByVehicle,
+        )
+        if (built.second != trackerByVehicle) {
+            trackerByVehicle = built.second
+        }
+    }
 
     Column(
         modifier = modifier
@@ -151,6 +197,15 @@ fun StopLiveScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            if (data.arrivals.isEmpty()) {
+                Text(
+                    "현재 운행 중인 차량이 없습니다.",
+                    color = BodyGray,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            }
+
             data.arrivals.forEach { arrival ->
                 Row(
                     modifier = Modifier
@@ -187,6 +242,10 @@ fun StopLiveScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(arrival.etaLabel, color = arrival.etaColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        if (arrival.lastLocationLabel.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(arrival.lastLocationLabel, color = BodyGray, fontSize = 11.sp)
+                        }
                     }
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
                 }

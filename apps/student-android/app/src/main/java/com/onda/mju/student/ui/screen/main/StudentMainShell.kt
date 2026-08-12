@@ -84,7 +84,11 @@ private sealed interface MainOverlay {
     data class StopGuideDetail(val stopId: String, val returnRouteId: String) : MainOverlay
 
     data class RouteLive(val routeId: String) : MainOverlay
-    data class StopLive(val stopId: String, val returnRouteId: String? = null) : MainOverlay
+    data class StopLive(
+        val stopId: String,
+        val routeId: String? = null,
+        val returnRouteId: String? = null,
+    ) : MainOverlay
     data class BusDetail(
         val vehicleId: String,
         val returnRouteId: String? = null,
@@ -488,7 +492,11 @@ fun StudentMainShell(
                         onManageClick = { overlay = MainOverlay.FavoriteManage },
                         onRouteClick = { routeId -> openRouteLive(routeId) },
                         onStopClick = { stopId ->
-                            overlay = MainOverlay.StopLive(stopId = stopId)
+                            overlay = MainOverlay.StopLive(
+                                stopId = stopId,
+                                routeId = null,
+                                returnRouteId = null,
+                            )
                         },
                         onNotificationSettingClick = { overlay = MainOverlay.NotificationSettings },
                     )
@@ -612,19 +620,16 @@ fun StudentMainShell(
                             showTodo("지도 앱 연동은 준비 중입니다.")
                         },
                         onLiveClick = {
-                            // Map guide stop ids to live mock stops where possible.
-                            val liveStopId = when (current.stopId) {
-                                "luxnine" -> "s3"
-                                else -> "s3"
-                            }
                             selectedTab = StudentBottomTab.Route
+                            val routeId = when (current.returnRouteId) {
+                                "giheung" -> "giheung"
+                                "myeongji" -> "myeongji_station"
+                                else -> "city_shuttle"
+                            }
                             overlay = MainOverlay.StopLive(
-                                stopId = liveStopId,
-                                returnRouteId = when (current.returnRouteId) {
-                                    "giheung" -> "giheung"
-                                    "myeongji" -> "myeongji_station"
-                                    else -> "city_shuttle"
-                                },
+                                stopId = current.stopId,
+                                routeId = routeId,
+                                returnRouteId = routeId,
                             )
                         },
                     )
@@ -634,29 +639,11 @@ fun StudentMainShell(
                     val baseLiveData = sampleRouteLive(current.routeId)
                     val routeUi = routes.firstOrNull { it.id == current.routeId }
                     val routeName = routeUi?.name ?: routeDisplayNameForId(current.routeId)
-                    val liveVehicles = operations
-                        .asSequence()
-                        .filter { it.status == "IN_PROGRESS" }
-                        .filter { it.schedule?.route?.routeName == routeName }
-                        .sortedByDescending { it.startedAt.orEmpty() }
-                        .map { operation ->
-                            val location = operationLocations[operation.id]
-                            LiveVehicle(
-                                id = operation.id,
-                                label = operation.bus?.busName
-                                    ?: operation.bus?.vehicleNumber
-                                    ?: "운행 차량",
-                                status = VehicleStatus.Running,
-                                latitude = location?.latitude,
-                                longitude = location?.longitude,
-                                speed = location?.speed,
-                                heading = location?.heading,
-                                recordedAt = location?.recordedAt,
-                                scheduledDepartureTime = operation.schedule?.departureTime,
-                                actualStartedAt = operation.startedAt,
-                            )
-                        }
-                        .toList()
+                    val liveVehicles = liveVehiclesForRoute(
+                        routeName = routeName,
+                        operations = operations,
+                        operationLocations = operationLocations,
+                    )
                     liveVehicles.forEach { vehicle ->
                         Log.d(
                             "ONDA_SUPABASE",
@@ -680,6 +667,7 @@ fun StudentMainShell(
                         onStopClick = { stopId ->
                             overlay = MainOverlay.StopLive(
                                 stopId = stopId,
+                                routeId = current.routeId,
                                 returnRouteId = current.routeId,
                             )
                         },
@@ -697,8 +685,19 @@ fun StudentMainShell(
                 }
 
                 is MainOverlay.StopLive -> {
+                    val routeId = current.routeId ?: current.returnRouteId
+                    val routeName = routeId?.let { id ->
+                        routes.firstOrNull { it.id == id }?.name ?: routeDisplayNameForId(id)
+                    }
+                    val liveVehicles = liveVehiclesForRoute(
+                        routeName = routeName,
+                        operations = operations,
+                        operationLocations = operationLocations,
+                    )
                     StopLiveScreen(
                         stopId = current.stopId,
+                        routeId = routeId,
+                        vehicles = liveVehicles,
                         modifier = Modifier.fillMaxSize(),
                         onBackClick = {
                             overlay = current.returnRouteId?.let { MainOverlay.RouteLive(it) }
@@ -707,7 +706,7 @@ fun StudentMainShell(
                         onVehicleClick = { vehicleId ->
                             overlay = MainOverlay.BusDetail(
                                 vehicleId = vehicleId,
-                                returnRouteId = current.returnRouteId,
+                                returnRouteId = current.returnRouteId ?: routeId,
                                 returnStopId = current.stopId,
                             )
                         },
@@ -722,6 +721,7 @@ fun StudentMainShell(
                             overlay = when {
                                 current.returnStopId != null -> MainOverlay.StopLive(
                                     stopId = current.returnStopId,
+                                    routeId = current.returnRouteId,
                                     returnRouteId = current.returnRouteId,
                                 )
                                 current.returnRouteId != null -> MainOverlay.RouteLive(current.returnRouteId)
@@ -947,4 +947,34 @@ private fun routeDisplayNameForId(routeId: String): String = when (routeId) {
     "myeongji_station" -> "명지대역 셔틀"
     "city_shuttle" -> "시내 셔틀"
     else -> routeId
+}
+
+private fun liveVehiclesForRoute(
+    routeName: String?,
+    operations: List<OperationDto>,
+    operationLocations: Map<String, VehicleLocationDto>,
+): List<LiveVehicle> {
+    return operations
+        .asSequence()
+        .filter { it.status == "IN_PROGRESS" }
+        .filter { routeName == null || it.schedule?.route?.routeName == routeName }
+        .sortedByDescending { it.startedAt.orEmpty() }
+        .map { operation ->
+            val location = operationLocations[operation.id]
+            LiveVehicle(
+                id = operation.id,
+                label = operation.bus?.busName
+                    ?: operation.bus?.vehicleNumber
+                    ?: "운행 차량",
+                status = VehicleStatus.Running,
+                latitude = location?.latitude,
+                longitude = location?.longitude,
+                speed = location?.speed,
+                heading = location?.heading,
+                recordedAt = location?.recordedAt,
+                scheduledDepartureTime = operation.schedule?.departureTime,
+                actualStartedAt = operation.startedAt,
+            )
+        }
+        .toList()
 }

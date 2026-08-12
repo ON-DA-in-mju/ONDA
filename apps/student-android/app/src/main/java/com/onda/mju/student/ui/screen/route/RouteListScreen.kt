@@ -70,8 +70,8 @@ private const val BidirectionalArrow = "\u21C4"
 private const val RefW = 414f
 private const val SideFrac = 20f / RefW
 
-/** Intrinsic ratio of route_list_header_illustration.png (illustration-only asset). */
-private const val HeaderIllustAspect = 198f / 131f
+/** Intrinsic ratio of route_list_header_illustration.png (wide banner). */
+private const val HeaderIllustAspect = 402f / 156f
 
 /** Shared circular thumb size for every route card. */
 private val RouteThumbSize = 92.dp
@@ -106,9 +106,9 @@ fun RouteListScreen(
                 .padding(bottom = 16.dp),
         ) {
             RouteListHeader(
+                sideInset = sideInset,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = sideInset)
                     .padding(top = 4.dp),
             )
 
@@ -141,31 +141,27 @@ fun RouteListScreen(
 
 @Composable
 private fun RouteListHeader(
+    sideInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // Overlay text on the left and keep the full illustration visible on the right.
-    // Do NOT use ContentScale.Crop — this asset is a vector-like graphic that must show entirely.
+    // Edge-to-edge banner; title text keeps the same side inset as the list below.
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 148.dp)
-            .height(168.dp),
+            .aspectRatio(HeaderIllustAspect),
     ) {
         Image(
             painter = painterResource(id = R.drawable.route_list_header_illustration),
             contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .fillMaxWidth(0.62f)
-                .aspectRatio(HeaderIllustAspect),
-            contentScale = ContentScale.Fit,
-            alignment = Alignment.BottomEnd,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds,
+            alignment = Alignment.Center,
         )
         Column(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth(0.46f)
-                .padding(top = 10.dp, end = 4.dp),
+                .align(Alignment.CenterStart)
+                .fillMaxWidth(0.52f)
+                .padding(start = sideInset, end = 8.dp),
         ) {
             Text(
                 text = "노선",
