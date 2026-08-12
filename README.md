@@ -1,14 +1,18 @@
-﻿# ON-DA (Bus)
+﻿# ON-DA (ONDA)
 
-명지대 자연캠퍼스 셔틀 — 관리자 웹 · 기사 앱
+명지대 자연캠퍼스 셔틀 — 관리자 웹 · 기사 앱 · 학생 앱
+
+`develop` = `develop-driver` + `develop-student` 통합 브랜치입니다.
 
 ## 폴더 구조
 
 ```
-Bus/
+Bus_alpha/
 ├── frontend/
-│   ├── admin/          # 관리자 웹 (Vite + React)
-│   └── driver/         # 기사 앱 (Android / Kotlin)
+│   ├── admin/              # 관리자 웹 (Vite + React)
+│   └── driver/             # 기사 앱 (Android / Kotlin)
+├── apps/
+│   └── student-android/    # 학생 앱 (Android / Kotlin)
 ├── docs/
 └── README.md
 ```
@@ -29,5 +33,14 @@ Android Studio에서 **`frontend/driver`** 폴더를 Open 하세요.
 
 ```bash
 cd frontend/driver
+./gradlew :app:assembleDebug
+```
+
+## 학생 앱
+
+Android Studio에서 **`apps/student-android`** 폴더를 Open 하세요.
+
+```bash
+cd apps/student-android
 ./gradlew :app:assembleDebug
 ```
