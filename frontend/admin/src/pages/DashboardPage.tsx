@@ -8,8 +8,14 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { kpiCards as mockKpiCards, recentOps } from '../data/mock'
-import { fetchLiveVehicles, type LiveSnapshot, type LiveVehicle } from '../lib/liveApi'
+import { kpiCards as mockKpiCards } from '../data/mock'
+import {
+  fetchLiveVehicles,
+  fetchRecentOperationFeed,
+  type LiveSnapshot,
+  type LiveVehicle,
+  type RecentOpFeedItem,
+} from '../lib/liveApi'
 import { todayDateKey } from '../types/assignment'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createExclusivePoll } from '../lib/exclusivePoll'
@@ -116,6 +122,7 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [snapshot, setSnapshot] = useState<LiveSnapshot>(emptySnap)
   const [yesterdayTotal, setYesterdayTotal] = useState<number | null>(null)
+  const [recentOpsFeed, setRecentOpsFeed] = useState<RecentOpFeedItem[]>([])
 
   useEffect(() => {
     let alive = true
@@ -152,6 +159,22 @@ export function DashboardPage() {
     void load()
     const timer = window.setInterval(() => {
       void load()
+    }, 20_000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    const loadRecent = createExclusivePoll(async () => {
+      const rows = await fetchRecentOperationFeed(8)
+      if (alive) setRecentOpsFeed(rows)
+    })
+    void loadRecent()
+    const timer = window.setInterval(() => {
+      void loadRecent()
     }, 20_000)
     return () => {
       alive = false
@@ -263,23 +286,29 @@ export function DashboardPage() {
         <section className="card card-pad">
           <div className="card-head">
             <h3>최근 운행 현황</h3>
-            <Link to="/schedules" className="muted" style={{ fontSize: 12 }}>
+            <Link to="/live" className="muted" style={{ fontSize: 12 }}>
               모든 운행 보기
             </Link>
           </div>
           <div className="ops-list">
-            {recentOps.map((item) => (
-              <div className="ops-item" key={`${item.bus}-${item.time}`}>
-                <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
-                <div className="ops-body">
-                  <strong>{item.route}</strong>
-                  <span>
-                    {item.bus} · {item.driver}
-                  </span>
-                </div>
-                <span className="ops-time">{item.time}</span>
+            {recentOpsFeed.length === 0 ? (
+              <div className="muted" style={{ fontSize: 13, padding: '12px 0' }}>
+                오늘 표시할 운행 기록이 없습니다.
               </div>
-            ))}
+            ) : (
+              recentOpsFeed.map((item) => (
+                <div className="ops-item" key={item.id}>
+                  <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
+                  <div className="ops-body">
+                    <strong>{item.route}</strong>
+                    <span>
+                      {item.bus} · {item.driver}
+                    </span>
+                  </div>
+                  <span className="ops-time">{item.time}</span>
+                </div>
+              ))
+            )}
           </div>
         </section>
 

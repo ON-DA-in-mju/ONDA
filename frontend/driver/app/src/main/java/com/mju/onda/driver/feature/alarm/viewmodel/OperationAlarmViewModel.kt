@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.alarm.data.AlarmCategory
 import com.mju.onda.driver.feature.alarm.data.AlarmFilter
+import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
 import com.mju.onda.driver.feature.alarm.data.AlarmReadStateHolder
+import com.mju.onda.driver.feature.alarm.data.DriverNoticesApi
+import com.mju.onda.driver.feature.alarm.data.DriverNoticesPoller
 import com.mju.onda.driver.feature.alarm.data.MockOperationAlarms
 import com.mju.onda.driver.feature.alarm.data.OperationAlarm
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +28,13 @@ data class OperationAlarmUiState(
 sealed interface OperationAlarmEvent {
     data object NavigateBack : OperationAlarmEvent
     data class OpenDetail(val alarmId: String) : OperationAlarmEvent
+    data class OpenNoticeDetail(
+        val typeLabel: String,
+        val headline: String,
+        val body: String,
+        val dateTime: String,
+        val urgent: Boolean,
+    ) : OperationAlarmEvent
     data class OpenAssignmentChange(val alarmId: String) : OperationAlarmEvent
     data class OpenDepartureTimeChange(val alarmId: String) : OperationAlarmEvent
     data class OpenOperationCancel(val alarmId: String) : OperationAlarmEvent
@@ -41,12 +51,15 @@ class OperationAlarmViewModel : ViewModel() {
     val events: SharedFlow<OperationAlarmEvent> = _events.asSharedFlow()
 
     fun refresh() {
-        val filter = _uiState.value.selectedFilter
-        _uiState.update {
-            it.copy(
-                items = MockOperationAlarms.filtered(filter),
-                hasUnread = MockOperationAlarms.hasUnread(),
-            )
+        viewModelScope.launch {
+            DriverNoticesPoller.pollOnce()
+            val filter = _uiState.value.selectedFilter
+            _uiState.update {
+                it.copy(
+                    items = MockOperationAlarms.filtered(filter),
+                    hasUnread = MockOperationAlarms.hasUnread(),
+                )
+            }
         }
     }
 
@@ -65,11 +78,22 @@ class OperationAlarmViewModel : ViewModel() {
     }
 
     fun onItemClick(alarmId: String) {
+        if (AlarmGenerator.isBannerAlarmId(alarmId)) return
         AlarmReadStateHolder.markRead(alarmId)
         refresh()
         val alarm = MockOperationAlarms.seedItems.find { it.id == alarmId }
         viewModelScope.launch {
             when (alarm?.category) {
+                AlarmCategory.Notice ->
+                    _events.emit(
+                        OperationAlarmEvent.OpenNoticeDetail(
+                            typeLabel = alarm.title,
+                            headline = alarm.noticeHeadline ?: alarm.title,
+                            body = alarm.noticeContent ?: alarm.body,
+                            dateTime = alarm.noticeDateTime ?: alarm.timeLabel,
+                            urgent = DriverNoticesApi.isUrgentType(alarm.noticeType.orEmpty()),
+                        ),
+                    )
                 AlarmCategory.AssignmentChange ->
                     _events.emit(OperationAlarmEvent.OpenAssignmentChange(alarmId))
                 AlarmCategory.DepartureTimeChange ->

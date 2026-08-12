@@ -635,6 +635,9 @@ fun OndaNavHost() {
                     }
                 },
                 onOpenSettings = { navController.navigateToSettings() },
+                onContactAdmin = {
+                    navController.navigate(Routes.CONTACT_ADMIN)
+                },
             )
         }
 

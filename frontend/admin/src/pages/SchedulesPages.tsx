@@ -25,12 +25,14 @@ import {
 } from '../lib/weekDate'
 import { TodayAssignmentsPanel } from '../components/TodayAssignmentsPanel'
 import { StatusBadge } from '../components/ui/Form'
+import { ListPagination } from '../components/ui/ListPagination'
 import type { TodayAssignment } from '../types/assignment'
 import '../styles/figma-pages.css'
 
 const JS_TO_WEEKDAY: Weekday[] = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 const LIST_PAGE_SIZE = 5
+const LIST_PAGE_WINDOW = 10
 
 function formatTime(t: string) {
   return t.slice(0, 5)
@@ -625,23 +627,14 @@ export function SchedulesPage() {
               ))}
             </tbody>
           </table>
-          <div className="pagination">
-            <span>총 {listRows.length}건</span>
-            {listRows.length > LIST_PAGE_SIZE ? (
-              <div className="pagination-pages">
-                {Array.from({ length: listPageCount }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`page-chip${n === safeListPage ? ' active' : ''}`}
-                    onClick={() => setListPage(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <ListPagination
+            total={listRows.length}
+            page={safeListPage}
+            pageSize={LIST_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="시간표 목록 페이지"
+            windowSize={LIST_PAGE_WINDOW}
+          />
         </section>
 
         <section className="card card-pad sched-card sched-timetable-card">

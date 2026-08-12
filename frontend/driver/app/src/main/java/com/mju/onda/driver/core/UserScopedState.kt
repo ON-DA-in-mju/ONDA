@@ -3,6 +3,7 @@ package com.mju.onda.driver.core
 import com.mju.onda.driver.feature.adminforceend.data.AdminForceEndPoller
 import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
 import com.mju.onda.driver.feature.alarm.data.AlarmReadStateHolder
+import com.mju.onda.driver.feature.alarm.data.DriverNoticesPoller
 import com.mju.onda.driver.feature.alarm.data.LocalAlarmStore
 import com.mju.onda.driver.feature.backgroundguide.data.BackgroundGuidePrefs
 import com.mju.onda.driver.feature.batterywarning.data.BatteryWarningPrefs
@@ -27,6 +28,7 @@ object UserScopedState {
         LocalAlarmStore.bindUser()
         AlarmReadStateHolder.bindUser()
         AdminForceEndPoller.start()
+        DriverNoticesPoller.start()
         SafeStopHistoryHolder.bindUser()
         BatteryWarningPrefs.bindUser()
         BackgroundGuidePrefs.bindUser()
@@ -42,6 +44,7 @@ object UserScopedState {
         SafeStopDecisionPoller.stop()
         AdminForceEndPoller.stop()
         AdminForceEndPoller.resetSession()
+        DriverNoticesPoller.stop()
         OperationRuntimeStateHolder.unbindUser()
         HistoryRuntimeStateHolder.unbindUser()
         AlarmReadStateHolder.unbindUser()

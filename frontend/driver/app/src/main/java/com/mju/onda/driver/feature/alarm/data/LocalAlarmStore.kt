@@ -38,6 +38,27 @@ object LocalAlarmStore {
         persist(list)
     }
 
+    /** 동일 id가 있으면 내용 갱신(공지 상세 필드 포함), 없으면 추가 */
+    fun upsertAlarm(alarm: OperationAlarm) {
+        val list = cached ?: return
+        val idx = list.indexOfFirst { it.id == alarm.id }
+        if (idx >= 0) {
+            val prev = list[idx]
+            list[idx] = alarm.copy(isUnread = prev.isUnread)
+            persist(list)
+            return
+        }
+        list.add(0, alarm)
+        while (list.size > MAX_ALARMS) list.removeAt(list.lastIndex)
+        persist(list)
+    }
+
+    fun removeById(id: String) {
+        val list = cached ?: return
+        if (!list.removeAll { it.id == id }) return
+        persist(list)
+    }
+
     fun clear() {
         cached?.clear()
         prefs?.edit()?.remove(KEY_JSON)?.apply()
@@ -53,7 +74,11 @@ object LocalAlarmStore {
                     .put("body", a.body)
                     .put("timeLabel", a.timeLabel)
                     .put("category", a.category.name)
-                    .put("isUnread", a.isUnread),
+                    .put("isUnread", a.isUnread)
+                    .put("noticeHeadline", a.noticeHeadline)
+                    .put("noticeType", a.noticeType)
+                    .put("noticeDateTime", a.noticeDateTime)
+                    .put("noticeContent", a.noticeContent),
             )
         }
         prefs?.edit()?.putString(KEY_JSON, arr.toString())?.apply()
@@ -76,6 +101,10 @@ object LocalAlarmStore {
                                 AlarmCategory.valueOf(o.optString("category", "Operation"))
                             }.getOrDefault(AlarmCategory.Operation),
                             isUnread = o.optBoolean("isUnread", true),
+                            noticeHeadline = o.optString("noticeHeadline").takeIf { it.isNotBlank() },
+                            noticeType = o.optString("noticeType").takeIf { it.isNotBlank() },
+                            noticeDateTime = o.optString("noticeDateTime").takeIf { it.isNotBlank() },
+                            noticeContent = o.optString("noticeContent").takeIf { it.isNotBlank() },
                         ),
                     )
                 }

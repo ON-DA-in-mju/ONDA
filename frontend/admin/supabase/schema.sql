@@ -6,11 +6,12 @@
 -- 시드:
 --   supabase/seed_mju_2026.sql        — 노선·공식 시간표
 --   supabase/seed_demo_scenario.sql   — 시연 계정·배차·차량·안전정차 테이블
---   (컬럼 추가) users.login_id / operations.external_id,round,origin,destination,expected_end_time
+--   (컬럼 추가) users.login_id / operations.external_id,round,origin_stop_id,destination_stop_id,expected_end_time
 --   (컬럼 추가) reports.source (STUDENT|DRIVER), reports.category
 --   (테이블 추가) safe_stop_requests
 --   마이그레이션: supabase/migrate_reports_source.sql
 --   마이그레이션: supabase/migrate_notices_fields.sql (type/audience/기간/is_push/status + RLS)
+--   마이그레이션: supabase/migrate_notices_audience.sql (운영 DB에 audience 컬럼만 없을 때)
 --   마이그레이션: supabase/migrate_routes_route_stops.sql (공지 기준 노선·정류장 순서)
 
 -- users.role: STUDENT | DRIVER | ADMIN

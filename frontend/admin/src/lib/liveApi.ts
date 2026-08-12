@@ -61,8 +61,6 @@ const OPS_SELECT = `
   external_id,
   operation_date,
   status,
-  origin,
-  destination,
   started_at,
   ended_at,
   updated_at,
@@ -70,7 +68,9 @@ const OPS_SELECT = `
   bus_id,
   users:driver_id ( id, name, login_id, email ),
   buses:bus_id ( bus_name, vehicle_number ),
-  schedules:schedule_id ( departure_time, routes:route_id ( route_name ) )
+  schedules:schedule_id ( departure_time, routes:route_id ( route_name ) ),
+  origin_stop:origin_stop_id ( stop_name ),
+  destination_stop:destination_stop_id ( stop_name )
 `
 
 type OpLiveRow = {
@@ -78,8 +78,6 @@ type OpLiveRow = {
   external_id: string | null
   operation_date: string
   status: OperationStatus | string
-  origin: string | null
-  destination: string | null
   started_at: string | null
   ended_at: string | null
   updated_at: string | null
@@ -91,6 +89,8 @@ type OpLiveRow = {
     departure_time: string
     routes: { route_name: string } | null
   } | null
+  origin_stop: { stop_name: string } | null
+  destination_stop: { stop_name: string } | null
 }
 
 type LocRow = {
@@ -203,6 +203,134 @@ function buildStats(vehicles: LiveVehicle[]): LiveStats {
   }
 }
 
+export type RecentOpFeedItem = {
+  id: string
+  status: string
+  tone: 'blue' | 'green' | 'orange' | 'red' | 'gray'
+  route: string
+  bus: string
+  driver: string
+  time: string
+}
+
+const RECENT_OP_START_WINDOW_MS = 3 * 60_000
+
+function formatHmFromIso(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    // departure_time may be "HH:mm:ss" or "HH:mm"
+    const m = String(iso).match(/^(\d{1,2}):(\d{2})/)
+    if (m) return `${m[1].padStart(2, '0')}:${m[2]}`
+    return '—'
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function routeLabelFromOp(row: OpLiveRow): string {
+  const origin = row.origin_stop?.stop_name?.trim()
+  const dest = row.destination_stop?.stop_name?.trim()
+  if (origin && dest) return `${origin} ↔ ${dest}`
+  if (origin) return origin
+  if (dest) return dest
+  return row.schedules?.routes?.route_name?.trim() || '—'
+}
+
+function toRecentOpFeedItem(
+  row: OpLiveRow,
+  gpsByOpId: Map<string, LiveGpsKind>,
+  now = Date.now(),
+): RecentOpFeedItem {
+  const db = String(row.status)
+  const gpsKind = gpsByOpId.get(row.id)
+  const startedAt = row.started_at ? Date.parse(row.started_at) : NaN
+  let status: string
+  let tone: RecentOpFeedItem['tone']
+
+  if (db === 'IN_PROGRESS') {
+    if (gpsKind === 'error' || gpsKind === 'none') {
+      status = 'GPS 이상'
+      tone = 'red'
+    } else if (Number.isFinite(startedAt) && now - startedAt <= RECENT_OP_START_WINDOW_MS) {
+      status = '운행 시작'
+      tone = 'blue'
+    } else {
+      status = '정상 운행'
+      tone = 'green'
+    }
+  } else if (db === 'COMPLETED') {
+    status = '운행 종료'
+    tone = 'gray'
+  } else {
+    // CANCELLED 등 — 목록 쿼리에서는 제외되지만 방어용
+    status = '운행 종료'
+    tone = 'gray'
+  }
+
+  return {
+    id: row.id,
+    status,
+    tone,
+    route: routeLabelFromOp(row),
+    bus: row.buses?.bus_name?.trim() || row.buses?.vehicle_number?.trim() || '미정',
+    driver: row.users?.name?.trim() || '—',
+    time: formatHmFromIso(row.started_at || row.updated_at || row.schedules?.departure_time),
+  }
+}
+
+/**
+ * 대시보드 「최근 운행 현황」 — 오늘 운행 중·종료 기록만 최대 [limit]건.
+ */
+export async function fetchRecentOperationFeed(limit = 8): Promise<RecentOpFeedItem[]> {
+  if (!isSupabaseConfigured) return []
+
+  const date = todayDateKey()
+  const { data, error } = await supabase
+    .from('operations')
+    .select(OPS_SELECT)
+    .eq('operation_date', date)
+    .in('status', ['IN_PROGRESS', 'COMPLETED'])
+    .order('started_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.warn('[dashboard] recent ops', error.message)
+    return []
+  }
+
+  const rows = ((data ?? []) as unknown as OpLiveRow[]).slice(0, limit)
+  if (!rows.length) return []
+
+  const inProgressIds = rows.filter((r) => String(r.status) === 'IN_PROGRESS').map((r) => r.id)
+  const gpsByOpId = new Map<string, LiveGpsKind>()
+  if (inProgressIds.length) {
+    const locMap = await fetchGpsLocMap(inProgressIds)
+    const now = Date.now()
+    for (const id of inProgressIds) {
+      const loc = locMap.get(id)
+      if (!loc) {
+        gpsByOpId.set(id, 'none')
+        continue
+      }
+      const updatedAt = loc.recorded_at ? Date.parse(loc.recorded_at) : 0
+      const { gpsKind } = classifyGps(
+        {
+          status: 'in_progress',
+          lat: Number(loc.latitude),
+          lng: Number(loc.longitude),
+          updatedAt: updatedAt || now,
+        },
+        now,
+      )
+      gpsByOpId.set(id, gpsKind)
+    }
+  }
+
+  const now = Date.now()
+  return rows.map((row) => toRecentOpFeedItem(row, gpsByOpId, now))
+}
+
 function latestLocationsByOp(rows: LocRow[]): Map<string, LocRow> {
   const map = new Map<string, LocRow>()
   for (const row of rows) {
@@ -285,7 +413,7 @@ function buildVehiclesFromOps(
       lat: lat != null && lng != null ? lat : null,
       lng: lat != null && lng != null ? lng : null,
       accuracy: null,
-      stop: locationLabel(lat, lng, row.origin),
+      stop: locationLabel(lat, lng, row.origin_stop?.stop_name),
       gps,
       gpsKind,
       updatedAt: updatedAt || now,

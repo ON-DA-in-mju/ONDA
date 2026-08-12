@@ -5,6 +5,7 @@ import com.mju.onda.driver.BuildConfig
 import com.mju.onda.driver.core.system.SystemLogsApi
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
+import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.settings.data.AccountInfoStateHolder
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -24,7 +25,8 @@ import kotlinx.coroutines.withContext
  */
 object LiveHeartbeatReporter {
     private const val TAG = "LiveHeartbeat"
-    private const val INTERVAL_MS = 10_000L
+    /** vehicle_locations / device_status / admin heartbeat 공통 주기 */
+    private const val INTERVAL_MS = 3_000L
 
     /** opId별로 GPS를 한 번이라도 받은 적 있는지 (출발 직후 미수신은 오류 로그 제외) */
     private val hadFixByOpId: MutableMap<String, Boolean> = mutableMapOf()
@@ -42,8 +44,22 @@ object LiveHeartbeatReporter {
             postOnce(operationId, status = "in_progress")
             while (isActive) {
                 delay(INTERVAL_MS)
-                if (!OperationLocationTracker.isTracking) break
-                val id = OperationLocationTracker.activeOperationId ?: operationId
+                // 위치 서비스가 꺼져 FGS가 죽어도(isTracking=false) 운행 중이면 heartbeat 유지.
+                // 학생 앱은 updated_at 30초 초과를 "네트워크 이상"으로 본다.
+                val id = OperationRuntimeStateHolder.activeOperationId()
+                    ?: OperationLocationTracker.activeOperationId
+                    ?: operationId
+                val stillRunning = OperationRuntimeStateHolder.activeOperationId() != null ||
+                    OperationLocationTracker.activeOperationId != null
+                if (!stillRunning) break
+                // 위치 OFF로 FGS가 죽었어도 heartbeat는 유지. 위치 ON이면 수집만 재개.
+                val ctx = OperationLocationTracker.appContextOrNull()
+                if (!OperationLocationTracker.isTracking &&
+                    ctx != null &&
+                    OperationDeviceStatus.isGpsEnabled(ctx)
+                ) {
+                    OperationLocationTracker.startForOperation(id)
+                }
                 postOnce(id, status = "in_progress")
             }
         }
@@ -147,9 +163,22 @@ object LiveHeartbeatReporter {
                     accuracy = fix.accuracy,
                     vehicleName = account.vehicleName,
                     driverName = stripHonorific(account.driverName),
+                    recordedAtMillis = fix.recordedAtMillis,
                 )
             }.onFailure { e ->
                 Log.d(TAG, "gps db write skipped: ${e.message}")
+            }
+        }
+
+        // 학생 앱용 기기/GPS heartbeat (fix 없어도 updated_at 갱신)
+        if (status == "in_progress") {
+            runCatching {
+                DeviceStatusReporter.upsert(
+                    operationId = operationId,
+                    fix = fix?.takeIf { it.operationId == operationId || it.operationId.isBlank() },
+                )
+            }.onFailure { e ->
+                Log.d(TAG, "device status upsert skipped: ${e.message}")
             }
         }
     }
