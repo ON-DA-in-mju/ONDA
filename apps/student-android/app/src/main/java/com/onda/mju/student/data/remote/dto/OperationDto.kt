@@ -68,6 +68,14 @@ data class RouteDto(
     val id: String,
     @SerialName("route_name")
     val routeName: String,
+    val direction: String? = null,
+    val description: String? = null,
+    @SerialName("is_active")
+    val isActive: Boolean? = null,
+    @SerialName("start_location")
+    val startLocation: String? = null,
+    @SerialName("end_location")
+    val endLocation: String? = null,
 )
 
 @Serializable

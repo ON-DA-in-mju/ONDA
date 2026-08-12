@@ -1,6 +1,10 @@
 package com.onda.mju.student.ui.screen.favorite
 
 import androidx.compose.ui.graphics.Color
+import com.onda.mju.student.data.route.StudentRouteIds
+import com.onda.mju.student.ui.screen.notice.StopGuideItem
+import com.onda.mju.student.ui.screen.route.RouteStatus
+import com.onda.mju.student.ui.screen.route.RouteUiModel
 
 enum class FavoriteTab {
     Route,
@@ -36,55 +40,51 @@ private val BlueFg = Color(0xFF1D4ED8)
 private val TealFg = Color(0xFF0F766E)
 private val PurpleFg = Color(0xFF6D28D9)
 
-fun sampleFavoriteRoutes(): List<FavoriteRoute> = listOf(
-    FavoriteRoute(
-        id = "giheung",
-        name = "기흥역 통학버스",
-        status = "운행 중",
-        nextDeparture = "17:15",
-        operatingCount = "3대",
-        iconBg = SoftBlue,
-    ),
-    FavoriteRoute(
-        id = "myeongji_station",
-        name = "명지대역 셔틀",
-        status = "운행 중",
-        nextDeparture = "16:50",
-        operatingCount = "4대",
-        iconBg = SoftTeal,
-    ),
-)
+fun List<RouteUiModel>.toFavoriteRoutes(): List<FavoriteRoute> =
+    map { route ->
+        FavoriteRoute(
+            id = route.id,
+            name = route.name,
+            status = when (route.status) {
+                RouteStatus.RUNNING -> "운행 중"
+                RouteStatus.SCHEDULED -> "운행 예정"
+            },
+            nextDeparture = route.nextDeparture,
+            operatingCount = route.activeVehicleCount?.let { "${it}대" } ?: "-",
+            iconBg = when (route.id) {
+                StudentRouteIds.GIHEUNG -> SoftBlue
+                StudentRouteIds.MYEONGJI_STATION -> SoftTeal
+                else -> SoftPurple
+            },
+        )
+    }
 
-fun sampleFavoriteStops(): List<FavoriteStop> = listOf(
-    FavoriteStop(
-        id = "myeongji_station_intersection",
-        name = "명지대역 사거리 정류장",
-        iconBg = SoftBlue,
-        routes = listOf(RouteTag("명지대역 셔틀", SoftTeal, TealFg)),
-    ),
-    FavoriteStop(
-        id = "bus_management_office",
-        name = "버스관리사무소",
-        iconBg = SoftTeal,
-        routes = listOf(
-            RouteTag("기흥역 통학버스", SoftBlue, BlueFg),
-            RouteTag("명지대역 셔틀", SoftTeal, TealFg),
-            RouteTag("시내 셔틀", SoftPurple, PurpleFg),
-        ),
-    ),
-    FavoriteStop(
-        id = "giheung_exit_5",
-        name = "기흥역 5번 출구",
-        iconBg = SoftPurple,
-        routes = listOf(RouteTag("기흥역 통학버스", SoftBlue, BlueFg)),
-    ),
-    FavoriteStop(
-        id = "entrance_luxnine",
-        name = "진입로(럭스나인 앞)",
-        iconBg = SoftBlue,
-        routes = listOf(
-            RouteTag("명지대역 셔틀", SoftTeal, TealFg),
-            RouteTag("시내 셔틀", SoftPurple, PurpleFg),
-        ),
-    ),
-)
+fun buildFavoriteStops(
+    guideItems: List<StopGuideItem>,
+    limit: Int = 8,
+): List<FavoriteStop> =
+    guideItems.take(limit).map { item ->
+        FavoriteStop(
+            id = item.id,
+            name = item.name,
+            iconBg = when (item.routeId) {
+                "giheung" -> SoftBlue
+                "myeongji" -> SoftTeal
+                else -> SoftPurple
+            },
+            routes = item.availableRoutes.map { label ->
+                val (bg, fg) = when {
+                    label.contains("기흥") -> SoftBlue to BlueFg
+                    label.contains("명지대") -> SoftTeal to TealFg
+                    else -> SoftPurple to PurpleFg
+                }
+                RouteTag(label = label, bg = bg, fg = fg)
+            },
+        )
+    }
+
+@Deprecated("Use routes/stops from DB", ReplaceWith("emptyList()"))
+fun sampleFavoriteRoutes(): List<FavoriteRoute> = emptyList()
+
+@Deprecated("Use stops from DB", ReplaceWith("emptyList()"))
+fun sampleFavoriteStops(): List<FavoriteStop> = emptyList()

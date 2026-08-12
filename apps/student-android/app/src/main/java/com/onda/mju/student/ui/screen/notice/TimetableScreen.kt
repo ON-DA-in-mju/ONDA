@@ -58,20 +58,22 @@ private val SoftBlue = Color(0xFFEDF4FE)
 fun TimetableScreen(
     modifier: Modifier = Modifier,
     initialRouteId: String = "giheung",
+    routes: List<TimetableRoute> = emptyTimetableRoutes(),
     onBackClick: () -> Unit = {},
 ) {
     BackHandler(onBack = onBackClick)
 
-    val routes = remember { sampleTimetableRoutes() }
-    var selectedRouteId by remember {
+    val safeRoutes = routes.ifEmpty { emptyTimetableRoutes() }
+    var selectedRouteId by remember(safeRoutes, initialRouteId) {
         mutableStateOf(
-            routes.firstOrNull { it.id == initialRouteId }?.id ?: routes.first().id,
+            safeRoutes.firstOrNull { it.id == initialRouteId }?.id
+                ?: safeRoutes.first().id,
         )
     }
     var dayType by remember { mutableStateOf(TimetableDayType.Weekday) }
-    var selectedDirectionId by remember {
+    var selectedDirectionId by remember(safeRoutes, selectedRouteId, dayType) {
         mutableStateOf(
-            routes.first { it.id == selectedRouteId }
+            safeRoutes.first { it.id == selectedRouteId }
                 .directionsFor(dayType)
                 .first()
                 .id,
@@ -79,8 +81,8 @@ fun TimetableScreen(
     }
     var routeMenuExpanded by remember { mutableStateOf(false) }
 
-    val selectedRoute = remember(routes, selectedRouteId) {
-        routes.first { it.id == selectedRouteId }
+    val selectedRoute = remember(safeRoutes, selectedRouteId) {
+        safeRoutes.first { it.id == selectedRouteId }
     }
     val directions = remember(selectedRoute, dayType) {
         selectedRoute.directionsFor(dayType)
@@ -105,7 +107,7 @@ fun TimetableScreen(
     fun selectRoute(routeId: String) {
         selectedRouteId = routeId
         routeMenuExpanded = false
-        val nextDirections = routes.first { it.id == routeId }.directionsFor(dayType)
+        val nextDirections = safeRoutes.first { it.id == routeId }.directionsFor(dayType)
         selectedDirectionId = nextDirections.first().id
     }
 
@@ -179,7 +181,7 @@ fun TimetableScreen(
                     expanded = routeMenuExpanded,
                     onDismissRequest = { routeMenuExpanded = false },
                 ) {
-                    routes.forEach { route ->
+                    safeRoutes.forEach { route ->
                         DropdownMenuItem(
                             text = {
                                 Column {

@@ -33,6 +33,7 @@ export function isAfter18Departure(departureTime: string): boolean {
  * 시간표/배차용 실제 노선명.
  * - 명지대역 셔틀 + 18:00 이후 → 명지대역 셔틀 (18시 이후)
  * - 시내 셔틀 + (주말·공휴일·방학) → 시내 셔틀 (주말·공휴일·방학)
+ * - 학기 = 3/1·9/1부터 각 19주 (계절학기 포함), 그 외 방학
  */
 export function resolveOperationalRouteName(input: {
   baseRouteName: string

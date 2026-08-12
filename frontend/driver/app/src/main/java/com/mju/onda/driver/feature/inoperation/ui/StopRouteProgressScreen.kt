@@ -292,7 +292,7 @@ private fun FullTimelineCard(progress: StopRouteProgressState) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "GPS 위치에 따라 현재 정류장이 자동으로 바뀝니다",
+            text = "정류장 120m 진입 후 140m 이상 벗어나면 지나간 것으로 표시됩니다",
             style = OndaTypography.bodySmall.copy(
                 fontSize = 12.sp,
                 color = OndaColors.TextSecondary,
@@ -311,6 +311,7 @@ private fun FullTimelineCard(progress: StopRouteProgressState) {
                     stop = stop,
                     index = index,
                     currentIndex = progress.currentIndex,
+                    lastPassedIndex = progress.lastPassedIndex,
                     isLast = index == progress.stops.lastIndex,
                 )
             }
@@ -323,10 +324,11 @@ private fun TimelineStopRow(
     stop: RouteStop,
     index: Int,
     currentIndex: Int,
+    lastPassedIndex: Int,
     isLast: Boolean,
 ) {
-    val isPassed = index < currentIndex
-    val isCurrent = index == currentIndex
+    val isPassed = index <= lastPassedIndex
+    val isCurrent = !isPassed && index == currentIndex
     val nodeSize = 20.dp
 
     Row(

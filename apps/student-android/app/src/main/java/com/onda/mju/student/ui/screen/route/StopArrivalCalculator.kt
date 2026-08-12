@@ -41,13 +41,18 @@ fun resolveStopSelection(
     stopCoordinates: StopCoordinateMap = emptyMap(),
 ): ResolvedStopSelection? {
     val routeCandidates = buildList {
-        routeIdHint?.takeIf { it.isNotBlank() }?.let { add(it) }
-        addAll(listOf("city_shuttle", "myeongji_station", "giheung"))
+        routeIdHint?.takeIf { it.isNotBlank() }?.let {
+            add(com.onda.mju.student.data.route.StudentRouteIds.normalizeUiId(it))
+        }
+        addAll(com.onda.mju.student.data.route.StudentRouteIds.orderedUiIds)
     }.distinct()
+
+    fun directionCount(config: RouteStopConfig): Int =
+        if (config.inboundStops.isEmpty()) 0 else 1
 
     for (routeId in routeCandidates) {
         val config = routeStopConfig(routeId)
-        for (dir in 0..1) {
+        for (dir in 0..directionCount(config)) {
             val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
             val byId = waypoints.firstOrNull { it.id == stopId }
             if (byId != null) {
@@ -56,12 +61,17 @@ fun resolveStopSelection(
         }
     }
 
+    // DB stop UUID / raw name
     val stopName = favoriteOrGuideStopNames[stopId] ?: stopId
     for (routeId in routeCandidates) {
         val config = routeStopConfig(routeId)
-        for (dir in 0..1) {
+        val infos = com.onda.mju.student.data.route.RouteStopCatalog.stopInfos(routeId)
+        val matchedName = infos.firstOrNull { it.id == stopId }?.name ?: stopName
+        for (dir in 0..directionCount(config)) {
             val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
-            val byName = waypoints.firstOrNull { it.name == stopName }
+            val byName = waypoints.firstOrNull {
+                it.name == matchedName || it.name == stopName
+            }
             if (byName != null) {
                 return ResolvedStopSelection(routeId, dir, byName, waypoints)
             }
@@ -166,7 +176,7 @@ private fun buildVehicleArrival(
     )
     val nextTracker = VehicleStopTracker(
         lastPassedStopIndex = progress.lastPassedStopIndex,
-        hasEnteredStart = progress.hasEnteredStart,
+        hasEnteredFocus = progress.hasEnteredFocus,
     )
 
     val target = waypoints[targetIndex]

@@ -1,7 +1,9 @@
 package com.onda.mju.student.data.mapper
 
-import com.onda.mju.student.R
 import com.onda.mju.student.data.remote.dto.OperationDto
+import com.onda.mju.student.data.remote.dto.RouteDetailDto
+import com.onda.mju.student.data.route.OperationalRouteResolver
+import com.onda.mju.student.data.route.StudentRouteIds
 import com.onda.mju.student.ui.screen.route.RouteStatus
 import com.onda.mju.student.ui.screen.route.RouteUiModel
 import java.time.LocalTime
@@ -10,57 +12,28 @@ import java.time.ZoneId
 /**
  * Maps today's Supabase operations (+ nested schedule/route) into route-list UI models.
  */
-
-private data class RouteDisplayMeta(
-    val id: String,
-    val name: String,
-    val fromLabel: String,
-    val toLabel: String,
-    val imageRes: Int,
-)
-
-private val routeDisplayByName: Map<String, RouteDisplayMeta> = mapOf(
-    "기흥역 통학버스" to RouteDisplayMeta(
-        id = "giheung",
-        name = "기흥역 통학버스",
-        fromLabel = "명지대",
-        toLabel = "기흥역",
-        imageRes = R.drawable.route_thumb_giheung,
-    ),
-    "명지대역 셔틀" to RouteDisplayMeta(
-        id = "myeongji_station",
-        name = "명지대역 셔틀",
-        fromLabel = "명지대",
-        toLabel = "명지대역",
-        imageRes = R.drawable.route_thumb_myeongji,
-    ),
-    "시내 셔틀" to RouteDisplayMeta(
-        id = "city_shuttle",
-        name = "시내 셔틀",
-        fromLabel = "명지대",
-        toLabel = "시내 순환",
-        imageRes = R.drawable.route_thumb_city,
-    ),
-)
-
-private val routeDisplayOrder: List<String> = listOf(
-    "기흥역 통학버스",
-    "명지대역 셔틀",
-    "시내 셔틀",
-)
-
-fun List<OperationDto>.toRouteUiModels(): List<RouteUiModel> {
+fun List<OperationDto>.toRouteUiModels(
+    routeDetails: List<RouteDetailDto> = emptyList(),
+): List<RouteUiModel> {
     val grouped = asSequence()
         .mapNotNull { operation ->
             val routeName = operation.schedule?.route?.routeName ?: return@mapNotNull null
-            if (routeName !in routeDisplayByName) return@mapNotNull null
-            routeName to operation
+            val family = OperationalRouteResolver.baseRouteFamily(routeName)
+            val uiId = StudentRouteIds.uiIdForRouteName(family) ?: return@mapNotNull null
+            uiId to operation
         }
         .groupBy({ it.first }, { it.second })
 
-    return routeDisplayOrder.map { routeName ->
-        val meta = routeDisplayByName.getValue(routeName)
-        val operations = grouped[routeName].orEmpty()
+    val detailsByFamily = routeDetails.groupBy {
+        OperationalRouteResolver.baseRouteFamily(it.routeName)
+    }
+
+    return StudentRouteIds.orderedUiIds.map { uiId ->
+        val family = StudentRouteIds.dbNameForUiId(uiId)
+        val meta = detailsByFamily[family]?.firstOrNull {
+            !it.routeName.contains("주말") && !it.routeName.contains("18시")
+        } ?: detailsByFamily[family]?.firstOrNull()
+        val operations = grouped[uiId].orEmpty()
         val inProgressCount = operations.count { it.status == "IN_PROGRESS" }
         val status = if (inProgressCount > 0) {
             RouteStatus.RUNNING
@@ -77,22 +50,37 @@ fun List<OperationDto>.toRouteUiModels(): List<RouteUiModel> {
             ?.toUiDepartureTime()
             ?: "-"
 
+        val fromLabel = meta?.startLocation?.takeIf { it.isNotBlank() } ?: defaultFrom(uiId)
+        val toLabel = meta?.endLocation?.takeIf { it.isNotBlank() && it != fromLabel }
+            ?: defaultTo(uiId)
+
         RouteUiModel(
-            id = meta.id,
-            name = meta.name,
-            fromLabel = meta.fromLabel,
-            toLabel = meta.toLabel,
+            id = uiId,
+            name = StudentRouteIds.displayName(uiId),
+            fromLabel = fromLabel,
+            toLabel = toLabel,
             status = status,
             activeVehicleCount = inProgressCount.takeIf { it > 0 },
             nextDeparture = nextDeparture,
             isFavorite = false,
-            imageRes = meta.imageRes,
+            imageRes = StudentRouteIds.imageRes(uiId),
         )
     }
 }
 
+private fun defaultFrom(uiId: String): String = when (uiId) {
+    StudentRouteIds.GIHEUNG -> "명지대"
+    StudentRouteIds.MYEONGJI_STATION -> "명지대"
+    else -> "명지대"
+}
+
+private fun defaultTo(uiId: String): String = when (uiId) {
+    StudentRouteIds.GIHEUNG -> "기흥역"
+    StudentRouteIds.MYEONGJI_STATION -> "명지대역"
+    else -> "시내 순환"
+}
+
 private fun String.toLocalTimeOrNull(): LocalTime? {
-    // "08:20:00" / "08:20" -> LocalTime
     val parts = split(':')
     if (parts.size < 2) return null
     return try {

@@ -2,10 +2,15 @@ package com.mju.onda.driver.feature.inoperation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mju.onda.driver.core.calendar.AcademicCalendar
 import com.mju.onda.driver.core.location.LatestLocationHolder
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
+import com.mju.onda.driver.feature.inoperation.data.OperationalRouteResolver
+import com.mju.onda.driver.feature.inoperation.data.RouteStop
+import com.mju.onda.driver.feature.inoperation.data.RouteStopsApi
 import com.mju.onda.driver.feature.inoperation.data.RouteStopsCatalog
+import com.mju.onda.driver.feature.inoperation.data.StopProgressTracker
 import com.mju.onda.driver.feature.inoperation.data.StopRouteProgress
 import com.mju.onda.driver.feature.inoperation.data.StopRouteProgressState
 import com.mju.onda.driver.feature.operation.data.MockOperationDetail
@@ -25,6 +30,7 @@ data class StopRouteProgressUiState(
         vehicleName = "",
         stops = emptyList(),
     ),
+    val loadingStops: Boolean = false,
 )
 
 sealed interface StopRouteProgressEvent {
@@ -42,17 +48,42 @@ class StopRouteProgressViewModel : ViewModel() {
     private var operationId: String = ""
     private var routeName: String = ""
     private var vehicleName: String = ""
-    private var maxReachedIndex: Int = 0
+    private var tracker: StopProgressTracker = StopProgressTracker()
+    private var stops: List<RouteStop> = emptyList()
     private var collectJob: Job? = null
+    private var loadStopsJob: Job? = null
 
     fun load(operationId: String) {
         this.operationId = operationId
         val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
         val detail = MockOperationDetail.forOperationId(operationId)
-        routeName = op?.routeName ?: detail.routeName
+        val assignedRoute = op?.routeName ?: detail.routeName
+        val departTime = op?.departTime.orEmpty().ifBlank { detail.departTime }
+        val operationDate = AcademicCalendar.todayDateKey()
+
+        routeName = OperationalRouteResolver.resolveOperationalRouteName(
+            routeNameFromAssignment = assignedRoute,
+            departureTime = departTime,
+            date = operationDate,
+        )
         vehicleName = op?.vehicleName ?: detail.vehicleName
-        maxReachedIndex = 0
+        tracker = StopProgressTracker()
+
+        stops = RouteStopsCatalog.stopsForRouteName(routeName)
         refresh()
+
+        loadStopsJob?.cancel()
+        loadStopsJob = viewModelScope.launch {
+            _uiState.update { it.copy(loadingStops = true) }
+            val fromDb = RouteStopsApi.fetchStopsForRouteName(routeName)
+            if (fromDb.isNotEmpty()) {
+                stops = fromDb
+                tracker = StopProgressTracker()
+                refresh()
+            }
+            _uiState.update { it.copy(loadingStops = false) }
+        }
+
         collectJob?.cancel()
         collectJob = viewModelScope.launch {
             LatestLocationHolder.latestFlow.collect { refresh() }
@@ -60,22 +91,21 @@ class StopRouteProgressViewModel : ViewModel() {
     }
 
     private fun refresh() {
-        val stops = RouteStopsCatalog.stopsForRouteName(routeName)
         val fix = LatestLocationHolder.latest
         val useFix = fix != null && (
             fix.operationId.isBlank() ||
                 fix.operationId == operationId ||
                 OperationRuntimeStateHolder.isInProgress(operationId)
             )
-        val (state, reached) = StopRouteProgress.resolve(
+        val (state, nextTracker) = StopRouteProgress.resolve(
             routeName = routeName,
             vehicleName = vehicleName,
             stops = stops,
             lat = if (useFix) fix?.latitude else null,
             lng = if (useFix) fix?.longitude else null,
-            maxReachedIndex = maxReachedIndex,
+            tracker = tracker,
         )
-        maxReachedIndex = reached
+        tracker = nextTracker
         _uiState.update { it.copy(progress = state) }
     }
 

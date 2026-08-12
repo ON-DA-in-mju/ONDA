@@ -81,7 +81,7 @@ fun RouteLiveScreen(
     onTimetableClick: () -> Unit = {},
 ) {
     val data = liveData ?: remember(routeId) { sampleRouteLive(routeId) }
-    val stopConfig = remember(data.routeId) { routeStopConfig(data.routeId) }
+    val stopConfig = remember(data.routeId, stopCoordinates) { routeStopConfig(data.routeId) }
     val directions = remember(stopConfig) { stopConfig.directions }
     var directionIndex by remember(routeId) { mutableIntStateOf(0) }
     val waypoints = remember(stopConfig, directionIndex, stopCoordinates) {
@@ -143,12 +143,12 @@ fun RouteLiveScreen(
     LaunchedEffect(
         trackerKey,
         timelineProgress.lastPassedStopIndex,
-        timelineProgress.hasEnteredStart,
+        timelineProgress.hasEnteredFocus,
         directionIndex,
     ) {
         val next = VehicleStopTracker(
             lastPassedStopIndex = timelineProgress.lastPassedStopIndex,
-            hasEnteredStart = timelineProgress.hasEnteredStart,
+            hasEnteredFocus = timelineProgress.hasEnteredFocus,
         )
         val prev = trackerByVehicle[trackerKey]
         if (prev != next) {

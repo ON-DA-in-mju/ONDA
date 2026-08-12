@@ -19,14 +19,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import android.util.Log
+import com.onda.mju.student.core.calendar.AcademicCalendar
+import com.onda.mju.student.data.mapper.buildStopGuideItems
+import com.onda.mju.student.data.mapper.buildStopGuideRoutes
+import com.onda.mju.student.data.mapper.buildTimetableRoutes
 import com.onda.mju.student.data.mapper.toRouteUiModels
 import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
 import com.onda.mju.student.data.remote.dto.OperationDto
+import com.onda.mju.student.data.remote.dto.RouteDetailDto
+import com.onda.mju.student.data.remote.dto.StopDto
 import com.onda.mju.student.data.remote.dto.VehicleLocationDto
 import com.onda.mju.student.data.remote.repository.OperationDeviceStatusRepository
 import com.onda.mju.student.data.remote.repository.OperationRepository
+import com.onda.mju.student.data.remote.repository.RouteRepository
+import com.onda.mju.student.data.remote.repository.RouteStopsRepository
+import com.onda.mju.student.data.remote.repository.ScheduleRepository
 import com.onda.mju.student.data.remote.repository.StopRepository
 import com.onda.mju.student.data.remote.repository.VehicleLocationRepository
+import com.onda.mju.student.data.route.OperationalRouteResolver
+import com.onda.mju.student.data.route.RouteStopCatalog
+import com.onda.mju.student.data.route.StudentRouteIds
 import com.onda.mju.student.ui.component.StudentBottomNavBar
 import com.onda.mju.student.ui.component.StudentBottomTab
 import com.onda.mju.student.ui.screen.community.CommunityCreateScreen
@@ -34,6 +46,8 @@ import com.onda.mju.student.ui.screen.community.CommunityDetailScreen
 import com.onda.mju.student.ui.screen.community.CommunityListScreen
 import com.onda.mju.student.ui.screen.community.sampleCommunityReports
 import com.onda.mju.student.ui.screen.favorite.FavoriteScreen
+import com.onda.mju.student.ui.screen.favorite.buildFavoriteStops
+import com.onda.mju.student.ui.screen.favorite.toFavoriteRoutes
 import com.onda.mju.student.ui.screen.home.StudentHomeScreen
 import com.onda.mju.student.ui.screen.legal.LegalDocumentScreen
 import com.onda.mju.student.ui.screen.legal.LegalType
@@ -47,9 +61,14 @@ import com.onda.mju.student.ui.screen.my.NotificationSettingsScreen
 import com.onda.mju.student.ui.screen.notice.NoticeDetailScreen
 import com.onda.mju.student.ui.screen.notice.NoticeListScreen
 import com.onda.mju.student.ui.screen.notice.StopGuideDetailScreen
+import com.onda.mju.student.ui.screen.notice.StopGuideItem
 import com.onda.mju.student.ui.screen.notice.StopGuideListScreen
+import com.onda.mju.student.ui.screen.notice.StopGuideRouteInfo
 import com.onda.mju.student.ui.screen.notice.StopGuideScreen
+import com.onda.mju.student.ui.screen.notice.TimetableRoute
 import com.onda.mju.student.ui.screen.notice.TimetableScreen
+import com.onda.mju.student.ui.screen.notice.emptyStopGuideRoutes
+import com.onda.mju.student.ui.screen.notice.emptyTimetableRoutes
 import com.onda.mju.student.ui.screen.notice.sampleNotices
 import com.onda.mju.student.ui.screen.notification.NotificationDetailScreen
 import com.onda.mju.student.ui.screen.notification.NotificationListScreen
@@ -65,6 +84,8 @@ import com.onda.mju.student.ui.screen.route.StopCoordinateMap
 import com.onda.mju.student.ui.screen.route.StopCoordinateResolver
 import com.onda.mju.student.ui.screen.route.StopLiveScreen
 import com.onda.mju.student.ui.screen.route.VehicleStatus
+import com.onda.mju.student.ui.screen.route.liveStopsForDirection
+import com.onda.mju.student.ui.screen.route.routeStopConfig
 import com.onda.mju.student.ui.screen.route.sampleRouteList
 import com.onda.mju.student.ui.screen.route.sampleRouteLive
 import kotlinx.coroutines.Job
@@ -140,10 +161,18 @@ fun StudentMainShell(
     val scope = rememberCoroutineScope()
     val operationRepository = remember { OperationRepository() }
     val stopRepository = remember { StopRepository() }
+    val routeRepository = remember { RouteRepository() }
+    val routeStopsRepository = remember { RouteStopsRepository() }
+    val scheduleRepository = remember { ScheduleRepository() }
     val vehicleLocationRepository = remember { VehicleLocationRepository() }
     val operationDeviceStatusRepository = remember { OperationDeviceStatusRepository() }
     var routes by remember { mutableStateOf<List<RouteUiModel>>(sampleRouteList()) }
+    var routeDetails by remember { mutableStateOf<List<RouteDetailDto>>(emptyList()) }
+    var allStops by remember { mutableStateOf<List<StopDto>>(emptyList()) }
     var stopCoordinates by remember { mutableStateOf<StopCoordinateMap>(emptyMap()) }
+    var timetableRoutes by remember { mutableStateOf<List<TimetableRoute>>(emptyTimetableRoutes()) }
+    var stopGuideRoutes by remember { mutableStateOf<List<StopGuideRouteInfo>>(emptyStopGuideRoutes()) }
+    var stopGuideItems by remember { mutableStateOf<List<StopGuideItem>>(emptyList()) }
     var operations by remember { mutableStateOf<List<OperationDto>>(emptyList()) }
     val operationLocations = remember {
         mutableStateMapOf<String, VehicleLocationDto>()
@@ -291,10 +320,43 @@ fun StudentMainShell(
         try {
             try {
                 val stops = stopRepository.getAllStops()
+                allStops = stops
                 stopCoordinates = StopCoordinateResolver.fromStops(stops)
                 Log.d("ONDA_SUPABASE", "stops fetch success=true, count=${stops.size}")
             } catch (e: Exception) {
                 Log.e("ONDA_SUPABASE", "stops fetch failed: ${e.message}", e)
+            }
+
+            var stopsByRouteName = emptyMap<String, List<com.onda.mju.student.data.remote.repository.RouteStopInfo>>()
+            try {
+                val fetchedRoutes = routeRepository.getActiveRoutes()
+                routeDetails = fetchedRoutes
+                stopGuideRoutes = buildStopGuideRoutes(fetchedRoutes).ifEmpty { emptyStopGuideRoutes() }
+                Log.d("ONDA_SUPABASE", "routes fetch success=true, count=${fetchedRoutes.size}")
+            } catch (e: Exception) {
+                Log.e("ONDA_SUPABASE", "routes fetch failed: ${e.message}", e)
+            }
+
+            try {
+                val routeStopRows = routeStopsRepository.getAllRouteStops()
+                stopsByRouteName = routeStopRows.groupBy { it.routeName }
+                RouteStopCatalog.update(stopsByRouteName, date = AcademicCalendar.todayDateKey())
+                stopGuideItems = buildStopGuideItems(allStops, routeStopRows)
+                Log.d("ONDA_SUPABASE", "route_stops fetch success=true, count=${routeStopRows.size}")
+            } catch (e: Exception) {
+                Log.e("ONDA_SUPABASE", "route_stops fetch failed: ${e.message}", e)
+            }
+
+            try {
+                val schedules = scheduleRepository.getSchedulesWithRoutes()
+                timetableRoutes = buildTimetableRoutes(
+                    schedules = schedules,
+                    routes = routeDetails,
+                    routeStops = stopsByRouteName,
+                ).ifEmpty { emptyTimetableRoutes() }
+                Log.d("ONDA_SUPABASE", "schedules fetch success=true, count=${schedules.size}")
+            } catch (e: Exception) {
+                Log.e("ONDA_SUPABASE", "schedules fetch failed: ${e.message}", e)
             }
 
             val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
@@ -308,7 +370,7 @@ fun StudentMainShell(
                         "departureTime=${first.schedule?.departureTime}, routeName=${first.schedule?.route?.routeName}",
                 )
             }
-            val routeUiModels = fetchedOperations.toRouteUiModels()
+            val routeUiModels = fetchedOperations.toRouteUiModels(routeDetails)
             routeUiModels.forEach { route ->
                 Log.d(
                     "ONDA_SUPABASE",
@@ -389,7 +451,7 @@ fun StudentMainShell(
                         }
 
                         operations = refreshed
-                        routes = refreshed.toRouteUiModels()
+                        routes = refreshed.toRouteUiModels(routeDetails)
                         reconcileInProgressSubscriptions(refreshed)
                     }
                 } catch (e: CancellationException) {
@@ -501,6 +563,8 @@ fun StudentMainShell(
                 MainOverlay.Favorites -> {
                     FavoriteScreen(
                         modifier = Modifier.fillMaxSize(),
+                        favoriteRoutes = routes.toFavoriteRoutes(),
+                        favoriteStops = buildFavoriteStops(stopGuideItems),
                         onBackClick = { overlay = MainOverlay.None },
                         onManageClick = { overlay = MainOverlay.FavoriteManage },
                         onRouteClick = { routeId -> openRouteLive(routeId) },
@@ -586,6 +650,8 @@ fun StudentMainShell(
                 MainOverlay.Timetable -> {
                     TimetableScreen(
                         modifier = Modifier.fillMaxSize(),
+                        initialRouteId = timetableReturnRouteId ?: StudentRouteIds.GIHEUNG,
+                        routes = timetableRoutes,
                         onBackClick = {
                             val routeId = timetableReturnRouteId
                             timetableReturnRouteId = null
@@ -601,6 +667,7 @@ fun StudentMainShell(
                 MainOverlay.StopGuide -> {
                     StopGuideScreen(
                         modifier = Modifier.fillMaxSize(),
+                        routes = stopGuideRoutes,
                         onBackClick = { overlay = MainOverlay.None },
                         onRouteClick = { routeId ->
                             overlay = MainOverlay.StopGuideList(routeId)
@@ -612,6 +679,8 @@ fun StudentMainShell(
                     StopGuideListScreen(
                         routeId = current.routeId,
                         modifier = Modifier.fillMaxSize(),
+                        routes = stopGuideRoutes,
+                        stopsCatalog = stopGuideItems,
                         onBackClick = { overlay = MainOverlay.StopGuide },
                         onStopClick = { stopId ->
                             overlay = MainOverlay.StopGuideDetail(
@@ -626,6 +695,7 @@ fun StudentMainShell(
                     StopGuideDetailScreen(
                         stopId = current.stopId,
                         modifier = Modifier.fillMaxSize(),
+                        stopsCatalog = stopGuideItems,
                         onBackClick = {
                             overlay = MainOverlay.StopGuideList(current.returnRouteId)
                         },
@@ -634,11 +704,13 @@ fun StudentMainShell(
                         },
                         onLiveClick = {
                             selectedTab = StudentBottomTab.Route
-                            val routeId = when (current.returnRouteId) {
-                                "giheung" -> "giheung"
-                                "myeongji" -> "myeongji_station"
-                                else -> "city_shuttle"
-                            }
+                            val routeId = StudentRouteIds.normalizeUiId(
+                                when (current.returnRouteId) {
+                                    "giheung" -> StudentRouteIds.GIHEUNG
+                                    "myeongji" -> StudentRouteIds.MYEONGJI_STATION
+                                    else -> StudentRouteIds.CITY_SHUTTLE
+                                },
+                            )
                             overlay = MainOverlay.StopLive(
                                 stopId = current.stopId,
                                 routeId = routeId,
@@ -649,7 +721,11 @@ fun StudentMainShell(
                 }
 
                 is MainOverlay.RouteLive -> {
-                    val baseLiveData = sampleRouteLive(current.routeId)
+                    val stopConfig = routeStopConfig(current.routeId)
+                    val baseLiveData = sampleRouteLive(current.routeId).copy(
+                        directions = stopConfig.directions,
+                        stops = liveStopsForDirection(stopConfig, directionIndex = 0),
+                    )
                     val routeUi = routes.firstOrNull { it.id == current.routeId }
                     val routeName = routeUi?.name ?: routeDisplayNameForId(current.routeId)
                     val liveVehicles = liveVehiclesForRoute(
@@ -767,6 +843,8 @@ fun StudentMainShell(
                 MainOverlay.FavoriteManage -> {
                     FavoriteManageScreen(
                         modifier = Modifier.fillMaxSize(),
+                        routeItems = routes.map { it.id to it.name },
+                        stopItems = stopGuideItems.map { it.id to it.name },
                         onBackClick = { overlay = MainOverlay.None },
                         onSaveClick = {
                             showTodo("즐겨찾기가 저장되었습니다.")
@@ -956,23 +1034,25 @@ fun StudentMainShell(
     }
 }
 
-/** Matches RouteOperationMapper route id ↔ DB route_name mapping. */
-private fun routeDisplayNameForId(routeId: String): String = when (routeId) {
-    "giheung" -> "기흥역 통학버스"
-    "myeongji_station" -> "명지대역 셔틀"
-    "city_shuttle" -> "시내 셔틀"
-    else -> routeId
-}
+/** Matches StudentRouteIds route id ↔ DB route_name mapping. */
+private fun routeDisplayNameForId(routeId: String): String =
+    StudentRouteIds.displayName(routeId)
 
 private fun liveVehiclesForRoute(
     routeName: String?,
     operations: List<OperationDto>,
     operationLocations: Map<String, VehicleLocationDto>,
 ): List<LiveVehicle> {
+    val family = routeName?.let { OperationalRouteResolver.baseRouteFamily(it) }
     return operations
         .asSequence()
         .filter { it.status == "IN_PROGRESS" }
-        .filter { routeName == null || it.schedule?.route?.routeName == routeName }
+        .filter {
+            family == null ||
+                OperationalRouteResolver.baseRouteFamily(
+                    it.schedule?.route?.routeName.orEmpty(),
+                ) == family
+        }
         .sortedByDescending { it.startedAt.orEmpty() }
         .map { operation ->
             val location = operationLocations[operation.id]

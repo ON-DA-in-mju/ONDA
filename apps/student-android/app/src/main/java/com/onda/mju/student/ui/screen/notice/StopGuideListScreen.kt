@@ -54,14 +54,16 @@ private val CardBorder = Color(0xFFE8EDF2)
 fun StopGuideListScreen(
     routeId: String,
     modifier: Modifier = Modifier,
+    routes: List<StopGuideRouteInfo> = emptyStopGuideRoutes(),
+    stopsCatalog: List<StopGuideItem> = emptyStopGuideItems(),
     onBackClick: () -> Unit = {},
     onStopClick: (String) -> Unit = {},
 ) {
-    val routes = remember { sampleStopGuideRoutes() }
+    val safeRoutes = routes.ifEmpty { emptyStopGuideRoutes() }
     var selectedRouteId by remember(routeId) { mutableStateOf(routeId) }
     var query by remember { mutableStateOf("") }
-    val stops = remember(selectedRouteId, query) {
-        sampleStopGuideItems()
+    val stops = remember(selectedRouteId, query, stopsCatalog) {
+        stopsCatalog
             .filter { it.routeId == selectedRouteId }
             .filter {
                 query.isBlank() ||
@@ -124,9 +126,8 @@ fun StopGuideListScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Figma order: 시내 셔틀, 기흥역, 명지대역
-                listOf("city", "giheung", "myeongji").forEach { id ->
-                    val route = routes.first { it.id == id }
+                safeRoutes.forEach { route ->
+                    val id = route.id
                     val selected = selectedRouteId == id
                     Text(
                         text = route.title,

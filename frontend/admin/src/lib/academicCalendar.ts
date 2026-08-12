@@ -2,15 +2,15 @@ import type { SemesterType } from '../types/database'
 
 /**
  * 학기 기준 (프로젝트 합의)
- * - 1학기: 3월 1일부터 15주
- * - 2학기: 9월 1일부터 15주
+ * - 1학기: 3월 1일부터 19주 (계절학기 포함)
+ * - 2학기: 9월 1일부터 19주 (계절학기 포함)
  * - 그 외: 방학
  */
-export const SEMESTER_WEEKS = 15
+export const SEMESTER_WEEKS = 19
 export const SPRING_SEMESTER_START_MD = { month: 3, day: 1 } as const
 export const FALL_SEMESTER_START_MD = { month: 9, day: 1 } as const
 
-/** @deprecated 구간 표시용 — semesterForDate는 15주 규칙 사용 */
+/** @deprecated 구간 표시용 — semesterForDate는 19주 규칙 사용 */
 export const VACATION_START_MD = { month: 6, day: 14 } as const
 /** @deprecated */
 export const VACATION_END_MD = { month: 8, day: 31 } as const

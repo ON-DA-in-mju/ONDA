@@ -10,6 +10,7 @@ object StopCoordinateResolver {
     private val nameAliases: Map<String, String> = mapOf(
         "명지대역 사거리" to "명지대역 사거리 정류장",
         "용인 CGV" to "용인CGV",
+        "채플관 앞" to "버스관리사무소",
     )
 
     fun fromStops(stops: List<StopDto>): StopCoordinateMap =

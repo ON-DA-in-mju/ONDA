@@ -90,8 +90,8 @@ data class BusDetailData(
 )
 
 /**
- * Local stop timeline config per route / direction.
- * Outbound and inbound lists are independent (not reverses) — campus shuttles use different stops.
+ * Stop timeline config per route.
+ * DB stores one ordered loop per route; inbound list is optional (empty = single direction).
  */
 data class RouteStopConfig(
     val routeId: String,
@@ -103,76 +103,20 @@ data class RouteStopConfig(
     val inboundStops: List<String>,
 ) {
     val directions: List<Pair<String, String>>
-        get() = listOf(outboundFrom to outboundTo, inboundFrom to inboundTo)
+        get() = buildList {
+            if (outboundStops.isNotEmpty()) add(outboundFrom to outboundTo)
+            if (inboundStops.isNotEmpty()) add(inboundFrom to inboundTo)
+        }
 
     fun stopNames(directionIndex: Int): List<String> =
-        if (directionIndex == 0) outboundStops else inboundStops
+        when {
+            directionIndex <= 0 || inboundStops.isEmpty() -> outboundStops
+            else -> inboundStops
+        }
 }
 
-fun routeStopConfig(routeId: String): RouteStopConfig = when (routeId) {
-    "giheung" -> RouteStopConfig(
-        routeId = routeId,
-        outboundFrom = "버스관리사무소",
-        outboundTo = "기흥역 5번 출구",
-        inboundFrom = "기흥역 5번 출구",
-        inboundTo = "버스관리사무소",
-        outboundStops = listOf(
-            "버스관리사무소",
-            "기흥역 5번 출구",
-        ),
-        inboundStops = listOf(
-            "기흥역 5번 출구",
-            "버스관리사무소",
-        ),
-    )
-    "myeongji_station" -> RouteStopConfig(
-        routeId = routeId,
-        outboundFrom = "버스관리사무소",
-        outboundTo = "명지대역 사거리",
-        inboundFrom = "진입로(역북동 주민센터)",
-        inboundTo = "버스관리사무소",
-        outboundStops = listOf(
-            "버스관리사무소",
-            "상공회의소",
-            "진입로(럭스나인 앞)",
-            "경전철 명지대역",
-            "명지대역 사거리 정류장",
-        ),
-        inboundStops = listOf(
-            "진입로(역북동 주민센터)",
-            "이마트",
-            "명진당",
-            "제3공학관",
-            "함박관",
-            "창조관",
-            "버스관리사무소",
-        ),
-    )
-    else -> RouteStopConfig(
-        routeId = "city_shuttle",
-        outboundFrom = "버스관리사무소",
-        outboundTo = "중앙공영주차장",
-        inboundFrom = "진입로(역북동 주민센터)",
-        inboundTo = "버스관리사무소",
-        outboundStops = listOf(
-            "버스관리사무소",
-            "상공회의소",
-            "진입로(럭스나인 앞)",
-            "동부경찰서 중앙지구대",
-            "용인CGV",
-            "중앙공영주차장",
-        ),
-        inboundStops = listOf(
-            "진입로(역북동 주민센터)",
-            "이마트",
-            "제1공학관",
-            "제3공학관",
-            "함박관",
-            "창조관",
-            "버스관리사무소",
-        ),
-    )
-}
+fun routeStopConfig(routeId: String): RouteStopConfig =
+    com.onda.mju.student.data.route.RouteStopCatalog.config(routeId)
 
 /**
  * Builds timeline nodes for a direction. Progress states are mock placeholders
@@ -215,27 +159,18 @@ fun liveStopsForDirection(
     }
 }
 
+/** Offline / loading skeleton — production overlays live vehicles from operations. */
 fun sampleRouteLive(routeId: String = "city_shuttle"): RouteLiveData {
-    val name = when (routeId) {
-        "giheung" -> "기흥역 통학버스"
-        "myeongji_station" -> "명지대역 셔틀"
-        else -> "시내 셔틀"
-    }
     val config = routeStopConfig(routeId)
     return RouteLiveData(
         routeId = routeId,
-        routeName = name,
+        routeName = com.onda.mju.student.data.route.StudentRouteIds.displayName(routeId),
         directions = config.directions,
-        runningCount = 3,
-        nextDeparture = "17:15",
-        lastUpdateLabel = "마지막 갱신 10초 전",
-        locationOk = true,
-        vehicles = listOf(
-            LiveVehicle("v1", "1호차", VehicleStatus.Running, 1),
-            LiveVehicle("v2", "2호차", VehicleStatus.Approaching, 3),
-            LiveVehicle("v3", "3호차", VehicleStatus.Waiting, null),
-        ),
-        // Default outbound; RouteLiveScreen swaps by directionIndex via [liveStopsForDirection].
+        runningCount = 0,
+        nextDeparture = "-",
+        lastUpdateLabel = "마지막 갱신 —",
+        locationOk = false,
+        vehicles = emptyList(),
         stops = liveStopsForDirection(config, directionIndex = 0),
     )
 }

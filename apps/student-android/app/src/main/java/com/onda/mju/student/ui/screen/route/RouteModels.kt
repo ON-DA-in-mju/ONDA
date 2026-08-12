@@ -2,10 +2,10 @@ package com.onda.mju.student.ui.screen.route
 
 import androidx.annotation.DrawableRes
 import com.onda.mju.student.R
+import com.onda.mju.student.data.route.StudentRouteIds
 
 /**
  * Runtime status for a shuttle route.
- * Later replace mock values with driver-app / Supabase "운행 시작" state.
  */
 enum class RouteStatus {
     RUNNING,
@@ -19,8 +19,7 @@ enum class RouteFilter {
 }
 
 /**
- * UI model for the route list. Keep fields backend-ready so mock data
- * can be swapped without changing filter/card logic.
+ * UI model for the route list. Populated from today's operations (+ routes metadata).
  */
 data class RouteUiModel(
     val id: String,
@@ -36,41 +35,25 @@ data class RouteUiModel(
     @param:DrawableRes val imageRes: Int,
 )
 
-fun sampleRouteList(): List<RouteUiModel> = listOf(
-    RouteUiModel(
-        id = "giheung",
-        name = "기흥역 통학버스",
-        fromLabel = "명지대",
-        toLabel = "기흥역",
-        status = RouteStatus.RUNNING,
-        activeVehicleCount = 3,
-        nextDeparture = "17:15",
-        isFavorite = true,
-        imageRes = R.drawable.route_thumb_giheung,
-    ),
-    RouteUiModel(
-        id = "myeongji_station",
-        name = "명지대역 셔틀",
-        fromLabel = "명지대",
-        toLabel = "명지대역",
-        status = RouteStatus.RUNNING,
-        activeVehicleCount = 4,
-        nextDeparture = "16:50",
-        isFavorite = false,
-        imageRes = R.drawable.route_thumb_myeongji,
-    ),
-    RouteUiModel(
-        id = "city_shuttle",
-        name = "시내 셔틀",
-        fromLabel = "명지대",
-        toLabel = "시내 순환",
-        status = RouteStatus.SCHEDULED,
-        activeVehicleCount = null,
-        nextDeparture = "17:15",
-        isFavorite = false,
-        imageRes = R.drawable.route_thumb_city,
-    ),
-)
+/** Loading / offline skeleton until operations arrive. */
+fun sampleRouteList(): List<RouteUiModel> =
+    StudentRouteIds.orderedUiIds.map { uiId ->
+        RouteUiModel(
+            id = uiId,
+            name = StudentRouteIds.displayName(uiId),
+            fromLabel = "명지대",
+            toLabel = when (uiId) {
+                StudentRouteIds.GIHEUNG -> "기흥역"
+                StudentRouteIds.MYEONGJI_STATION -> "명지대역"
+                else -> "시내 순환"
+            },
+            status = RouteStatus.SCHEDULED,
+            activeVehicleCount = null,
+            nextDeparture = "-",
+            isFavorite = false,
+            imageRes = StudentRouteIds.imageRes(uiId),
+        )
+    }
 
 fun List<RouteUiModel>.filterBy(filter: RouteFilter): List<RouteUiModel> = when (filter) {
     RouteFilter.ALL -> this
