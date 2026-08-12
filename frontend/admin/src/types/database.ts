@@ -233,6 +233,30 @@ type Tables = {
     Update: Partial<Tables['vehicle_locations']['Insert']>
     Relationships: []
   }
+  /** 운행당 최신 기기 heartbeat — GPS vs 네트워크 구분용 */
+  operation_device_status: {
+    Row: {
+      operation_id: string
+      /** 최근 GPS fix 있음 */
+      gps_ok: boolean
+      /** 기기 위치 서비스 on/off */
+      gps_enabled: boolean
+      last_location_at: string | null
+      last_accuracy: number | null
+      /** heartbeat 시각 (네트워크 생존 신호) */
+      updated_at: string
+    }
+    Insert: {
+      operation_id: string
+      gps_ok?: boolean
+      gps_enabled?: boolean
+      last_location_at?: string | null
+      last_accuracy?: number | null
+      updated_at?: string
+    }
+    Update: Partial<Omit<Tables['operation_device_status']['Insert'], 'operation_id'>>
+    Relationships: []
+  }
   notices: {
     Row: {
       id: string

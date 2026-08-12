@@ -1,5 +1,6 @@
 package com.mju.onda.driver.core.location
 
+import android.content.Context
 import android.util.Log
 import com.mju.onda.driver.core.supabase.SupabaseClient
 import java.time.Instant
@@ -14,12 +15,27 @@ import org.json.JSONObject
  * - gps_ok: 위치 서비스 ON + 권한 + 최근 정상 fix
  * - updated_at: 네트워크 생존 신호 (fix 없어도 갱신)
  * - last_location_at / last_accuracy: 마지막 정상 위치만 유지 (OFF 시 null로 덮지 않음)
- * - vehicle_locations 적재와 독립
+ * - vehicle_locations 적재는 [LiveHeartbeatReporter] / [OperationGpsApi] 담당 (여기서 중복 INSERT 하지 않음)
+ *
+ * [init]/[start]/[stop] 은 팀원 연동용 API.
+ * 실제 주기는 [LiveHeartbeatReporter]가 [upsert]를 호출한다.
  */
 object DeviceStatusReporter {
     private const val TAG = "ONDA_DEVICE_STATUS"
     /** 최근 fix를 gps_ok=true로 볼 최대 나이 */
     private const val FIX_FRESH_MS = 60_000L
+
+    fun init(@Suppress("UNUSED_PARAMETER") context: Context) {
+        // Context 는 OperationLocationTracker.appContextOrNull() 로 읽음
+    }
+
+    fun start(@Suppress("UNUSED_PARAMETER") operationId: String) {
+        // LiveHeartbeatReporter 가 주기 upsert — 중복 루프 방지
+    }
+
+    fun stop() {
+        // no-op
+    }
 
     suspend fun upsert(
         operationId: String,

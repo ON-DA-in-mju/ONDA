@@ -20,6 +20,8 @@ class OndaDriverApp : Application() {
 
         OperationLocationTracker.init(this)
 
+        com.mju.onda.driver.core.location.DeviceStatusReporter.init(this)
+
         // 로그인 세션이 있으면 해당 계정 prefs를 바인딩한다.
 
         SessionStateHolder.init(this)
