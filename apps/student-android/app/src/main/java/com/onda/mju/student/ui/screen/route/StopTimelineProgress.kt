@@ -71,10 +71,12 @@ internal val stopCoordinatesByName: Map<String, Pair<Double, Double>> = mapOf(
 fun stopWaypointsForDirection(
     config: RouteStopConfig,
     directionIndex: Int,
+    stopCoordinates: StopCoordinateMap = emptyMap(),
 ): List<StopWaypoint> {
     val dirKey = if (directionIndex == 0) "out" else "in"
     return config.stopNames(directionIndex).mapIndexed { index, name ->
-        val coords = stopCoordinatesByName[name] ?: fallbackCoords(index)
+        val coords = StopCoordinateResolver.lookup(name, stopCoordinates)
+            ?: fallbackCoords(index, stopCoordinates)
         StopWaypoint(
             id = "${config.routeId}_${dirKey}_$index",
             name = name,
@@ -84,8 +86,9 @@ fun stopWaypointsForDirection(
     }
 }
 
-private fun fallbackCoords(index: Int): Pair<Double, Double> {
-    val base = stopCoordinatesByName["버스관리사무소"] ?: (37.2245 to 127.1878)
+private fun fallbackCoords(index: Int, stopCoordinates: StopCoordinateMap): Pair<Double, Double> {
+    val base = StopCoordinateResolver.lookup("버스관리사무소", stopCoordinates)
+        ?: (37.2245 to 127.1878)
     return base.first + index * 0.0015 to base.second + index * 0.0010
 }
 

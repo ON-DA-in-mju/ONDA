@@ -31,4 +31,6 @@ class MockAuthRepository {
 sealed interface AuthResult {
     data object Success : AuthResult
     data object InvalidCredentials : AuthResult
+    /** Network / config / unexpected auth failure (show message, never crash). */
+    data class Failure(val message: String) : AuthResult
 }

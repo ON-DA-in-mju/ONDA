@@ -48,7 +48,7 @@ export function routeMatchesFilter(actualName: string | null | undefined, filter
 }
 
 export type ScheduleWithRoute = ScheduleRow & {
-  routes: Pick<RouteRow, 'id' | 'route_name' | 'direction' | 'description' | 'is_active' | 'start_location' | 'end_location'> | null
+  routes: Pick<RouteRow, 'id' | 'route_name' | 'direction' | 'description' | 'is_active'> | null
 }
 
 /** 노선 + 시간표 조인 조회 (명지대 3노선 중심) */
@@ -72,9 +72,10 @@ export async function fetchSchedulesWithRoutes(params?: {
 
   const routeIds = routeRows.map((r) => r.id)
 
+  // start_location/end_location 은 운영 DB에 아직 없을 수 있어 조인 select에서 제외
   let q = supabase
     .from('schedules')
-    .select('*, routes(id, route_name, direction, description, is_active, start_location, end_location)')
+    .select('*, routes(id, route_name, direction, description, is_active)')
     .in('route_id', routeIds)
     .order('departure_time', { ascending: true })
 
@@ -122,8 +123,6 @@ export async function seedMjuTimetableToDb(): Promise<{ ok: boolean; message: st
         .update({
           direction: r.direction,
           description: r.description,
-          start_location: r.start_location,
-          end_location: r.end_location,
           is_active: true,
         })
         .eq('id', existing.id)
@@ -133,8 +132,6 @@ export async function seedMjuTimetableToDb(): Promise<{ ok: boolean; message: st
         route_name: r.name,
         direction: r.direction,
         description: r.description,
-        start_location: r.start_location,
-        end_location: r.end_location,
         is_active: true,
       })
       if (error) return { ok: false, message: `routes 등록 실패: ${error.message}` }

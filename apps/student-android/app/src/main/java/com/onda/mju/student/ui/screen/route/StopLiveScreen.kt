@@ -1,11 +1,12 @@
 package com.onda.mju.student.ui.screen.route
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,12 +45,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.onda.mju.student.R
 import kotlinx.coroutines.delay
 
 private val OndaBlue = Color(0xFF0041F1)
@@ -58,12 +59,17 @@ private val CardBorder = Color(0xFFE8EDF2)
 private val SoftBlue = Color(0xFFEDF4FE)
 private val StarYellow = Color(0xFFFBBF24)
 
+private val DefaultMapHeightDp = 260f
+private val MinMapHeightDp = 180f
+private val MinSheetHeightDp = 160f
+
 @Composable
 fun StopLiveScreen(
     stopId: String,
     modifier: Modifier = Modifier,
     routeId: String? = null,
     vehicles: List<LiveVehicle> = emptyList(),
+    stopCoordinates: StopCoordinateMap = emptyMap(),
     onBackClick: () -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
 ) {
@@ -76,8 +82,11 @@ fun StopLiveScreen(
         }
     }
 
-    val directionKey = remember(stopId, routeId) {
-        resolveStopSelection(stopId, routeId)?.let { "${it.routeId}_${it.directionIndex}" } ?: stopId
+    val directionKey = remember(stopId, routeId, stopCoordinates) {
+        resolveStopSelection(stopId, routeId, stopCoordinates)?.let { "${it.routeId}_${it.directionIndex}" } ?: stopId
+    }
+    val stopSelection = remember(stopId, routeId, stopCoordinates) {
+        resolveStopSelection(stopId, routeId, stopCoordinates)
     }
     var trackerByVehicle by remember(directionKey) {
         mutableStateOf<Map<String, VehicleStopTracker>>(emptyMap())
@@ -88,23 +97,25 @@ fun StopLiveScreen(
             "${it.id}:${it.latitude}:${it.longitude}:${it.recordedAt}:${it.speed}"
         }
     }
-    val data = remember(stopId, routeId, vehicleSignature, nowMillis, trackerByVehicle) {
+    val data = remember(stopId, routeId, vehicleSignature, nowMillis, trackerByVehicle, stopCoordinates) {
         val built = buildStopLiveData(
             stopId = stopId,
             routeIdHint = routeId,
             vehicles = vehicles,
             nowMillis = nowMillis,
             trackerByVehicle = trackerByVehicle,
+            stopCoordinates = stopCoordinates,
         )
         built.first
     }
-    LaunchedEffect(stopId, routeId, vehicleSignature) {
+    LaunchedEffect(stopId, routeId, vehicleSignature, stopCoordinates) {
         val built = buildStopLiveData(
             stopId = stopId,
             routeIdHint = routeId,
             vehicles = vehicles,
             nowMillis = System.currentTimeMillis(),
             trackerByVehicle = trackerByVehicle,
+            stopCoordinates = stopCoordinates,
         )
         if (built.second != trackerByVehicle) {
             trackerByVehicle = built.second
@@ -147,128 +158,182 @@ fun StopLiveScreen(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-                .padding(horizontal = 12.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFE8F0FE)),
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.stop_map_preview),
-                contentDescription = "정류장 지도",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        }
-
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(Color.White)
-                .border(1.dp, CardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .fillMaxWidth(),
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .background(CardBorder, RoundedCornerShape(999.dp)),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    data.stopName,
-                    color = TitleBlack,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(Icons.Filled.Refresh, null, tint = BodyGray, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(data.lastUpdateLabel, color = BodyGray, fontSize = 11.sp)
+            val density = LocalDensity.current
+            val maxMapHeightDp = (maxHeight.value - MinSheetHeightDp).coerceAtLeast(MinMapHeightDp)
+            var mapHeightDp by remember(maxMapHeightDp) {
+                mutableFloatStateOf(DefaultMapHeightDp.coerceIn(MinMapHeightDp, maxMapHeightDp))
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (data.arrivals.isEmpty()) {
-                Text(
-                    "현재 운행 중인 차량이 없습니다.",
-                    color = BodyGray,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 16.dp),
-                )
-            }
-
-            data.arrivals.forEach { arrival ->
-                Row(
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onVehicleClick(arrival.vehicleId) }
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .height(mapHeightDp.dp)
+                        .padding(horizontal = 12.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFE8F0FE)),
+                ) {
+                    val mapLat = stopSelection?.waypoint?.latitude
+                        ?: StopCoordinateResolver.lookup(data.stopName, stopCoordinates)?.first
+                        ?: 37.2245
+                    val mapLng = stopSelection?.waypoint?.longitude
+                        ?: StopCoordinateResolver.lookup(data.stopName, stopCoordinates)?.second
+                        ?: 127.1878
+                    StopLiveMap(
+                        stopName = data.stopName,
+                        stopLatitude = mapLat,
+                        stopLongitude = mapLng,
+                        routeWaypoints = stopSelection?.waypoints.orEmpty(),
+                        vehicles = vehicles,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                        .background(Color.White)
+                        .border(1.dp, CardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .background(SoftBlue, CircleShape),
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .pointerInput(maxMapHeightDp) {
+                                detectVerticalDragGestures { _, dragAmount ->
+                                    // 손잡이를 아래로 내리면 지도가 커지고, 올리면 작아짐
+                                    val deltaDp = dragAmount / density.density
+                                    mapHeightDp = (mapHeightDp + deltaDp)
+                                        .coerceIn(MinMapHeightDp, maxMapHeightDp)
+                                }
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Filled.DirectionsBus, null, tint = OndaBlue)
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(4.dp)
+                                .background(CardBorder, RoundedCornerShape(999.dp)),
+                        )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(arrival.vehicleLabel, color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                arrival.status.label,
-                                color = arrival.status.color,
-                                fontSize = 11.sp,
+                                data.stopName,
+                                color = TitleBlack,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .background(arrival.status.bg, RoundedCornerShape(999.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                fontSize = 17.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(Icons.Filled.Refresh, null, tint = BodyGray, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(data.lastUpdateLabel, color = BodyGray, fontSize = 11.sp)
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (data.arrivals.isEmpty()) {
+                            Text(
+                                "현재 운행 중인 차량이 없습니다.",
+                                color = BodyGray,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(vertical = 16.dp),
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(arrival.etaLabel, color = arrival.etaColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        if (arrival.lastLocationLabel.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(arrival.lastLocationLabel, color = BodyGray, fontSize = 11.sp)
+
+                        data.arrivals.forEach { arrival ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                                    .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { onVehicleClick(arrival.vehicleId) }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(SoftBlue, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Filled.DirectionsBus, null, tint = OndaBlue)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            arrival.vehicleLabel,
+                                            color = TitleBlack,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            arrival.status.label,
+                                            color = arrival.status.color,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .background(arrival.status.bg, RoundedCornerShape(999.dp))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        arrival.etaLabel,
+                                        color = arrival.etaColor,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    if (arrival.lastLocationLabel.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(arrival.lastLocationLabel, color = BodyGray, fontSize = 11.sp)
+                                    }
+                                }
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
+                            }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(SoftBlue, RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Info, null, tint = OndaBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "실시간 위치는 통신 환경과 GPS 상태에 따라 오차가 있을 수 있습니다.",
+                                color = OndaBlue,
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SoftBlue, RoundedCornerShape(12.dp))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Info, null, tint = OndaBlue, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "실시간 위치는 통신 환경과 GPS 상태에 따라 오차가 있을 수 있습니다.",
-                    color = OndaBlue,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

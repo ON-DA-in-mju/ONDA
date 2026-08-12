@@ -130,8 +130,14 @@ export function SchedulesPage() {
   }, [mjuPack, timetableRoute])
 
   const loadDbSchedules = useCallback(async () => {
-    const rows = await fetchSchedulesWithRoutes()
-    setDbSchedules(rows)
+    try {
+      const rows = await fetchSchedulesWithRoutes()
+      // null(조회 실패)도 빈 배열로 두어 ‘불러오는 중’에 멈추지 않게 함
+      setDbSchedules(rows ?? [])
+    } catch (e) {
+      console.error('[schedules] load failed', e)
+      setDbSchedules([])
+    }
   }, [])
 
   useEffect(() => {

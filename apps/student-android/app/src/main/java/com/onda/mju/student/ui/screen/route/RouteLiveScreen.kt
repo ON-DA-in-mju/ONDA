@@ -74,6 +74,7 @@ fun RouteLiveScreen(
     modifier: Modifier = Modifier,
     liveData: RouteLiveData? = null,
     deviceStatuses: Map<String, OperationDeviceStatusDto> = emptyMap(),
+    stopCoordinates: StopCoordinateMap = emptyMap(),
     onBackClick: () -> Unit = {},
     onStopClick: (String) -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
@@ -83,8 +84,8 @@ fun RouteLiveScreen(
     val stopConfig = remember(data.routeId) { routeStopConfig(data.routeId) }
     val directions = remember(stopConfig) { stopConfig.directions }
     var directionIndex by remember(routeId) { mutableIntStateOf(0) }
-    val waypoints = remember(stopConfig, directionIndex) {
-        stopWaypointsForDirection(stopConfig, directionIndex)
+    val waypoints = remember(stopConfig, directionIndex, stopCoordinates) {
+        stopWaypointsForDirection(stopConfig, directionIndex, stopCoordinates)
     }
     var selectedVehicle by remember(routeId) {
         mutableStateOf(data.vehicles.firstOrNull()?.id.orEmpty())
