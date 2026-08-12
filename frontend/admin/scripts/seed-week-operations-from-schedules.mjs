@@ -1,13 +1,18 @@
 /**
- * schedules → operations (학기/방학 자동 선택)
- * 기본: 2026-08-10 ~ 2026-08-16
+ * schedules → operations (학기/계절학기/방학 규칙)
  *
- * 학기: 3/1·9/1 부터 각 15주
- * 방학: 그 외
- * 공휴일(학기 평일): 시내 (주말·공휴일·방학)만 배차
+ * 학사:
+ * - 3/1·9/1 개강 → 15주 정규 학기 → 4주 계절학기 → 나머지 방학
  *
- * Usage: node scripts/seed-week-operations-from-schedules.mjs
- *        node scripts/seed-week-operations-from-schedules.mjs 2026-08-10 2026-08-16
+ * 노선:
+ * - 정규 학기: SEMESTER 스케줄 전체
+ * - 계절학기: SEMESTER 스케줄 중 기흥역 제외
+ * - 방학·주말·공휴일: 시내 셔틀 (주말·공휴일·방학)만
+ *
+ * Usage:
+ *   node scripts/seed-week-operations-from-schedules.mjs
+ *   node scripts/seed-week-operations-from-schedules.mjs 2026-08-10 2026-08-16
+ *   node scripts/seed-week-operations-from-schedules.mjs 2026-08-01 2026-08-31 --all
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -30,41 +35,57 @@ const env = Object.fromEntries(
 const url = env.VITE_SUPABASE_URL.replace(/\/$/, '')
 const anon = env.VITE_SUPABASE_ANON_KEY
 
-const WEEK_START = process.argv[2] || '2026-08-10'
-const WEEK_END = process.argv[3] || '2026-08-16'
+const args = process.argv.slice(2).filter((a) => a !== '--all')
+const clearAll = process.argv.includes('--all')
+const WEEK_START = args[0] || '2026-08-10'
+const WEEK_END = args[1] || '2026-08-16'
+
+const GIHEUNG = '기흥역 통학버스'
+const CITY_VAC = '시내 셔틀 (주말·공휴일·방학)'
 const ROUTE_NAMES = [
-  '기흥역 통학버스',
+  GIHEUNG,
   '명지대역 셔틀',
   '명지대역 셔틀 (18시 이후)',
   '시내 셔틀',
-  '시내 셔틀 (주말·공휴일·방학)',
+  CITY_VAC,
 ]
-const CITY_VAC = '시내 셔틀 (주말·공휴일·방학)'
 const JS_TO_WEEKDAY = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-
 const SEMESTER_WEEKS = 15
+const SEASONAL_WEEKS = 4
 
 function pad2(n) {
   return String(n).padStart(2, '0')
 }
 
-function semesterEndKey(year, month, day) {
-  const start = new Date(year, month - 1, day)
-  const end = new Date(start)
-  end.setDate(end.getDate() + SEMESTER_WEEKS * 7 - 1)
-  return `${end.getFullYear()}-${pad2(end.getMonth() + 1)}-${pad2(end.getDate())}`
+function addDaysYmd(year, month, day, add) {
+  const d = new Date(year, month - 1, day)
+  d.setDate(d.getDate() + add)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-/** 3/1·9/1 부터 15주 = 학기, 나머지 방학 */
-function semesterForDate(dateKey) {
-  const [y] = dateKey.split('-').map(Number)
-  const springStart = `${y}-03-01`
-  const springEnd = semesterEndKey(y, 3, 1)
-  const fallStart = `${y}-09-01`
-  const fallEnd = semesterEndKey(y, 9, 1)
-  if (dateKey >= springStart && dateKey <= springEnd) return 'SEMESTER'
-  if (dateKey >= fallStart && dateKey <= fallEnd) return 'SEMESTER'
+/** SEMESTER | SEASONAL | VACATION */
+function termForDate(dateKey) {
+  const y = Number(dateKey.slice(0, 4))
+  for (const [m, d] of [
+    [3, 1],
+    [9, 1],
+  ]) {
+    const semStart = `${y}-${pad2(m)}-${pad2(d)}`
+    const semEnd = addDaysYmd(y, m, d, SEMESTER_WEEKS * 7 - 1)
+    if (dateKey >= semStart && dateKey <= semEnd) return 'SEMESTER'
+    const seasonalStart = addDaysYmd(y, m, d, SEMESTER_WEEKS * 7)
+    const seasonalEnd = addDaysYmd(y, m, d, (SEMESTER_WEEKS + SEASONAL_WEEKS) * 7 - 1)
+    if (dateKey >= seasonalStart && dateKey <= seasonalEnd) return 'SEASONAL'
+  }
+  const prev = y - 1
+  const fallSeasonalStart = addDaysYmd(prev, 9, 1, SEMESTER_WEEKS * 7)
+  const fallSeasonalEnd = addDaysYmd(prev, 9, 1, (SEMESTER_WEEKS + SEASONAL_WEEKS) * 7 - 1)
+  if (dateKey >= fallSeasonalStart && dateKey <= fallSeasonalEnd) return 'SEASONAL'
   return 'VACATION'
+}
+
+function scheduleSemesterForTerm(term) {
+  return term === 'VACATION' ? 'VACATION' : 'SEMESTER'
 }
 
 const FIXED_HOLIDAYS = new Set(['01-01', '03-01', '05-05', '06-06', '08-15', '10-03', '10-09', '12-25'])
@@ -81,6 +102,12 @@ const MOVABLE_HOLIDAYS = new Set([
 function isKoreanPublicHoliday(dateKey) {
   if (MOVABLE_HOLIDAYS.has(dateKey)) return true
   return FIXED_HOLIDAYS.has(dateKey.slice(5))
+}
+
+function routeAllowed(routeName, term, weekendOrHoliday) {
+  if (weekendOrHoliday || term === 'VACATION') return routeName === CITY_VAC
+  if (term === 'SEASONAL') return routeName !== GIHEUNG
+  return true
 }
 
 function addMinutesToTime(hhmmss, minutes) {
@@ -101,11 +128,18 @@ function datesInRange(start, end) {
     const mo = String(cur.getMonth() + 1).padStart(2, '0')
     const d = String(cur.getDate()).padStart(2, '0')
     const date = `${y}-${mo}-${d}`
+    const weekday = JS_TO_WEEKDAY[cur.getDay()]
+    const term = termForDate(date)
+    const holiday = isKoreanPublicHoliday(date)
+    const weekend = weekday === 'SAT' || weekday === 'SUN'
     out.push({
       date,
-      weekday: JS_TO_WEEKDAY[cur.getDay()],
-      semester: semesterForDate(date),
-      holiday: isKoreanPublicHoliday(date),
+      weekday,
+      term,
+      scheduleSemester: scheduleSemesterForTerm(term),
+      holiday,
+      weekend,
+      cityOnly: weekend || holiday || term === 'VACATION',
     })
     cur.setDate(cur.getDate() + 1)
   }
@@ -119,7 +153,7 @@ function chunk(arr, size) {
 }
 
 function durationForRoute(name) {
-  if (name === '기흥역 통학버스') return 30
+  if (name === GIHEUNG) return 30
   if (name === '시내 셔틀' || name === CITY_VAC) return 40
   return 25
 }
@@ -139,12 +173,26 @@ async function main() {
 
   const { data: routes, error: routeErr } = await client
     .from('routes')
-    .select('id, route_name, start_location, end_location')
+    .select('id, route_name')
     .in('route_name', ROUTE_NAMES)
   if (routeErr) throw new Error(routeErr.message)
   const routeById = new Map((routes ?? []).map((r) => [r.id, r]))
   const routeIds = [...routeById.keys()]
   if (!routeIds.length) throw new Error('대상 노선 없음')
+
+  const { data: routeStops, error: rsErr } = await client
+    .from('route_stops')
+    .select('route_id, stop_id, stop_order')
+    .in('route_id', routeIds)
+    .order('stop_order')
+  if (rsErr) throw new Error(rsErr.message)
+  const endsByRoute = new Map()
+  for (const rs of routeStops ?? []) {
+    const cur = endsByRoute.get(rs.route_id) ?? { first: null, last: null }
+    if (!cur.first) cur.first = rs.stop_id
+    cur.last = rs.stop_id
+    endsByRoute.set(rs.route_id, cur)
+  }
 
   const { data: drivers, error: driverErr } = await client
     .from('users')
@@ -169,7 +217,6 @@ async function main() {
     .order('departure_time')
   if (schErr) throw new Error(schErr.message)
 
-  /** semester|weekday → schedules[] */
   const bySemWeekday = new Map()
   for (const s of schedules ?? []) {
     const key = `${s.semester}|${s.weekday}`
@@ -178,33 +225,42 @@ async function main() {
     bySemWeekday.set(key, list)
   }
 
-  console.log(`range ${WEEK_START} ~ ${WEEK_END}`)
-  console.log('--- clear existing ops in range ---')
+  console.log(`range ${WEEK_START} ~ ${WEEK_END} (clearAll=${clearAll})`)
+  console.log('--- clear existing ops ---')
+  // PostgREST는 WHERE 없는 DELETE 거부 → 넓은 날짜 또는 지정 구간
+  const delStart = clearAll ? '2000-01-01' : WEEK_START
+  const delEnd = clearAll ? '2100-12-31' : WEEK_END
   const { error: delErr, count: delCount } = await client
     .from('operations')
     .delete({ count: 'exact' })
-    .gte('operation_date', WEEK_START)
-    .lte('operation_date', WEEK_END)
+    .gte('operation_date', delStart)
+    .lte('operation_date', delEnd)
   if (delErr) throw new Error(`delete failed: ${delErr.message}`)
-  console.log(`deleted ${delCount ?? '?'} rows`)
+  console.log(`deleted ${delCount ?? '?'} rows (${delStart}~${delEnd})`)
 
   const days = datesInRange(WEEK_START, WEEK_END)
   const rows = []
   let seq = 0
 
   for (const day of days) {
-    let daySchedules = bySemWeekday.get(`${day.semester}|${day.weekday}`) ?? []
+    const poolSem = day.cityOnly ? 'VACATION' : day.scheduleSemester
+    let daySchedules = bySemWeekday.get(`${poolSem}|${day.weekday}`) ?? []
 
-    // 학기 중 공휴일(평일): 시내 방학형만 — VACATION 같은 요일의 시내(주말·공휴일·방학) 스케줄 사용
-    if (day.holiday && day.semester === 'SEMESTER' && day.weekday !== 'SAT' && day.weekday !== 'SUN') {
-      const vacDay = bySemWeekday.get(`VACATION|${day.weekday}`) ?? []
-      daySchedules = vacDay.filter((s) => routeById.get(s.route_id)?.route_name === CITY_VAC)
-      console.log(
-        `${day.date} ${day.weekday} HOLIDAY→city-vacation only: ${daySchedules.length} schedules`,
-      )
-    } else {
-      console.log(`${day.date} ${day.weekday} ${day.semester}: ${daySchedules.length} schedules`)
+    daySchedules = daySchedules.filter((s) => {
+      const name = routeById.get(s.route_id)?.route_name
+      if (!name) return false
+      return routeAllowed(name, day.term, day.cityOnly)
+    })
+
+    // 방학·주말·공휴일인데 VACATION 스케줄에 시내방학형이 없으면 SEMESTER 쪽 CITY_VAC 도 허용
+    if (day.cityOnly && daySchedules.length === 0) {
+      const alt = bySemWeekday.get(`SEMESTER|${day.weekday}`) ?? []
+      daySchedules = alt.filter((s) => routeById.get(s.route_id)?.route_name === CITY_VAC)
     }
+
+    console.log(
+      `${day.date} ${day.weekday} term=${day.term} cityOnly=${day.cityOnly}: ${daySchedules.length} schedules`,
+    )
 
     for (const sch of daySchedules) {
       const route = routeById.get(sch.route_id)
@@ -212,6 +268,7 @@ async function main() {
       const bus = buses[seq % buses.length]
       const depart = String(sch.departure_time).slice(0, 8)
       const duration = durationForRoute(route?.route_name)
+      const ends = endsByRoute.get(sch.route_id)
       rows.push({
         schedule_id: sch.id,
         driver_id: driver.id,
@@ -220,8 +277,8 @@ async function main() {
         status: 'SCHEDULED',
         external_id: `week-${day.date}-${sch.id}`,
         round: 1,
-        origin: route?.start_location || route?.route_name || '',
-        destination: route?.end_location || '',
+        origin_stop_id: ends?.first ?? null,
+        destination_stop_id: ends?.last ?? null,
         expected_end_time: addMinutesToTime(depart.length === 5 ? `${depart}:00` : depart, duration),
       })
       seq += 1
@@ -256,21 +313,20 @@ async function main() {
       .from('operations')
       .select('*', { count: 'exact', head: true })
       .eq('operation_date', day.date)
-    console.log(`  ${day.date} ${day.weekday} ${day.semester}${day.holiday ? ' HOLIDAY' : ''}: ${c}`)
+    const { data: sample } = await client
+      .from('operations')
+      .select('schedules:schedule_id(routes:route_id(route_name))')
+      .eq('operation_date', day.date)
+      .limit(300)
+    const names = {}
+    for (const o of sample || []) {
+      const n = o.schedules?.routes?.route_name || '?'
+      names[n] = (names[n] || 0) + 1
+    }
+    console.log(
+      `  ${day.date} ${day.weekday} ${day.term}${day.holiday ? ' HOLIDAY' : ''}: ${c} :: ${JSON.stringify(names)}`,
+    )
   }
-
-  // 오늘 노선명 분포 샘플
-  const { data: sample } = await client
-    .from('operations')
-    .select('id, schedules:schedule_id(departure_time, routes:route_id(route_name))')
-    .eq('operation_date', '2026-08-12')
-    .limit(200)
-  const names = {}
-  for (const o of sample || []) {
-    const n = o.schedules?.routes?.route_name || '?'
-    names[n] = (names[n] || 0) + 1
-  }
-  console.log('2026-08-12 route distribution:', names)
 }
 
 main().catch((e) => {
