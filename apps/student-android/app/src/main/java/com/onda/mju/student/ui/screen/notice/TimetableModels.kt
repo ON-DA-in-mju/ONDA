@@ -1,6 +1,7 @@
 package com.onda.mju.student.ui.screen.notice
 
 import androidx.compose.ui.graphics.Color
+import com.onda.mju.student.core.calendar.AcademicCalendar
 import com.onda.mju.student.data.route.RouteStopCatalog
 import com.onda.mju.student.data.route.StudentRouteIds
 import java.time.LocalTime
@@ -98,6 +99,13 @@ fun sampleTimetableRoutes(): List<TimetableRoute> = emptyTimetableRoutes()
 
 fun sampleTimetableRoute(routeId: String): TimetableRoute =
     emptyTimetableRoutes().firstOrNull { it.id == routeId } ?: emptyTimetableRoutes().first()
+
+fun todayTimetableDayType(): TimetableDayType =
+    if (AcademicCalendar.isSemesterWeekday(AcademicCalendar.todayDateKey())) {
+        TimetableDayType.Weekday
+    } else {
+        TimetableDayType.WeekendVacation
+    }
 
 fun resolveTimetableStatus(
     departureTime: String,

@@ -105,7 +105,7 @@ private sealed interface MainOverlay {
     data object CommunityCreate : MainOverlay
 
     data class NoticeDetail(val id: Int) : MainOverlay
-    data object Timetable : MainOverlay
+    data class Timetable(val forToday: Boolean = false) : MainOverlay
     data object StopGuide : MainOverlay
     data class StopGuideList(val routeId: String) : MainOverlay
     data class StopGuideDetail(val stopId: String, val returnRouteId: String) : MainOverlay
@@ -575,7 +575,7 @@ fun StudentMainShell(
         is MainOverlay.StopGuideDetail,
         -> StudentBottomTab.Notice
 
-        MainOverlay.Timetable -> if (timetableReturnRouteId != null) {
+        is MainOverlay.Timetable -> if (timetableReturnRouteId != null) {
             StudentBottomTab.Route
         } else {
             selectedTab
@@ -704,11 +704,12 @@ fun StudentMainShell(
                     )
                 }
 
-                MainOverlay.Timetable -> {
+                is MainOverlay.Timetable -> {
                     TimetableScreen(
                         modifier = Modifier.fillMaxSize(),
                         initialRouteId = timetableReturnRouteId ?: StudentRouteIds.GIHEUNG,
                         routes = timetableRoutes,
+                        forToday = current.forToday,
                         onBackClick = {
                             val routeId = timetableReturnRouteId
                             timetableReturnRouteId = null
@@ -828,7 +829,7 @@ fun StudentMainShell(
                         },
                         onTimetableClick = {
                             timetableReturnRouteId = current.routeId
-                            overlay = MainOverlay.Timetable
+                            overlay = MainOverlay.Timetable()
                         },
                     )
                 }
@@ -992,11 +993,12 @@ fun StudentMainShell(
                                     ?: "등록된 공지가 없습니다.",
                                 unreadNotificationCount = countUnreadNotifications(unreadIds),
                                 operationLastUpdatedAtMillis = operationLastUpdatedAtMillis,
+                                scheduleKindLabel = AcademicCalendar.todayScheduleKindLabel(),
                                 routes = routes,
                                 onNotificationClick = { openNotifications() },
                                 onStatusTimetableClick = {
                                     timetableReturnRouteId = null
-                                    overlay = MainOverlay.Timetable
+                                    overlay = MainOverlay.Timetable(forToday = true)
                                 },
                                 onNoticeBannerClick = {
                                     val notice = latestHomeNotice
@@ -1016,9 +1018,15 @@ fun StudentMainShell(
                                             overlay = MainOverlay.CommunityCreate
                                         }
                                         "공지사항" -> selectedTab = StudentBottomTab.Notice
-                                        "전체 시간표" -> {
+                                        "오늘 시간표", "전체 시간표" -> {
                                             timetableReturnRouteId = null
-                                            overlay = MainOverlay.Timetable
+                                            overlay = MainOverlay.Timetable(
+                                                forToday = action == "오늘 시간표",
+                                            )
+                                        }
+                                        "정류장 안내" -> {
+                                            selectedTab = StudentBottomTab.Notice
+                                            overlay = MainOverlay.StopGuide
                                         }
                                         else -> showTodo("$action 화면은 준비 중입니다.")
                                     }
@@ -1065,7 +1073,7 @@ fun StudentMainShell(
                                 onNoticeClick = { id ->
                                     overlay = MainOverlay.NoticeDetail(id)
                                 },
-                                onTimetableClick = { overlay = MainOverlay.Timetable },
+                                onTimetableClick = { overlay = MainOverlay.Timetable() },
                                 onStopGuideClick = { overlay = MainOverlay.StopGuide },
                             )
                         }

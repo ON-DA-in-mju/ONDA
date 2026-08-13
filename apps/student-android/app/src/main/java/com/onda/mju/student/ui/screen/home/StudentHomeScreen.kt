@@ -62,6 +62,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
+import com.onda.mju.student.core.calendar.AcademicCalendar
 import com.onda.mju.student.ui.screen.notification.formatUnreadBadgeLabel
 import com.onda.mju.student.ui.screen.route.RouteStatus
 import com.onda.mju.student.ui.screen.route.RouteUiModel
@@ -96,6 +97,7 @@ fun StudentHomeScreen(
     unreadNotificationCount: Int = 0,
     /** Epoch millis when mock/live operation data was last received. */
     operationLastUpdatedAtMillis: Long = System.currentTimeMillis(),
+    scheduleKindLabel: String = AcademicCalendar.todayScheduleKindLabel(),
     routes: List<RouteUiModel> = sampleRouteList(),
     onNotificationClick: () -> Unit = {},
     onStatusTimetableClick: () -> Unit = {},
@@ -179,6 +181,7 @@ fun StudentHomeScreen(
             ) {
                 OperationStatusCard(
                     lastUpdatedAtMillis = operationLastUpdatedAtMillis,
+                    scheduleKindLabel = scheduleKindLabel,
                     onTimetableClick = onStatusTimetableClick,
                 )
 
@@ -234,6 +237,7 @@ fun StudentHomeScreen(
 @Composable
 private fun OperationStatusCard(
     lastUpdatedAtMillis: Long,
+    scheduleKindLabel: String,
     onTimetableClick: () -> Unit,
 ) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -284,7 +288,7 @@ private fun OperationStatusCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "학기 중 평일 시간표가 적용됩니다",
+                        text = "${scheduleKindLabel} 시간표가 적용됩니다",
                         color = BodyGray,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium,
