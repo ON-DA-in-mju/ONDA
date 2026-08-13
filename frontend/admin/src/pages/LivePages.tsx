@@ -280,10 +280,10 @@ export function LivePage() {
   return (
     <div className="page">
       <section className="card card-pad">
-        <div className="toolbar">
+        <div className="toolbar live-filter-toolbar">
           <select
-            className="select"
-            style={{ width: 160 }}
+            className="select live-filter-control"
+            style={{ width: 160, height: 36 }}
             value={routeFilter}
             onChange={(e) => setRouteFilter(e.target.value)}
           >
@@ -295,8 +295,8 @@ export function LivePage() {
             ))}
           </select>
           <select
-            className="select"
-            style={{ width: 140 }}
+            className="select live-filter-control"
+            style={{ width: 140, height: 36 }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -307,14 +307,14 @@ export function LivePage() {
             <option value="ended">종료</option>
           </select>
           <input
-            className="input"
-            style={{ width: 240 }}
+            className="input live-filter-control"
+            style={{ width: 240, height: 36 }}
             placeholder="차량 번호, 기사명 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <div style={{ flex: 1 }} />
-          <Link className="btn btn-outline" to="/live/detail">
+          <Link className="btn btn-outline live-filter-btn" to="/live/detail">
             운행 상세 보기
           </Link>
           <button className="btn btn-outline" type="button">

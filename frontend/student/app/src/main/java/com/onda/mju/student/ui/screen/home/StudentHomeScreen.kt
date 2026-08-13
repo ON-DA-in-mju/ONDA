@@ -138,33 +138,40 @@ fun StudentHomeScreen(
                     onClick = onNotificationClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 4.dp, end = 4.dp),
+                        .padding(top = 2.dp, end = 6.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
+                        .ifEmpty { null }
+                    Box(
+                        modifier = Modifier.size(28.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Notifications,
                             contentDescription = "알림",
                             tint = OndaBlue,
-                            modifier = Modifier.size(26.dp),
+                            modifier = Modifier.size(24.dp),
                         )
-                        val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
-                            .ifEmpty { null }
                         if (badgeLabel != null) {
+                            val isMulti = badgeLabel.length > 1
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .offset(x = 6.dp, y = (-4).dp)
-                                    .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
-                                    .clip(CircleShape)
+                                    .offset(x = 1.dp, y = (-1).dp)
+                                    .height(15.dp)
+                                    .defaultMinSize(minWidth = 15.dp)
+                                    .border(1.25.dp, Color.White, RoundedCornerShape(999.dp))
+                                    .clip(RoundedCornerShape(999.dp))
                                     .background(UnreadBadgeRed)
-                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                                    .padding(horizontal = if (isMulti) 3.5.dp else 0.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     text = badgeLabel,
                                     color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 9.sp,
                                     maxLines = 1,
                                 )
                             }

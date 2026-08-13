@@ -251,18 +251,15 @@ export function ReportsPage() {
         학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
         {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
       </p>
-      <div className="grid grid-4">
+      <div className="grid grid-3 reports-kpis">
         {[
-          ['오늘 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '+8 전일 대비', 'blue'],
+          ['전체 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
           ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
-          ['처리 중', `${dbReports?.filter((r) => r.status === 'PROCESSING').length ?? 4}건`, 'PROCESSING', 'green'],
           ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
         ].map(([t, v, s, tone]) => (
-          <div key={t} className="card card-pad">
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800 }}>{v}</div>
+          <div key={t} className="card card-pad reports-kpi">
+            <div className="muted reports-kpi-label">{t}</div>
+            <div className="reports-kpi-value">{v}</div>
             <StatusBadge tone={tone as 'blue' | 'orange' | 'green' | 'gray'}>{s}</StatusBadge>
           </div>
         ))}
@@ -811,9 +808,9 @@ export function NoticesPage() {
               </span>
             </h3>
           </div>
-          <div className="toolbar" style={{ marginBottom: 8 }}>
+          <div className="toolbar notice-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="select"
+              className="select notice-filter-control"
               style={{ width: 110, height: 32 }}
               value={listTypeFilter}
               onChange={(e) => setListTypeFilter(e.target.value)}
@@ -825,7 +822,7 @@ export function NoticesPage() {
               <option>일반</option>
             </select>
             <input
-              className="input"
+              className="input notice-filter-control"
               style={{ flex: 1, height: 32 }}
               placeholder="제목 또는 내용을 검색하세요."
               value={listQuery}
@@ -1008,13 +1005,13 @@ export function NoticesPage() {
                 </div>
               </div>
 
-              <div className="field">
+              <div className="field notice-title-field">
                 <div className="field-label-row">
                   <label>제목</label>
                   <span className="field-hint">{title.length}/100</span>
                 </div>
                 <input
-                  className="input"
+                  className="input notice-filter-control"
                   style={{ height: 36 }}
                   maxLength={100}
                   placeholder="제목을 입력하세요."
@@ -1755,11 +1752,15 @@ export function VehiclesPage() {
 
   return (
     <div className="page">
-      <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
-        <select className="select" style={{ width: 120, height: 32 }}>
+      <div className="toolbar vehicle-filter-toolbar" style={{ justifyContent: 'flex-end' }}>
+        <select className="select vehicle-filter-control" style={{ width: 120, height: 32 }}>
           <option>전체 차량</option>
         </select>
-        <input className="input" style={{ width: 220, height: 32 }} defaultValue="2026.07.01 ~ 2026.07.31" />
+        <input
+          className="input vehicle-filter-control"
+          style={{ width: 220, height: 32 }}
+          defaultValue="2026.07.01 ~ 2026.07.31"
+        />
         <button className="btn btn-primary btn-xs" type="button" style={{ height: 32 }}>
           정비 등록
         </button>
@@ -1781,105 +1782,109 @@ export function VehiclesPage() {
       </div>
 
       <div className="figma-split-vehicle">
-        <section className="figma-panel">
-          <div className="figma-panel-head">
-            <h3>정비 이력</h3>
-            <div className="toolbar">
-              <input
-                className="input"
-                style={{ width: 220, height: 32 }}
-                placeholder="차량 번호 / 정비 항목 검색"
-                value={maintQuery}
-                onChange={(e) => setMaintQuery(e.target.value)}
-              />
-              <select
-                className="select"
-                style={{ width: 110, height: 32 }}
-                value={maintStatus}
-                onChange={(e) => setMaintStatus(e.target.value)}
-              >
-                <option>전체 상태</option>
-                <option>완료</option>
-                <option>예정</option>
-                <option>점검중</option>
-              </select>
+        <div className="stack">
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>정비 이력</h3>
+              <div className="toolbar vehicle-filter-toolbar">
+                <input
+                  className="input vehicle-filter-control"
+                  style={{ width: 220, height: 32 }}
+                  placeholder="차량 번호 / 정비 항목 검색"
+                  value={maintQuery}
+                  onChange={(e) => setMaintQuery(e.target.value)}
+                />
+                <select
+                  className="select vehicle-filter-control"
+                  style={{ width: 110, height: 32 }}
+                  value={maintStatus}
+                  onChange={(e) => setMaintStatus(e.target.value)}
+                >
+                  <option>전체 상태</option>
+                  <option>완료</option>
+                  <option>예정</option>
+                  <option>점검중</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <table className="data-table dense">
-            <thead>
-              <tr>
-                <th>정비일</th>
-                <th>차량 번호</th>
-                <th>정비 항목</th>
-                <th>정비 유형</th>
-                <th>정비사</th>
-                <th>비용(원)</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMaintenances.length === 0 ? (
+            <table className="data-table dense">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
-                    검색 결과가 없습니다.
-                  </td>
+                  <th>정비일</th>
+                  <th>차량 번호</th>
+                  <th>정비 항목</th>
+                  <th>정비 유형</th>
+                  <th>정비사</th>
+                  <th>비용(원)</th>
+                  <th>상태</th>
                 </tr>
-              ) : (
-                filteredMaintenances.map((row) => (
-                <tr key={row.date + row.plate + row.item}>
-                  <td>{row.date}</td>
-                  <td>{row.plate}</td>
-                  <td>{row.item}</td>
-                  <td>{row.type}</td>
-                  <td>{row.mechanic}</td>
-                  <td>{row.cost}</td>
-                  <td>
-                    <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                  </td>
-                </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredMaintenances.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                      검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMaintenances.map((row) => (
+                    <tr key={row.date + row.plate + row.item}>
+                      <td>{row.date}</td>
+                      <td>{row.plate}</td>
+                      <td>{row.item}</td>
+                      <td>{row.type}</td>
+                      <td>{row.mechanic}</td>
+                      <td>{row.cost}</td>
+                      <td>
+                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
 
-          <div className="card-head" style={{ marginTop: 16 }}>
-            <h3>예정 정비</h3>
-          </div>
-          <table className="data-table dense">
-            <thead>
-              <tr>
-                <th>일자</th>
-                <th>차량</th>
-                <th>항목</th>
-                <th>잔여</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ['07.24', '73버 1122', '브레이크 패드 점검', '2일 후'],
-                ['07.24', '74버 7788', '엔진오일 교환', '2일 후'],
-                ['07.24', '72버 5678', '타이어 위치 교환', '3일 후'],
-              ].map((row) => (
-                <tr key={row.join('-')}>
-                  <td>{row[0]}</td>
-                  <td>{row[1]}</td>
-                  <td>{row[2]}</td>
-                  <td>{row[3]}</td>
-                  <td>
-                    <button className="btn btn-outline btn-xs" type="button">
-                      상세
-                    </button>
-                  </td>
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>예정 정비</h3>
+            </div>
+            <table className="data-table dense">
+              <thead>
+                <tr>
+                  <th>일자</th>
+                  <th>차량</th>
+                  <th>항목</th>
+                  <th>잔여</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+              </thead>
+              <tbody>
+                {[
+                  ['07.24', '73버 1122', '브레이크 패드 점검', '2일 후'],
+                  ['07.24', '74버 7788', '엔진오일 교환', '2일 후'],
+                  ['07.24', '72버 5678', '타이어 위치 교환', '3일 후'],
+                ].map((row) => (
+                  <tr key={row.join('-')}>
+                    <td>{row[0]}</td>
+                    <td>{row[1]}</td>
+                    <td>{row[2]}</td>
+                    <td>{row[3]}</td>
+                    <td>
+                      <button className="btn btn-outline btn-xs" type="button">
+                        상세
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
 
         <div className="stack">
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>정비 유형별 통계 (이번 달)</h3>
+            <h3>정비 유형별 통계 (이번 달)</h3>
             <div className="donut-sm">
               <div className="donut-sm-hole">
                 총
@@ -1908,7 +1913,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>월별 정비 비용 추이 (만원)</h3>
+            <h3>월별 정비 비용 추이 (만원)</h3>
             <div className="bar-chart" aria-hidden>
               {[
                 ['02', 35],
@@ -1927,7 +1932,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>알림</h3>
+            <h3>알림</h3>
             <div className="alert-stack">
               <div className="alert alert-warning">72버 1234 차량의 정기점검이 예정되어 있습니다. · 20분 전</div>
               <div className="alert alert-danger">75버 9900 차량의 타이어 교체가 필요합니다. · 1시간 전</div>
@@ -1936,7 +1941,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>정비 통계 요약</h3>
+            <h3>정비 통계 요약</h3>
             <div className="grid grid-2">
               {[
                 ['완료율', '75%', '%', '(12/16)'],
@@ -2119,9 +2124,9 @@ export function UsersPage() {
               </span>
             </h3>
           </div>
-          <div className="toolbar" style={{ marginBottom: 8 }}>
+          <div className="toolbar users-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="select"
+              className="select users-filter-control"
               style={{ width: 120, height: 32 }}
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
@@ -2132,7 +2137,7 @@ export function UsersPage() {
               <option>일반</option>
             </select>
             <input
-              className="input"
+              className="input users-filter-control"
               style={{ flex: 1, height: 32 }}
               placeholder="이름, 아이디, 이메일 검색"
               value={listQuery}
@@ -2204,7 +2209,7 @@ export function UsersPage() {
 
         <div className="stack">
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>
+            <h3>
               역할 권한 설정 · {user.name} ({user.id})
             </h3>
             <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
@@ -2233,6 +2238,29 @@ export function UsersPage() {
             </table>
           </section>
 
+          <section className="figma-panel users-security-panel">
+            <h3>보안 정책</h3>
+            <div className="field">
+              <label>비밀번호 최소 길이</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="10자 이상" />
+            </div>
+            <div className="field">
+              <label>비밀번호 변경 주기</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="90일" />
+            </div>
+            <div className="field">
+              <label>세션 타임아웃</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="30분" />
+            </div>
+            <div className="field">
+              <label>연속 로그인 실패 허용 횟수</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="5회" />
+            </div>
+            <button className="btn btn-primary btn-xs" type="button" style={{ marginTop: 8 }}>
+              정책 설정
+            </button>
+          </section>
+
           <section className="figma-panel">
             <div className="figma-panel-head">
               <h3>최근 로그인 기록</h3>
@@ -2252,29 +2280,6 @@ export function UsersPage() {
                 ))
               )}
             </div>
-          </section>
-
-          <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>보안 정책</h3>
-            <div className="field">
-              <label>비밀번호 최소 길이</label>
-              <input className="input" style={{ height: 32 }} defaultValue="10자 이상" />
-            </div>
-            <div className="field">
-              <label>비밀번호 변경 주기</label>
-              <input className="input" style={{ height: 32 }} defaultValue="90일" />
-            </div>
-            <div className="field">
-              <label>세션 타임아웃</label>
-              <input className="input" style={{ height: 32 }} defaultValue="30분" />
-            </div>
-            <div className="field">
-              <label>연속 로그인 실패 허용 횟수</label>
-              <input className="input" style={{ height: 32 }} defaultValue="5회" />
-            </div>
-            <button className="btn btn-primary btn-xs" type="button" style={{ marginTop: 8 }}>
-              정책 설정
-            </button>
           </section>
         </div>
       </div>
@@ -2485,11 +2490,11 @@ export function SystemPage() {
         <div className="card-head">
           <h3>기록조회</h3>
         </div>
-        <div className="toolbar" style={{ flexWrap: 'wrap' }}>
+        <div className="toolbar system-log-filter-toolbar" style={{ flexWrap: 'wrap' }}>
           <div className="field" style={{ minWidth: 120 }}>
             <label>기록 유형</label>
             <select
-              className="select"
+              className="select system-log-filter-control"
               value={draftTypeFilter}
               onChange={(e) => setDraftTypeFilter(e.target.value)}
             >
@@ -2503,7 +2508,7 @@ export function SystemPage() {
           <div className="field" style={{ minWidth: 120 }}>
             <label>사용자</label>
             <select
-              className="select"
+              className="select system-log-filter-control"
               value={draftActorFilter}
               onChange={(e) => setDraftActorFilter(e.target.value)}
             >
@@ -2518,7 +2523,7 @@ export function SystemPage() {
           <div className="field" style={{ minWidth: 220 }}>
             <label>기간</label>
             <input
-              className="input"
+              className="input system-log-filter-control"
               value={draftPeriod}
               onChange={(e) => setDraftPeriod(e.target.value)}
               placeholder="YYYY.MM.DD ~ YYYY.MM.DD"
@@ -2527,7 +2532,7 @@ export function SystemPage() {
           <div className="field" style={{ flex: 1, minWidth: 180 }}>
             <label>키워드 검색</label>
             <input
-              className="input"
+              className="input system-log-filter-control"
               placeholder="검색어를 입력하세요."
               value={draftKeyword}
               onChange={(e) => setDraftKeyword(e.target.value)}
@@ -2537,7 +2542,7 @@ export function SystemPage() {
             />
           </div>
           <button
-            className="btn btn-outline"
+            className="btn btn-outline system-log-filter-btn"
             type="button"
             style={{ alignSelf: 'end' }}
             onClick={resetSystemLogFilters}
@@ -2545,7 +2550,7 @@ export function SystemPage() {
             초기화
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary system-log-filter-btn"
             type="button"
             style={{ alignSelf: 'end' }}
             onClick={applySystemLogFilters}
@@ -2555,34 +2560,36 @@ export function SystemPage() {
         </div>
       </section>
 
-      <div className="card-head">
-        <h3>
-          기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
-        </h3>
-        <button className="btn btn-outline" type="button">
-          엑셀 다운로드
-        </button>
-      </div>
+      <section className="card card-pad system-log-summary">
+        <div className="card-head">
+          <h3>
+            기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
+          </h3>
+          <button className="btn btn-outline" type="button">
+            엑셀 다운로드
+          </button>
+        </div>
 
-      <div className="grid grid-5">
-        {[
-          ['전체 기록 수', '2,458건', '일 평균 351건'],
-          ['운영 기록', '1,362건', '55.4%'],
-          ['사용자 활동', '736건', '29.9%'],
-          ['시스템 변경', '248건', '10.1%'],
-          ['오류 / 경고', '112건', '4.6%'],
-        ].map(([t, v, s]) => (
-          <div key={t} className="card card-pad">
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t}
+        <div className="grid grid-5">
+          {[
+            ['전체 기록 수', '2,458건', '일 평균 351건'],
+            ['운영 기록', '1,362건', '55.4%'],
+            ['사용자 활동', '736건', '29.9%'],
+            ['시스템 변경', '248건', '10.1%'],
+            ['오류 / 경고', '112건', '4.6%'],
+          ].map(([t, v, s]) => (
+            <div key={t} className="system-log-summary-tile">
+              <div className="muted" style={{ fontSize: 12 }}>
+                {t}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
+              <div className="muted" style={{ fontSize: 11 }}>
+                {s}
+              </div>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              {s}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </section>
 
       <div className="split-14">
         <section className="card card-pad">
@@ -2816,13 +2823,9 @@ export function SystemPage() {
   )
 }
 
-type SettingsSection = 'account' | 'security' | 'notifications' | 'operations' | 'integrations'
+type SettingsSection = 'account' | 'notifications' | 'operations' | 'integrations'
 
 type AdminSettings = {
-  loginFailLimit: number
-  sessionTimeoutMin: number
-  passwordMinLength: number
-  passwordRotateDays: number
   notifyEmail: string
   timezone: string
   notifySafetyStop: boolean
@@ -2838,10 +2841,6 @@ type AdminSettings = {
 const SETTINGS_STORAGE_KEY = 'onda-admin-settings'
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  loginFailLimit: 5,
-  sessionTimeoutMin: 30,
-  passwordMinLength: 10,
-  passwordRotateDays: 90,
   notifyEmail: 'admin@mju.ac.kr',
   timezone: 'Asia/Seoul',
   notifySafetyStop: true,
@@ -2858,7 +2857,31 @@ function loadAdminSettings(): AdminSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (!raw) return { ...DEFAULT_SETTINGS }
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<AdminSettings>) }
+    const parsed = JSON.parse(raw) as Partial<AdminSettings>
+    return {
+      notifyEmail: typeof parsed.notifyEmail === 'string' ? parsed.notifyEmail : DEFAULT_SETTINGS.notifyEmail,
+      timezone: typeof parsed.timezone === 'string' ? parsed.timezone : DEFAULT_SETTINGS.timezone,
+      notifySafetyStop:
+        typeof parsed.notifySafetyStop === 'boolean' ? parsed.notifySafetyStop : DEFAULT_SETTINGS.notifySafetyStop,
+      notifyOperationChange:
+        typeof parsed.notifyOperationChange === 'boolean'
+          ? parsed.notifyOperationChange
+          : DEFAULT_SETTINGS.notifyOperationChange,
+      notifySystemAlert:
+        typeof parsed.notifySystemAlert === 'boolean' ? parsed.notifySystemAlert : DEFAULT_SETTINGS.notifySystemAlert,
+      notifyEmailDigest:
+        typeof parsed.notifyEmailDigest === 'boolean' ? parsed.notifyEmailDigest : DEFAULT_SETTINGS.notifyEmailDigest,
+      defaultBusCapacity:
+        typeof parsed.defaultBusCapacity === 'number' ? parsed.defaultBusCapacity : DEFAULT_SETTINGS.defaultBusCapacity,
+      liveMapRefreshSec:
+        typeof parsed.liveMapRefreshSec === 'number' ? parsed.liveMapRefreshSec : DEFAULT_SETTINGS.liveMapRefreshSec,
+      autoAssignDriver:
+        typeof parsed.autoAssignDriver === 'boolean' ? parsed.autoAssignDriver : DEFAULT_SETTINGS.autoAssignDriver,
+      showInactiveRoutes:
+        typeof parsed.showInactiveRoutes === 'boolean'
+          ? parsed.showInactiveRoutes
+          : DEFAULT_SETTINGS.showInactiveRoutes,
+    }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
@@ -2951,7 +2974,6 @@ export function SettingsPage() {
 
   const sections: { id: SettingsSection; label: string; hint: string }[] = [
     { id: 'account', label: '계정', hint: '로그인 계정 정보' },
-    { id: 'security', label: '보안', hint: '세션·비밀번호 정책' },
     { id: 'notifications', label: '알림', hint: '수신 채널·이벤트' },
     { id: 'operations', label: '운행', hint: '관제·배차 기본값' },
     { id: 'integrations', label: '연동', hint: '외부 서비스 상태' },
@@ -2965,7 +2987,7 @@ export function SettingsPage() {
       <div className="settings-hero">
         <div>
           <h2 className="page-title">설정</h2>
-          <p className="page-subtitle">관리자 계정, 보안 정책, 알림·운행 기본값을 관리합니다.</p>
+          <p className="page-subtitle">관리자 계정, 알림·운행 기본값을 관리합니다.</p>
         </div>
         <div className="settings-hero-actions">
           {saveMessage ? <span className="settings-save-toast">{saveMessage}</span> : null}
@@ -3021,78 +3043,19 @@ export function SettingsPage() {
               <div className="grid grid-2">
                 <div className="field">
                   <label>이름</label>
-                  <input className="input" value={user?.name || ''} readOnly />
+                  <input className="input settings-filter-control" value={user?.name || ''} readOnly />
                 </div>
                 <div className="field">
                   <label>역할</label>
-                  <input className="input" value={roleLabel} readOnly />
+                  <input className="input settings-filter-control" value={roleLabel} readOnly />
                 </div>
                 <div className="field">
                   <label>이메일</label>
-                  <input className="input" value={user?.email || ''} readOnly />
+                  <input className="input settings-filter-control" value={user?.email || ''} readOnly />
                 </div>
                 <div className="field">
                   <label>사용자 ID</label>
-                  <input className="input" value={user?.id || '-'} readOnly />
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {section === 'security' ? (
-            <section className="card card-pad settings-panel">
-              <div className="card-head">
-                <div>
-                  <h3>보안</h3>
-                  <p className="settings-panel-desc">로그인·세션·비밀번호 정책을 설정합니다.</p>
-                </div>
-              </div>
-              <div className="grid grid-2">
-                <div className="field">
-                  <label>연속 로그인 실패 허용 횟수</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={draft.loginFailLimit}
-                    onChange={(e) => patch('loginFailLimit', Number(e.target.value) || 1)}
-                  />
-                  <div className="field-hint">초과 시 계정 잠금이 적용됩니다.</div>
-                </div>
-                <div className="field">
-                  <label>세션 타임아웃 (분)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={5}
-                    max={480}
-                    value={draft.sessionTimeoutMin}
-                    onChange={(e) => patch('sessionTimeoutMin', Number(e.target.value) || 5)}
-                  />
-                  <div className="field-hint">미사용 상태가 지속되면 자동 로그아웃됩니다.</div>
-                </div>
-                <div className="field">
-                  <label>비밀번호 최소 길이</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={8}
-                    max={64}
-                    value={draft.passwordMinLength}
-                    onChange={(e) => patch('passwordMinLength', Number(e.target.value) || 8)}
-                  />
-                </div>
-                <div className="field">
-                  <label>비밀번호 변경 주기 (일)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={30}
-                    max={365}
-                    value={draft.passwordRotateDays}
-                    onChange={(e) => patch('passwordRotateDays', Number(e.target.value) || 30)}
-                  />
+                  <input className="input settings-filter-control" value={user?.id || '-'} readOnly />
                 </div>
               </div>
             </section>
@@ -3109,7 +3072,7 @@ export function SettingsPage() {
               <div className="field" style={{ maxWidth: 420, marginBottom: 8 }}>
                 <label>알림 수신 이메일</label>
                 <input
-                  className="input"
+                  className="input settings-filter-control"
                   type="email"
                   value={draft.notifyEmail}
                   onChange={(e) => patch('notifyEmail', e.target.value)}
@@ -3171,7 +3134,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>기본 타임존</label>
                   <select
-                    className="select"
+                    className="select settings-filter-control"
                     value={draft.timezone}
                     onChange={(e) => patch('timezone', e.target.value)}
                   >
@@ -3182,7 +3145,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>실시간 지도 갱신 주기 (초)</label>
                   <select
-                    className="select"
+                    className="select settings-filter-control"
                     value={draft.liveMapRefreshSec}
                     onChange={(e) => patch('liveMapRefreshSec', Number(e.target.value))}
                   >
@@ -3195,7 +3158,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>기본 차량 정원</label>
                   <input
-                    className="input"
+                    className="input settings-filter-control"
                     type="number"
                     min={1}
                     max={60}

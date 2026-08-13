@@ -20,6 +20,7 @@ export function Sidebar({ items, activePath, onNavigate, onLogout }: SidebarProp
     <aside className="sidebar">
       <div className="sidebar-logo">
         <Logo height={56} />
+        <span className="sidebar-logo-caption">관리자 페이지</span>
       </div>
 
       <nav className="nav-list" aria-label="관리자 메뉴">
