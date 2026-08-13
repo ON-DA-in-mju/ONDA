@@ -811,9 +811,9 @@ export function NoticesPage() {
               </span>
             </h3>
           </div>
-          <div className="toolbar" style={{ marginBottom: 8 }}>
+          <div className="toolbar notice-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="select"
+              className="select notice-filter-control"
               style={{ width: 110, height: 32 }}
               value={listTypeFilter}
               onChange={(e) => setListTypeFilter(e.target.value)}
@@ -825,7 +825,7 @@ export function NoticesPage() {
               <option>일반</option>
             </select>
             <input
-              className="input"
+              className="input notice-filter-control"
               style={{ flex: 1, height: 32 }}
               placeholder="제목 또는 내용을 검색하세요."
               value={listQuery}
@@ -1008,13 +1008,13 @@ export function NoticesPage() {
                 </div>
               </div>
 
-              <div className="field">
+              <div className="field notice-title-field">
                 <div className="field-label-row">
                   <label>제목</label>
                   <span className="field-hint">{title.length}/100</span>
                 </div>
                 <input
-                  className="input"
+                  className="input notice-filter-control"
                   style={{ height: 36 }}
                   maxLength={100}
                   placeholder="제목을 입력하세요."
@@ -1883,7 +1883,7 @@ export function VehiclesPage() {
 
         <div className="stack">
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>정비 유형별 통계 (이번 달)</h3>
+            <h3>정비 유형별 통계 (이번 달)</h3>
             <div className="donut-sm">
               <div className="donut-sm-hole">
                 총
@@ -1912,7 +1912,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>월별 정비 비용 추이 (만원)</h3>
+            <h3>월별 정비 비용 추이 (만원)</h3>
             <div className="bar-chart" aria-hidden>
               {[
                 ['02', 35],
@@ -1931,7 +1931,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>알림</h3>
+            <h3>알림</h3>
             <div className="alert-stack">
               <div className="alert alert-warning">72버 1234 차량의 정기점검이 예정되어 있습니다. · 20분 전</div>
               <div className="alert alert-danger">75버 9900 차량의 타이어 교체가 필요합니다. · 1시간 전</div>
@@ -1940,7 +1940,7 @@ export function VehiclesPage() {
           </section>
 
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>정비 통계 요약</h3>
+            <h3>정비 통계 요약</h3>
             <div className="grid grid-2">
               {[
                 ['완료율', '75%', '%', '(12/16)'],
@@ -2123,9 +2123,9 @@ export function UsersPage() {
               </span>
             </h3>
           </div>
-          <div className="toolbar" style={{ marginBottom: 8 }}>
+          <div className="toolbar users-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="select"
+              className="select users-filter-control"
               style={{ width: 120, height: 32 }}
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
@@ -2136,7 +2136,7 @@ export function UsersPage() {
               <option>일반</option>
             </select>
             <input
-              className="input"
+              className="input users-filter-control"
               style={{ flex: 1, height: 32 }}
               placeholder="이름, 아이디, 이메일 검색"
               value={listQuery}
@@ -2208,7 +2208,7 @@ export function UsersPage() {
 
         <div className="stack">
           <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>
+            <h3>
               역할 권한 설정 · {user.name} ({user.id})
             </h3>
             <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
@@ -2237,6 +2237,29 @@ export function UsersPage() {
             </table>
           </section>
 
+          <section className="figma-panel users-security-panel">
+            <h3>보안 정책</h3>
+            <div className="field">
+              <label>비밀번호 최소 길이</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="10자 이상" />
+            </div>
+            <div className="field">
+              <label>비밀번호 변경 주기</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="90일" />
+            </div>
+            <div className="field">
+              <label>세션 타임아웃</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="30분" />
+            </div>
+            <div className="field">
+              <label>연속 로그인 실패 허용 횟수</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="5회" />
+            </div>
+            <button className="btn btn-primary btn-xs" type="button" style={{ marginTop: 8 }}>
+              정책 설정
+            </button>
+          </section>
+
           <section className="figma-panel">
             <div className="figma-panel-head">
               <h3>최근 로그인 기록</h3>
@@ -2256,29 +2279,6 @@ export function UsersPage() {
                 ))
               )}
             </div>
-          </section>
-
-          <section className="figma-panel">
-            <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>보안 정책</h3>
-            <div className="field">
-              <label>비밀번호 최소 길이</label>
-              <input className="input" style={{ height: 32 }} defaultValue="10자 이상" />
-            </div>
-            <div className="field">
-              <label>비밀번호 변경 주기</label>
-              <input className="input" style={{ height: 32 }} defaultValue="90일" />
-            </div>
-            <div className="field">
-              <label>세션 타임아웃</label>
-              <input className="input" style={{ height: 32 }} defaultValue="30분" />
-            </div>
-            <div className="field">
-              <label>연속 로그인 실패 허용 횟수</label>
-              <input className="input" style={{ height: 32 }} defaultValue="5회" />
-            </div>
-            <button className="btn btn-primary btn-xs" type="button" style={{ marginTop: 8 }}>
-              정책 설정
-            </button>
           </section>
         </div>
       </div>
@@ -2822,13 +2822,9 @@ export function SystemPage() {
   )
 }
 
-type SettingsSection = 'account' | 'security' | 'notifications' | 'operations' | 'integrations'
+type SettingsSection = 'account' | 'notifications' | 'operations' | 'integrations'
 
 type AdminSettings = {
-  loginFailLimit: number
-  sessionTimeoutMin: number
-  passwordMinLength: number
-  passwordRotateDays: number
   notifyEmail: string
   timezone: string
   notifySafetyStop: boolean
@@ -2844,10 +2840,6 @@ type AdminSettings = {
 const SETTINGS_STORAGE_KEY = 'onda-admin-settings'
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  loginFailLimit: 5,
-  sessionTimeoutMin: 30,
-  passwordMinLength: 10,
-  passwordRotateDays: 90,
   notifyEmail: 'admin@mju.ac.kr',
   timezone: 'Asia/Seoul',
   notifySafetyStop: true,
@@ -2864,7 +2856,31 @@ function loadAdminSettings(): AdminSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (!raw) return { ...DEFAULT_SETTINGS }
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<AdminSettings>) }
+    const parsed = JSON.parse(raw) as Partial<AdminSettings>
+    return {
+      notifyEmail: typeof parsed.notifyEmail === 'string' ? parsed.notifyEmail : DEFAULT_SETTINGS.notifyEmail,
+      timezone: typeof parsed.timezone === 'string' ? parsed.timezone : DEFAULT_SETTINGS.timezone,
+      notifySafetyStop:
+        typeof parsed.notifySafetyStop === 'boolean' ? parsed.notifySafetyStop : DEFAULT_SETTINGS.notifySafetyStop,
+      notifyOperationChange:
+        typeof parsed.notifyOperationChange === 'boolean'
+          ? parsed.notifyOperationChange
+          : DEFAULT_SETTINGS.notifyOperationChange,
+      notifySystemAlert:
+        typeof parsed.notifySystemAlert === 'boolean' ? parsed.notifySystemAlert : DEFAULT_SETTINGS.notifySystemAlert,
+      notifyEmailDigest:
+        typeof parsed.notifyEmailDigest === 'boolean' ? parsed.notifyEmailDigest : DEFAULT_SETTINGS.notifyEmailDigest,
+      defaultBusCapacity:
+        typeof parsed.defaultBusCapacity === 'number' ? parsed.defaultBusCapacity : DEFAULT_SETTINGS.defaultBusCapacity,
+      liveMapRefreshSec:
+        typeof parsed.liveMapRefreshSec === 'number' ? parsed.liveMapRefreshSec : DEFAULT_SETTINGS.liveMapRefreshSec,
+      autoAssignDriver:
+        typeof parsed.autoAssignDriver === 'boolean' ? parsed.autoAssignDriver : DEFAULT_SETTINGS.autoAssignDriver,
+      showInactiveRoutes:
+        typeof parsed.showInactiveRoutes === 'boolean'
+          ? parsed.showInactiveRoutes
+          : DEFAULT_SETTINGS.showInactiveRoutes,
+    }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
@@ -2957,7 +2973,6 @@ export function SettingsPage() {
 
   const sections: { id: SettingsSection; label: string; hint: string }[] = [
     { id: 'account', label: '계정', hint: '로그인 계정 정보' },
-    { id: 'security', label: '보안', hint: '세션·비밀번호 정책' },
     { id: 'notifications', label: '알림', hint: '수신 채널·이벤트' },
     { id: 'operations', label: '운행', hint: '관제·배차 기본값' },
     { id: 'integrations', label: '연동', hint: '외부 서비스 상태' },
@@ -2971,7 +2986,7 @@ export function SettingsPage() {
       <div className="settings-hero">
         <div>
           <h2 className="page-title">설정</h2>
-          <p className="page-subtitle">관리자 계정, 보안 정책, 알림·운행 기본값을 관리합니다.</p>
+          <p className="page-subtitle">관리자 계정, 알림·운행 기본값을 관리합니다.</p>
         </div>
         <div className="settings-hero-actions">
           {saveMessage ? <span className="settings-save-toast">{saveMessage}</span> : null}
@@ -3027,78 +3042,19 @@ export function SettingsPage() {
               <div className="grid grid-2">
                 <div className="field">
                   <label>이름</label>
-                  <input className="input" value={user?.name || ''} readOnly />
+                  <input className="input settings-filter-control" value={user?.name || ''} readOnly />
                 </div>
                 <div className="field">
                   <label>역할</label>
-                  <input className="input" value={roleLabel} readOnly />
+                  <input className="input settings-filter-control" value={roleLabel} readOnly />
                 </div>
                 <div className="field">
                   <label>이메일</label>
-                  <input className="input" value={user?.email || ''} readOnly />
+                  <input className="input settings-filter-control" value={user?.email || ''} readOnly />
                 </div>
                 <div className="field">
                   <label>사용자 ID</label>
-                  <input className="input" value={user?.id || '-'} readOnly />
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {section === 'security' ? (
-            <section className="card card-pad settings-panel">
-              <div className="card-head">
-                <div>
-                  <h3>보안</h3>
-                  <p className="settings-panel-desc">로그인·세션·비밀번호 정책을 설정합니다.</p>
-                </div>
-              </div>
-              <div className="grid grid-2">
-                <div className="field">
-                  <label>연속 로그인 실패 허용 횟수</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={draft.loginFailLimit}
-                    onChange={(e) => patch('loginFailLimit', Number(e.target.value) || 1)}
-                  />
-                  <div className="field-hint">초과 시 계정 잠금이 적용됩니다.</div>
-                </div>
-                <div className="field">
-                  <label>세션 타임아웃 (분)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={5}
-                    max={480}
-                    value={draft.sessionTimeoutMin}
-                    onChange={(e) => patch('sessionTimeoutMin', Number(e.target.value) || 5)}
-                  />
-                  <div className="field-hint">미사용 상태가 지속되면 자동 로그아웃됩니다.</div>
-                </div>
-                <div className="field">
-                  <label>비밀번호 최소 길이</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={8}
-                    max={64}
-                    value={draft.passwordMinLength}
-                    onChange={(e) => patch('passwordMinLength', Number(e.target.value) || 8)}
-                  />
-                </div>
-                <div className="field">
-                  <label>비밀번호 변경 주기 (일)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={30}
-                    max={365}
-                    value={draft.passwordRotateDays}
-                    onChange={(e) => patch('passwordRotateDays', Number(e.target.value) || 30)}
-                  />
+                  <input className="input settings-filter-control" value={user?.id || '-'} readOnly />
                 </div>
               </div>
             </section>
@@ -3115,7 +3071,7 @@ export function SettingsPage() {
               <div className="field" style={{ maxWidth: 420, marginBottom: 8 }}>
                 <label>알림 수신 이메일</label>
                 <input
-                  className="input"
+                  className="input settings-filter-control"
                   type="email"
                   value={draft.notifyEmail}
                   onChange={(e) => patch('notifyEmail', e.target.value)}
@@ -3177,7 +3133,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>기본 타임존</label>
                   <select
-                    className="select"
+                    className="select settings-filter-control"
                     value={draft.timezone}
                     onChange={(e) => patch('timezone', e.target.value)}
                   >
@@ -3188,7 +3144,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>실시간 지도 갱신 주기 (초)</label>
                   <select
-                    className="select"
+                    className="select settings-filter-control"
                     value={draft.liveMapRefreshSec}
                     onChange={(e) => patch('liveMapRefreshSec', Number(e.target.value))}
                   >
@@ -3201,7 +3157,7 @@ export function SettingsPage() {
                 <div className="field">
                   <label>기본 차량 정원</label>
                   <input
-                    className="input"
+                    className="input settings-filter-control"
                     type="number"
                     min={1}
                     max={60}

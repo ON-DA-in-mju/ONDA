@@ -117,8 +117,12 @@
 
 .live-map-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-family: var(--font);
+  font-size: var(--section-title-size);
+  font-weight: var(--section-title-weight);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  line-height: 1.3;
 }
 
 .live-status-legend {
