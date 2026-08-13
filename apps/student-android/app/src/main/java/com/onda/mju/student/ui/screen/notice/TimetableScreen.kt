@@ -25,9 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -47,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
+import com.onda.mju.student.core.calendar.AcademicCalendar
+import com.onda.mju.student.data.route.StudentRouteIds
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -57,30 +56,36 @@ private val SoftBlue = Color(0xFFEDF4FE)
 @Composable
 fun TimetableScreen(
     modifier: Modifier = Modifier,
-    initialRouteId: String = "giheung",
+    initialRouteId: String = StudentRouteIds.GIHEUNG,
+    routes: List<TimetableRoute> = emptyTimetableRoutes(),
+    forToday: Boolean = false,
     onBackClick: () -> Unit = {},
 ) {
     BackHandler(onBack = onBackClick)
 
-    val routes = remember { sampleTimetableRoutes() }
-    var selectedRouteId by remember {
+    val safeRoutes = routes.ifEmpty { emptyTimetableRoutes() }
+    val todayDayType = remember { todayTimetableDayType() }
+    var selectedRouteId by remember(safeRoutes, initialRouteId) {
         mutableStateOf(
-            routes.firstOrNull { it.id == initialRouteId }?.id ?: routes.first().id,
+            safeRoutes.firstOrNull { it.id == initialRouteId }?.id
+                ?: safeRoutes.first().id,
         )
     }
-    var dayType by remember { mutableStateOf(TimetableDayType.Weekday) }
-    var selectedDirectionId by remember {
+    var dayType by remember(forToday) {
+        mutableStateOf(todayDayType)
+    }
+    var selectedDirectionId by remember(safeRoutes, selectedRouteId, dayType) {
         mutableStateOf(
-            routes.first { it.id == selectedRouteId }
+            safeRoutes.first { it.id == selectedRouteId }
                 .directionsFor(dayType)
-                .first()
-                .id,
+                .firstOrNull()
+                ?.id
+                .orEmpty(),
         )
     }
-    var routeMenuExpanded by remember { mutableStateOf(false) }
 
-    val selectedRoute = remember(routes, selectedRouteId) {
-        routes.first { it.id == selectedRouteId }
+    val selectedRoute = remember(safeRoutes, selectedRouteId) {
+        safeRoutes.first { it.id == selectedRouteId }
     }
     val directions = remember(selectedRoute, dayType) {
         selectedRoute.directionsFor(dayType)
@@ -104,17 +109,24 @@ fun TimetableScreen(
 
     fun selectRoute(routeId: String) {
         selectedRouteId = routeId
-        routeMenuExpanded = false
-        val nextDirections = routes.first { it.id == routeId }.directionsFor(dayType)
-        selectedDirectionId = nextDirections.first().id
+        val nextDirections = safeRoutes.first { it.id == routeId }.directionsFor(dayType)
+        selectedDirectionId = nextDirections.firstOrNull()?.id.orEmpty()
     }
 
     fun selectDayType(next: TimetableDayType) {
+        if (forToday) return
         dayType = next
         val nextDirections = selectedRoute.directionsFor(next)
         if (nextDirections.none { it.id == selectedDirectionId }) {
-            selectedDirectionId = nextDirections.first().id
+            selectedDirectionId = nextDirections.firstOrNull()?.id.orEmpty()
         }
+    }
+
+    val title = if (forToday) "오늘의 시간표" else "전체 시간표"
+    val subtitle = if (forToday) {
+        "${AcademicCalendar.todayDisplayLabel()} · ${AcademicCalendar.todayScheduleKindLabel()} 시간표"
+    } else {
+        "기흥역 · 명지대역 · 시내 노선 시간표를 확인하세요"
     }
 
     Column(
@@ -137,9 +149,9 @@ fun TimetableScreen(
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth(0.65f)) {
-                    Text("시간표", color = TitleBlack, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(title, color = TitleBlack, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("선택한 노선의 운행 시간표를 확인하세요", color = BodyGray, fontSize = 13.sp)
+                    Text(subtitle, color = BodyGray, fontSize = 13.sp)
                 }
                 Image(
                     painter = painterResource(id = R.drawable.route_list_header_illustration),
@@ -153,47 +165,38 @@ fun TimetableScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Box {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
-                        .clickable { routeMenuExpanded = true }
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.DirectionsBus, null, tint = OndaBlue)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            selectedRoute.name,
-                            color = TitleBlack,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                safeRoutes.forEach { route ->
+                    val selected = route.id == selectedRouteId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(
+                                1.dp,
+                                if (selected) OndaBlue else CardBorder,
+                                RoundedCornerShape(14.dp),
+                            )
+                            .background(if (selected) SoftBlue else Color.White)
+                            .clickable { selectRoute(route.id) }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.DirectionsBus,
+                            null,
+                            tint = if (selected) OndaBlue else BodyGray,
                         )
-                        Text(selectedRoute.summary, color = BodyGray, fontSize = 12.sp)
-                    }
-                    Icon(Icons.Filled.KeyboardArrowDown, null, tint = BodyGray)
-                }
-                DropdownMenu(
-                    expanded = routeMenuExpanded,
-                    onDismissRequest = { routeMenuExpanded = false },
-                ) {
-                    routes.forEach { route ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        route.name,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TitleBlack,
-                                        fontSize = 14.sp,
-                                    )
-                                    Text(route.summary, color = BodyGray, fontSize = 12.sp)
-                                }
-                            },
-                            onClick = { selectRoute(route.id) },
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                route.name,
+                                color = TitleBlack,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                            )
+                            Text(route.summary, color = BodyGray, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -210,17 +213,30 @@ fun TimetableScreen(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            SegmentedTwo(
-                left = "학기 중 평일",
-                right = "주말 · 방학",
-                selected = if (dayType == TimetableDayType.Weekday) 0 else 1,
-                onSelect = { index ->
-                    selectDayType(
-                        if (index == 0) TimetableDayType.Weekday
-                        else TimetableDayType.WeekendVacation,
-                    )
-                },
-            )
+            if (!forToday) {
+                SegmentedTwo(
+                    left = "학기 중 평일",
+                    right = "주말 · 방학",
+                    selected = if (dayType == TimetableDayType.Weekday) 0 else 1,
+                    onSelect = { index ->
+                        selectDayType(
+                            if (index == 0) TimetableDayType.Weekday
+                            else TimetableDayType.WeekendVacation,
+                        )
+                    },
+                )
+            } else {
+                Text(
+                    text = "오늘은 ${AcademicCalendar.todayScheduleKindLabel()} 시간표가 적용됩니다",
+                    color = OndaBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SoftBlue, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
             Column(
@@ -248,10 +264,12 @@ fun TimetableScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = if (schedule?.operates == false) {
-                                "주말·방학에는 운행하지 않습니다."
-                            } else {
-                                "표시할 시간표가 없습니다."
+                            text = when {
+                                schedule?.operates == false && forToday ->
+                                    "오늘은 이 노선을 운행하지 않습니다."
+                                schedule?.operates == false ->
+                                    "주말·방학에는 운행하지 않습니다."
+                                else -> "표시할 시간표가 없습니다."
                             },
                             color = BodyGray,
                             fontSize = 14.sp,

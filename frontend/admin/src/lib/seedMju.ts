@@ -18,29 +18,26 @@ const BASE_AND_VARIANT_DEFS = [
     name: r.name,
     direction: r.direction,
     description: r.description,
+    start_location: r.start_location,
+    end_location: r.end_location,
   })),
   ...VARIANT_ROUTE_DEFS.map((r) => ({
     name: r.name,
     direction: r.direction,
     description: r.description,
+    start_location: r.start_location,
+    end_location: r.end_location,
   })),
 ]
 
 /** UI에서 기본 노선 선택 시 변형 노선도 함께 조회 */
 export function routeNamesForFilter(routeName?: string): string[] {
   if (!routeName) return [...TARGET_NAMES]
-  // 명지대 기본: 18시 이후 변형도 함께 (별도 옵션으로만 보고 싶으면 해당 옵션 선택)
   if (routeName === MYONGJI_STATION_ROUTE_NAME) {
     return [MYONGJI_STATION_ROUTE_NAME, MYONGJI_STATION_AFTER18_ROUTE_NAME]
   }
-  if (routeName === MYONGJI_STATION_AFTER18_ROUTE_NAME) {
-    return [MYONGJI_STATION_AFTER18_ROUTE_NAME]
-  }
   if (routeName === CITY_SHUTTLE_ROUTE_NAME) {
     return [CITY_SHUTTLE_ROUTE_NAME, CITY_SHUTTLE_VACATION_ROUTE_NAME]
-  }
-  if (routeName === CITY_SHUTTLE_VACATION_ROUTE_NAME) {
-    return [CITY_SHUTTLE_VACATION_ROUTE_NAME]
   }
   return [routeName]
 }
@@ -75,6 +72,7 @@ export async function fetchSchedulesWithRoutes(params?: {
 
   const routeIds = routeRows.map((r) => r.id)
 
+  // start_location/end_location 은 운영 DB에 아직 없을 수 있어 조인 select에서 제외
   let q = supabase
     .from('schedules')
     .select('*, routes(id, route_name, direction, description, is_active)')

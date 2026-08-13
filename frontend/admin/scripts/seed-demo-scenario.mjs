@@ -58,10 +58,10 @@ const STOPS = [
 ]
 
 const VEHICLES = [
-  { id: '55555555-5555-5555-5555-555555555501', name: '온다 1호기', bus_id: '33333333-3333-3333-3333-333333333301', status: '운행 중', mileage: '84,220km', next_maintenance: '2026.08.20' },
-  { id: '55555555-5555-5555-5555-555555555502', name: '온다 2호기', bus_id: '33333333-3333-3333-3333-333333333302', status: '정비 예정', mileage: '91,040km', next_maintenance: '2026.08.08' },
-  { id: '55555555-5555-5555-5555-555555555503', name: '온다 3호기', bus_id: '33333333-3333-3333-3333-333333333303', status: '운행 중', mileage: '67,510km', next_maintenance: '2026.09.01' },
-  { id: '55555555-5555-5555-5555-555555555504', name: '온다 6호기', bus_id: '33333333-3333-3333-3333-333333333304', status: '통신 이상', mileage: '102,300km', next_maintenance: '2026.08.07' },
+  { id: '55555555-5555-5555-5555-555555555501', name: '온다 1호기', plate: '72버 1234', status: '운행 중', mileage: '84,220km', next_maintenance: '2026.08.20' },
+  { id: '55555555-5555-5555-5555-555555555502', name: '온다 2호기', plate: '73버 1122', status: '정비 예정', mileage: '91,040km', next_maintenance: '2026.08.08' },
+  { id: '55555555-5555-5555-5555-555555555503', name: '온다 3호기', plate: '72버 5678', status: '운행 중', mileage: '67,510km', next_maintenance: '2026.09.01' },
+  { id: '55555555-5555-5555-5555-555555555504', name: '온다 6호기', plate: '75버 9900', status: '통신 이상', mileage: '102,300km', next_maintenance: '2026.08.07' },
 ]
 
 const EXTRA_SCHEDULES = [
@@ -195,7 +195,6 @@ async function main() {
     const { error } = await admin.from('stops').upsert(STOPS)
     console.log(error ? error.message : `upsert ${STOPS.length}`)
   }
-  const stopByName = new Map(STOPS.map((s) => [s.stop_name, s.id]))
 
   console.log('--- vehicles ---')
   {
@@ -292,8 +291,8 @@ async function main() {
       ...basePayload,
       external_id: op.external_id,
       round: op.round,
-      origin_stop_id: stopByName.get(op.origin) ?? null,
-      destination_stop_id: stopByName.get(op.destination) ?? null,
+      origin: op.origin,
+      destination: op.destination,
       expected_end_time: op.end,
     }
 

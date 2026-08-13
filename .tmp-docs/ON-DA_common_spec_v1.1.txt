@@ -1,0 +1,1146 @@
+ON-DA
+명지대학교 셔틀버스 통합 안내 서비스
+개발 착수용 공통 명세서
+학생 앱 · 기사 앱 · 관리자 웹 · Supabase 공통 기준
+
+항목
+내용
+문서 버전
+v1.1 (Android Kotlin 전환 반영)
+작성 기준일
+2026.08.06
+문서 목적
+팀원 3명이 동일한 데이터·상태·연동 기준으로 즉시 개발을 시작하기 위한 최소 확정 명세
+적용 범위
+경진대회 시제품(MVP)
+우선 원칙
+핵심 통합 시나리오의 정상 동작을 화면 수보다 우선
+
+본 문서는 기존 제안서와 기능명세서 초본, 학생·기사·관리자 Figma, 팀이 확정한 운영 규칙, 명지대학교 공식 셔틀 노선·시간표를 종합하여 작성하였다.
+
+0. 이 문서를 먼저 읽는 방법
+이 문서는 최종 제출용 전체 기능명세서가 아니라, 개발 초기에 충돌을 막기 위한 팀 공통 기준이다. 팀원은 프로젝트를 생성하거나 DB 테이블·상태값·화면 데이터를 작성하기 전에 반드시 1~10장을 확인한다.
+문서에서 “확정”으로 표기한 항목은 팀 합의 없이 개별 변경하지 않는다.
+화면 문구와 Figma가 본 문서의 데이터·상태 규칙과 충돌하면 본 문서를 우선한다.
+아직 실제 좌표·API 키처럼 준비되지 않은 값은 임시값으로 개발하되, 필드명과 구조는 변경하지 않는다.
+변경이 필요하면 GitHub Issue에 변경 이유·영향 범위·마이그레이션 필요 여부를 기록한 뒤 합의한다.
+1. 프로젝트 공통 확정 사항
+구분
+확정 내용
+서비스
+ON-DA: 명지대학교 자연캠퍼스 셔틀버스 통합 안내 서비스
+사용자
+학생(STUDENT), 기사(DRIVER), 관리자(ADMIN)
+학생 인증
+시제품은 테스트 계정 사용. 화면 문구는 “명지대학교 계정으로 로그인”. 추후 학교 계정 연동 구조를 고려
+기사 계정
+관리자가 생성
+관리자 권한
+MVP에서는 단일 ADMIN 역할
+운행 등록
+학기 반복 운행 패턴을 1회 등록하고, 날짜별 실제 운행을 생성. 긴급·특이사항만 날짜별 예외 변경
+운행 시작·종료
+기사가 직접 버튼을 눌러 처리
+위치 전송
+RUNNING 상태에서만 전송
+복수 운행
+기사 1명이 하루 여러 회차 운행 가능
+다중 차량
+한 회차에 여러 차량 동시 배정 가능
+강제 종료
+관리자가 진행 중 운행을 강제 종료 가능
+학생 제보
+등록 후 30분 유효. 만차 정보는 학생 제보로만 제공
+공지
+학생용과 기사용을 수신 대상별로 분리
+학기 기간
+1학기 03.01~06.15, 2학기 09.01~12.14
+
+2. 기술 스택과 프로젝트 식별자
+영역
+기술/값
+학생 앱
+Kotlin + Jetpack Compose + Navigation Compose + ViewModel·StateFlow + Hilt
+기사 앱
+Kotlin + Jetpack Compose + ViewModel·StateFlow + Hilt + Foreground Service(위치 전송)
+관리자 웹
+Next.js + TypeScript + Tailwind CSS + shadcn/ui
+서버·DB
+Supabase(PostgreSQL, Auth, Realtime, Storage, Edge Functions)
+지도
+네이버 지도 API
+알림
+Firebase Cloud Messaging(FCM) + Android Notification Channel
+배포
+학생·기사 앱 Android APK(실기기 설치·시연), 관리자 웹 Vercel
+협업
+GitHub + GitHub Projects
+AI 개발 도구
+Cursor
+API 테스트
+Bruno 또는 Postman
+Android 네트워크·비동기
+Kotlin Coroutines + Flow, Supabase Kotlin SDK
+앱 구조
+MVVM 기반 Presentation / Domain / Data 계층, Repository 패턴
+
+2.1 앱 및 프로젝트 이름
+대상
+프로젝트 폴더
+표시명
+Android applicationId
+학생 앱
+onda_student
+ON-DA
+com.onda.mju.student
+기사 앱
+onda_driver
+ON-DA 기사
+com.onda.mju.driver
+관리자 웹
+onda_admin
+ON-DA Admin
+해당 없음
+
+Android applicationId는 Firebase 및 네이버 지도 API 등록에 사용되므로 프로젝트 생성 후 임의 변경하지 않는다.
+3. 팀 역할과 책임
+담당
+주요 책임
+반드시 공유할 산출물
+프론트 A
+학생 Android 앱(Kotlin·Jetpack Compose), 관리자 Next.js 웹, 학생·관리자 UI 공통 흐름
+Android 화면 라우트, Compose 공통 컴포넌트 규칙, 필요한 쿼리·Mutation 목록, 화면별 API 의존성
+프론트 B
+기사 Android 앱(Kotlin·Jetpack Compose), Foreground Service 기반 GPS, 권한·운행 상태 UI
+GPS payload, 시작·종료·중단 요청 흐름, Android 권한·Foreground Service·백그라운드 테스트 결과
+백엔드
+Supabase 스키마·RLS·Realtime·Auth·Storage·Edge Functions·FCM
+DB migration, enum·타입, RLS 정책, seed 데이터, Realtime 채널, API/함수 계약
+공동
+통합 시나리오 테스트, 상태값 변경 합의, 발표용 데이터
+통합 테스트 체크리스트, 이슈·변경 기록
+
+프론트 A의 구현량이 가장 많으므로 관리자 웹은 핵심 화면을 우선하고, 차량 정비·통계·시스템 로그의 고급 기능은 P2로 둔다.
+4. 저장소 및 브랜치 규칙
+권장 저장소 구조는 하나의 GitHub Organization 또는 단일 저장소의 모노레포 방식이다. 팀이 Git 사용에 익숙하지 않다면 단일 저장소를 권장한다.
+onda/├─ apps/│  ├─ student_android/│  ├─ driver_android/│  └─ admin_web/├─ supabase/│  ├─ migrations/│  ├─ seed.sql│  └─ functions/├─ docs/│  ├─ figma/│  ├─ common-spec/│  └─ api/└─ README.md
+
+항목
+규칙
+기본 브랜치
+main: 시연 가능한 안정 버전
+개발 통합
+develop: 기능 통합 및 테스트
+기능 브랜치
+feature/student-home, feature/driver-operation, feature/admin-schedule처럼 기능 단위
+커밋
+feat:, fix:, refactor:, docs:, test:, chore: 접두어 사용
+PR
+본인 코드라도 develop 병합 전 최소 1명 리뷰
+DB 변경
+Supabase 대시보드에서만 수정하지 말고 migration SQL을 반드시 커밋
+비밀값
+.env 파일·API 키·서비스 키·실제 비밀번호는 GitHub에 커밋 금지
+
+5. 테스트 계정과 인증 정책
+아래 계정은 시연용 가상 계정이다. 실제 개인 학교 계정이나 비밀번호를 사용하지 않는다. Supabase Auth에 개발용 사용자를 생성하고 profiles.role로 역할을 구분한다.
+역할
+로그인 ID
+개발용 비밀번호
+표시 이름
+비고
+STUDENT
+student@mju.ac.kr
+Student1234!
+김명지
+UI에는 명지대학교 계정 로그인으로 표시
+DRIVER
+driver01@onda.local
+Driver1234!
+김민수
+관리자가 생성한 기사 계정
+ADMIN
+admin@mju.ac.kr
+Admin1234!
+관리자
+MVP 단일 관리자
+
+비밀번호는 문서 공유용 초기값이며 공개 저장소 README에 그대로 노출하지 않는다. 실제 개발 환경에서는 팀 내부 비밀 관리 채널 또는 Supabase 대시보드에서 관리한다.
+6. 공통 용어 정의
+용어
+정의
+예시
+노선(Route)
+고정된 정류장 순서와 이동 경로
+기흥역 통학버스
+운행 방향(Direction)
+같은 노선의 출발지→도착지 구분
+MJU_TO_GIHEUNG
+시간표 템플릿(Schedule Template)
+학기·방학·요일 조건에 따라 반복되는 예정 시간표
+2026-2학기 평일 시간표
+운행 패턴(Operation Pattern)
+반복 기간, 요일, 노선, 출발시각 등 한 학기 반복 규칙
+평일 09:05 기흥역행
+패턴 배정(Pattern Assignment)
+운행 패턴에 고정 배정된 기사·차량
+09:05 2호차/김민수
+회차(Operation)
+특정 날짜·시각의 예정 운행 묶음
+2026.09.02 09:05 기흥역행
+차량 운행(Operation Vehicle)
+한 회차 안에서 특정 차량과 기사가 수행하는 실제 운행 단위
+회차의 2호차 운행
+예외(Override)
+특정 날짜에만 기본 반복 규칙을 변경
+차량 교체, 시간 변경, 취소
+정류장 통과 추정
+연속 GPS·노선 순서로 통과를 추정한 비확정 정보
+통과 추정
+공식 정보
+관리자가 등록한 시간표·공지·운행 상태
+운행 취소 공지
+학생 제보
+학생이 작성한 30분 유효 비공식 현장 정보
+만석, 대기줄 김
+
+7. 학사 기간과 시간표 적용 우선순위
+기간 유형
+기간
+기흥역 통학버스
+시내/명지대역
+1학기
+03.01 ~ 06.15
+학기 중 평일 운행
+학기·계절학기 중 평일 시간표
+2학기
+09.01 ~ 12.14
+학기 중 평일 운행
+학기·계절학기 중 평일 시간표
+방학·공휴일·주말
+학기 외 또는 해당 날짜
+운행하지 않음
+방학·공휴일·주말 시내 시간표
+
+날짜별 시간표 선택 우선순위는 “날짜별 예외 > 공휴일/주말/방학 규칙 > 학기 평일 규칙”이다. 특정 날짜에 관리자가 운행 중단·임시 운행을 등록하면 반복 템플릿보다 우선한다.
+8. 공식 노선 및 정류장 기준
+8.1 노선 코드
+route_code
+학생 표시명
+운영 구분
+GIHEUNG_COMMUTER
+기흥역 통학버스
+학기 중 평일
+CITY_SHUTTLE
+시내 셔틀
+학기·계절학기 평일
+MYONGJI_STATION_SHUTTLE
+명지대역 셔틀
+공식 안내의 “진입로 셔틀”
+VACATION_CITY_SHUTTLE
+방학·주말 시내 셔틀
+공휴일·주말·방학
+
+8.2 정류장 순서
+기흥역 통학버스
+방향
+정류장 순서
+MJU_TO_GIHEUNG
+명지대 버스관리사무소 정류장(채플관 앞) → 기흥역 5번 출구
+GIHEUNG_TO_MJU
+기흥역 5번 출구 → 명지대 버스관리사무소 정류장(채플관 앞)
+
+시내 셔틀(학기·계절학기 평일)
+순서
+정류장
+1
+버스관리사무소
+2
+상공회의소
+3
+진입로(럭스나인 앞)
+4
+동부경찰서 중앙지구대
+5
+용인CGV
+6
+중앙공영주차장
+7
+진입로(역북동 주민센터)
+8
+이마트
+9
+제1공학관
+10
+제3공학관
+11
+함박관
+12
+창조관
+13
+버스관리사무소
+
+명지대역 셔틀(공식 안내의 진입로 셔틀)
+순서
+정류장
+1
+버스관리사무소
+2
+상공회의소
+3
+진입로(럭스나인 앞)
+4
+경전철 명지대역
+5
+명지대역 사거리 정류장
+6
+진입로(역북동 주민센터)
+7
+이마트
+8
+명진당
+9
+제3공학관
+10
+함박관
+11
+창조관
+12
+버스관리사무소
+
+방학·공휴일·주말 시내 셔틀
+순서
+정류장
+1
+생활관(명현관)
+2
+함박관
+3
+정문
+4
+상공회의소
+5
+진입로(럭스라인 앞)
+6
+동부경찰서 중앙지구대
+7
+용인CGV
+8
+중앙공영주차장
+9
+경전철 명지대역
+10
+진입로(역북동 주민센터)
+11
+이마트
+12
+제1공학관
+13
+생활관(명현관)
+
+“럭스나인 앞”과 “럭스라인 앞” 표기는 공식 자료의 표기를 우선 저장하되, 실제 좌표 확인 후 동일 정류장인지 최종 검증한다.
+9. 공식 시간표 초기 데이터
+9.1 기흥역 통학버스: 명지대 → 기흥역
+출발시각
+예정 운행대수
+08:00
+1
+09:05
+3
+09:10
+2
+10:00
+3
+10:05
+2
+12:00
+1
+13:00
+1
+14:00
+1
+15:15
+2
+16:15
+3
+17:15
+5
+18:15
+2
+19:15
+1
+
+9.2 기흥역 통학버스: 기흥역 → 명지대
+출발시각
+예정 운행대수
+08:15
+3
+08:20
+2
+09:15
+3
+09:20
+2
+10:15
+3
+10:20
+2
+12:15
+1
+13:15
+1
+14:15
+1
+15:30
+2
+16:30
+3
+17:30
+1
+18:30
+1
+19:30
+1
+
+기흥역 통학버스의 기본 소요시간은 약 15분이다. 복수 차량 회차는 만차 시 일부 차량이 시간표보다 일찍 출발할 수 있으므로 회차 예정시각과 차량별 실제 시작시각을 별도로 저장한다.
+9.3 학기 중 시내·명지대역 통합 시간표
+공식 순번
+운행구분
+출발시각
+진입로 경유 예정
+1
+명지대역
+08:00
+08:15
+2
+시내
+08:05
+08:20
+3
+명지대역
+08:15
+08:30
+4
+명지대역
+08:20
+08:35
+5
+명지대역
+08:25
+08:40
+6
+명지대역
+08:35
+08:50
+7
+명지대역
+08:45
+09:00
+8
+명지대역
+08:50
+09:05
+9
+시내
+08:55
+09:10
+10
+명지대역
+09:00
+09:15
+11
+명지대역
+09:15
+09:30
+12
+명지대역
+09:25
+09:40
+13
+명지대역
+09:30
+09:45
+14
+명지대역
+09:35
+09:50
+15
+명지대역
+09:40
+09:55
+16
+명지대역
+09:55
+10:10
+17
+명지대역
+10:00
+10:15
+18
+시내
+10:10
+10:25
+19
+명지대역
+10:20
+10:35
+20
+명지대역
+10:30
+10:45
+21
+명지대역
+10:40
+10:55
+22
+명지대역
+10:45
+11:00
+23
+명지대역
+11:00
+11:15
+24
+시내
+11:20
+11:35
+25
+명지대역
+11:25
+11:40
+26
+명지대역
+11:30
+11:45
+27
+명지대역
+11:45
+12:00
+28
+명지대역
+11:55
+12:10
+29
+명지대역
+12:05
+12:20
+30
+명지대역
+12:20
+12:35
+31
+명지대역
+12:30
+12:45
+32
+명지대역
+12:45
+13:00
+33
+명지대역
+13:00
+13:15
+34
+시내
+13:10
+13:25
+35
+명지대역
+13:25
+13:40
+36
+명지대역
+13:40
+13:55
+37
+명지대역
+14:00
+14:15
+38
+명지대역
+14:10
+14:25
+39
+명지대역
+14:15
+14:30
+40
+시내
+14:20
+14:35
+41
+명지대역
+14:30
+14:45
+42
+명지대역
+14:50
+15:05
+43
+명지대역
+15:00
+15:15
+44
+명지대역
+15:10
+15:25
+45
+명지대역
+15:25
+15:40
+46
+명지대역
+15:30
+15:45
+47
+시내
+15:40
+15:55
+48
+명지대역
+15:55
+16:10
+49
+명지대역
+16:10
+16:25
+50
+명지대역
+16:25
+16:40
+51
+명지대역
+16:30
+16:45
+52
+시내
+16:35
+16:50
+53
+명지대역
+16:50
+17:05
+54
+명지대역
+17:00
+17:15
+55
+명지대역
+17:10
+17:25
+56
+명지대역
+17:20
+17:35
+57
+명지대역
+17:30
+17:45
+58
+명지대역
+17:45
+18:00
+59
+명지대역
+18:00
+18:15
+60
+시내
+18:10
+18:25
+
+공식 표 순번은 source_sequence로만 저장하고 DB 기본키로 사용하지 않는다. 노선별 내부 회차 순번(route_sequence)은 서버가 별도로 계산한다.
+9.4 방학·공휴일·주말 시내 셔틀
+학교 출발
+학교 도착 예정
+08:20
+08:45
+09:20
+09:45
+10:20
+10:45
+11:20
+11:45
+12:20
+12:45
+13:20
+13:45
+15:20
+15:45
+16:20
+16:45
+17:20
+17:45
+18:00
+18:25
+
+10. 공통 데이터 모델
+프론트는 서버가 완성되기 전 Mock 데이터를 사용하더라도 아래 필드명을 그대로 사용한다. 학생·기사·관리자에서 동일 개념을 서로 다른 이름으로 만들지 않는다.
+테이블
+핵심 필드
+목적
+profiles
+id, role, name, email, status, created_at
+모든 사용자 공통 프로필
+drivers
+id, profile_id, driver_code, phone, status
+기사 업무 정보
+vehicles
+id, vehicle_number, display_number, capacity, status, device_id
+차량과 표시 호차
+routes
+id, route_code, name, description, route_type, is_active
+노선 기본 정보
+stops
+id, name, latitude, longitude, description, boarding_direction, landmark, image_url, is_active
+정류장 공식 안내
+route_stops
+id, route_id, stop_id, stop_order, direction, arrival_offset_minutes
+방향별 정류장 순서
+schedule_templates
+id, name, service_type, start_date, end_date, weekdays, is_active
+학기/방학 반복 시간표 묶음
+operation_patterns
+id, template_id, route_id, direction, source_sequence, route_sequence, scheduled_start_time, checkpoint_time, expected_duration_minutes
+반복 회차 규칙
+pattern_assignments
+id, operation_pattern_id, vehicle_id, driver_id, vehicle_order
+학기 고정 기사·차량 배정
+operations
+id, pattern_id, operation_date, scheduled_start_at, expected_end_at, status, cancellation_reason
+특정 날짜의 회차
+operation_vehicles
+id, operation_id, vehicle_id, driver_id, vehicle_order, status, actual_start_at, actual_end_at, forced_ended_at, forced_ended_by, last_location_at
+차량별 실제 운행
+vehicle_locations
+id, operation_vehicle_id, latitude, longitude, accuracy, speed, heading, recorded_at, received_at, is_valid
+GPS 이력
+latest_vehicle_locations
+operation_vehicle_id, latitude, longitude, accuracy, speed, heading, recorded_at, gps_status
+학생·관리자 실시간 구독용 최신 위치
+notices
+id, audience, type, title, content, related_route_id, starts_at, ends_at, is_push, status, created_by
+학생/기사 공지
+reports
+id, author_id, report_type, route_id, stop_id, operation_vehicle_id, content, status, expires_at, created_at
+학생 제보
+favorites
+id, student_id, target_type, route_id, stop_id
+학생 즐겨찾기
+notifications
+id, recipient_id, audience, type, title, body, data, read_at, created_at
+인앱 알림
+audit_logs
+id, actor_id, action, entity_type, entity_id, before_data, after_data, created_at
+관리자 변경 이력
+
+11. 공통 enum 및 상태 전이
+11.1 사용자·기본 상태
+UserRole = STUDENT | DRIVER | ADMINAccountStatus = ACTIVE | INACTIVE | SUSPENDEDVehicleStatus = AVAILABLE | IN_OPERATION | MAINTENANCE | INACTIVE
+
+11.2 차량별 운행 상태
+코드
+한글 표시
+설명
+SCHEDULED
+운행 예정
+날짜별 운행 생성 완료
+WAITING
+운행 대기
+기사 시작 가능
+STARTING
+운행 시작 처리 중
+중복 시작 방지
+RUNNING
+운행 중
+GPS 전송 허용
+STOP_REQUESTED
+중단 요청
+관리자 처리 대기
+SUSPENDED
+운행 중단
+관리자 승인된 중단
+ENDING
+운행 종료 처리 중
+중복 종료 방지
+COMPLETED
+운행 완료
+정상 종료
+CANCELLED
+운행 취소
+운행 전 취소
+FORCE_ENDED
+관리자 강제 종료
+관리자 사유와 함께 종료
+
+11.3 상태 전이
+정상: SCHEDULED → WAITING → STARTING → RUNNING → ENDING → COMPLETED중단: RUNNING → STOP_REQUESTED → SUSPENDED계속 운행: STOP_REQUESTED → RUNNING강제 종료: RUNNING 또는 STOP_REQUESTED → FORCE_ENDED운행 전 취소: SCHEDULED 또는 WAITING → CANCELLED
+
+클라이언트는 상태를 임의 변경하지 않고 Supabase RPC 또는 Edge Function을 통해 전이한다. 서버가 현재 상태와 권한을 검증한 뒤 변경한다.
+12. GPS 및 실시간 위치 명세
+항목
+MVP 기준
+전송 시작
+operation_vehicle.status가 RUNNING으로 확정된 뒤 기사 앱의 위치 Foreground Service 시작
+전송 종료
+COMPLETED, SUSPENDED, FORCE_ENDED, CANCELLED 시 Foreground Service와 위치 업데이트 즉시 중단
+기본 전송 주기
+운행 중 5초를 기본값으로 사용. Android 백그라운드 제한과 배터리 테스트 후 10~15초로 조정 가능
+필수 payload
+operation_vehicle_id, latitude, longitude, accuracy, recorded_at
+선택 payload
+speed, heading, battery_level, network_type
+최신 위치
+vehicle_locations에 이력 저장 후 latest_vehicle_locations를 upsert
+Realtime
+학생·관리자는 latest_vehicle_locations와 운행 상태 변경만 구독
+개인정보
+학생에게 기사 이름·연락처·계정 ID를 위치 데이터로 전달하지 않음
+
+12.1 GPS 최신성 상태
+코드
+판정 기준
+학생 표시
+NORMAL
+마지막 수신 15초 이내
+위치 정상
+DELAYED
+15초 초과 60초 이내
+위치 수신 지연
+LOST
+60초 초과
+위치 확인 중
+INVALID
+정확도·속도·거리 변화가 비정상
+위치 정확도 낮음
+
+위 기준은 시제품 기본값이다. 실제 운행 테스트 결과에 따라 변경할 수 있으나, 코드에 숫자를 직접 반복하지 않고 remote_config 또는 공통 상수로 관리한다.
+12.2 운행 전 점검
+구분
+항목
+처리
+필수
+위치 권한, 정확한 위치, 백그라운드 위치, GPS 활성화, 네트워크, 서버 연결
+하나라도 실패하면 시작 차단
+경고
+배터리 30% 미만, 절전모드, 알림 권한 미허용
+경고 후 시연에서는 시작 가능
+배터리 기준
+30% 이상 정상 / 20~29% 주의 / 20% 미만 강한 경고
+차량 충전기 연결 안내
+Android 권한
+ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, ACCESS_BACKGROUND_LOCATION, FOREGROUND_SERVICE_LOCATION, POST_NOTIFICATIONS
+OS 버전에 따라 단계적으로 요청하며, 위치 Foreground Service 실행 중 상시 알림 표시
+
+12.3 관리자 강제 종료
+관리자가 강제 종료를 선택하고 종료 사유를 입력한다.
+서버가 상태를 FORCE_ENDED로 변경하고 forced_ended_at/by를 저장한다.
+기사 앱에 Realtime/FCM으로 강제 종료를 전달한다.
+기사 앱은 위치 전송을 중단한다.
+전송이 계속 들어와도 서버는 종료 이후 좌표를 무시한다.
+학생·관리자 화면은 종료 상태와 마지막 위치를 반영한다.
+13. Supabase Realtime·함수 계약
+Realtime 채널명은 구현 편의를 위한 논리 이름이며, 실제로는 Postgres Changes 구독 필터 또는 Broadcast를 사용할 수 있다. 팀 전체는 아래 이벤트 의미를 동일하게 유지한다.
+논리 채널/이벤트
+구독 대상
+내용
+operation:{operationId}
+학생·기사·관리자
+회차 상태 및 차량 목록 변경
+vehicle:{operationVehicleId}
+학생·관리자
+최신 위치와 GPS 상태
+driver:{driverId}
+해당 기사
+배정·시간·차량 변경, 취소, 중단 처리 결과
+student-notices
+학생
+학생 대상 공지 게시/변경
+driver-notices
+기사
+기사 대상 공지 게시/변경
+admin-alerts
+관리자
+미시작, GPS 미수신, 중단 요청, 종료 초과
+
+13.1 서버 함수/RPC 최소 목록
+함수
+호출자
+핵심 처리
+start_operation_vehicle(id)
+DRIVER
+배정·현재상태·점검결과 검증 후 STARTING→RUNNING, actual_start_at 기록
+end_operation_vehicle(id)
+DRIVER
+RUNNING 확인 후 ENDING→COMPLETED, actual_end_at 기록
+request_operation_stop(id, reason, detail)
+DRIVER
+RUNNING→STOP_REQUESTED, 관리자 알림
+resolve_stop_request(id, decision)
+ADMIN
+SUSPENDED 또는 RUNNING 처리
+force_end_operation_vehicle(id, reason)
+ADMIN
+FORCE_ENDED와 감사로그 기록
+apply_operation_override(operation_id, changes, reason)
+ADMIN
+특정 날짜 기사·차량·시간·취소 변경 및 기사 알림
+generate_daily_operations(date)
+ADMIN/스케줄
+활성 템플릿과 예외를 바탕으로 날짜별 운행 생성
+submit_student_report(payload)
+STUDENT
+작성자·대상 검증, expires_at=created_at+30분
+publish_notice(id)
+ADMIN
+audience에 맞는 앱 노출 및 FCM 발송
+
+14. 권한 및 RLS 기준
+대상
+조회
+등록·수정
+STUDENT
+활성 노선·정류장·현재 시간표·학생 공지·운행 공개정보·유효 제보·본인 즐겨찾기/알림
+본인 제보·즐겨찾기·알림 읽음 상태
+DRIVER
+본인 배정 운행·본인 운행 이력·기사 공지·본인 알림
+본인 배정 운행 시작/종료/중단 요청, 위치 전송
+ADMIN
+MVP 전체 운영 데이터
+노선·정류장·시간표·배정·공지·제보 처리·강제 종료·계정 생성
+ANON
+로그인 화면 이외 업무 데이터 조회 금지
+금지
+
+Supabase service_role 키는 앱·브라우저에 포함하지 않는다. 관리자 웹도 공개 클라이언트에서는 anon key와 RLS를 사용하고, 권한이 필요한 서버 작업은 Next.js Server Action/Route Handler 또는 Edge Function에서 수행한다.
+15. 공지 및 알림 명세
+15.1 공지 수신 대상
+NoticeAudience = STUDENT | DRIVER | ALLNoticeStatus = DRAFT | SCHEDULED | PUBLISHED | ENDED
+
+학생 공지 화면에는 STUDENT와 ALL만, 기사 공지/알림에는 DRIVER와 ALL만 표시한다. Figma의 학생·기사 알림 내용은 같은 notices/notifications 구조를 사용하되 audience로 분리한다.
+15.2 알림 유형
+대상
+필수 유형
+학생
+긴급 공지, 운행 변경·취소, 하차 알림, 즐겨찾기 노선 변경, 서비스 알림
+기사
+출발 임박, 예정시간 경과 미시작, 배정·차량·출발시간 변경, 운행 취소, 중단 처리 결과, GPS·네트워크 이상, 기사 공지
+관리자
+중단 요청, 미시작, GPS 미수신, 네트워크 오류, 종료 예정시간 초과
+
+FCM 전송 실패가 공지 게시 실패로 이어지지 않도록 공지 저장과 푸시 발송 결과를 분리한다. 앱 진입 시 미수신 알림을 DB에서 다시 조회한다.
+16. 학생 제보·커뮤니티 명세
+항목
+규칙
+제보 유형
+BUS_ARRIVAL, FULL, SEAT_AVAILABLE, QUEUE_LONG, QUEUE_SHORT, TRAFFIC_JAM, BUS_PASSED, OTHER
+유효시간
+등록 시각부터 30분
+만차
+학생 제보로만 제공하며 공식 운행 상태로 자동 변환하지 않음
+익명성
+다른 학생에게 이름·학번 비공개. 서버 내부에는 author_id 저장
+학생 권한
+본인 작성 글 조회·삭제 가능. MVP 수정 기능은 제외 권장
+관리자 권한
+모든 제보 비활성화·삭제 가능
+상태
+ACTIVE, EXPIRED, HIDDEN, DELETED
+표시
+학생 제보 배지, 작성 상대시간, 실제 상황과 다를 수 있다는 문구
+
+Figma에는 공감·비공감이 있으나 핵심 통합 시나리오 이후 구현한다. 동일 제보 집계도 P1로 둔다.
+17. 앱별 화면·기능 범위
+17.1 학생 앱
+하단 메뉴는 모든 주요 화면에서 “홈 / 노선 / 커뮤니티 / 공지 / MY”로 통일한다. 기존 Figma의 “정류장” 메뉴는 구현하지 않는다.
+우선순위
+화면/기능
+P0
+로그인·권한 안내, 홈, 노선 목록, 시간표, 실시간 차량 위치, 차량 상세, 공지 목록·상세, 정류장 안내 (Kotlin·Jetpack Compose)
+P1
+즐겨찾기, 알림 목록·읽음, 하차 알림, 간편 제보, 내 제보
+P2
+제보 공감·비공감 고도화, 복잡한 검색·필터, 고급 빈/오류 변형
+
+17.2 기사 앱
+하단 메뉴는 “오늘의 운행 / 운행 이력 / 설정”이다. 운행 시작·처리·종료 팝업에서는 하단 메뉴를 숨길 수 있다.
+우선순위
+화면/기능
+P0
+로그인·권한, 오늘의 배정, 배정 상세, 자동 점검, 운행 시작, Foreground Service 기반 GPS, 운행 중, 운행 종료, 이력
+P1
+배정 변경 상세 알림, 중단 요청·승인·계속 운행, 배터리 경고, 앱 재진입 복구
+P2
+관리자 문의, 세부 기기 진단 고도화
+
+17.3 관리자 웹
+우선순위
+화면/기능
+P0
+대시보드, 반복 시간표/패턴 등록, 오늘의 운행, 배정 예외 변경, 실시간 관제, 공지 등록, 강제 종료
+P1
+노선·정류장 상세 편집, 제보 관리, 중단 요청 처리, 차량·기사 계정 관리
+P2
+차량 정비 고급 관리, 사용자 고급 필터, 시스템 감사로그 UI, 통계·리포트
+
+18. 화면 상태 공통 규칙
+상태
+처리 기준
+Loading
+목록·카드는 스켈레톤, 시작·종료 등 중요 작업은 진행 중 화면과 중복 클릭 차단
+Empty
+데이터 없음과 오류를 구분하고 다음 행동 안내
+Error
+재시도 버튼, 마지막 성공 데이터가 있으면 “갱신 실패”와 함께 표시
+Offline
+오래된 위치를 실시간처럼 움직이지 않음. 마지막 수신 시각 표시
+Permission denied
+기능 목적 설명 후 시스템 설정 이동 제공
+Unauthorized
+세션 만료 안내 후 로그인 이동
+Realtime disconnected
+재연결 시도·마지막 갱신 시각·수동 새로고침 제공
+
+날짜·시간은 DB에 UTC timestamptz로 저장하고 화면에서 Asia/Seoul로 변환한다. 목록은 HH:mm, 상세는 YYYY.MM.DD HH:mm, 위치는 “방금 전/15초 전/2분 전”과 정확한 시각을 함께 제공한다.
+19. 첫 통합 시나리오
+아래 시나리오가 세 서비스에서 끝까지 동작하기 전에는 화면 수를 늘리는 작업보다 통합 오류 해결을 우선한다.
+관리자가 학기 반복 시간표 또는 시연용 09:05 기흥역 통학버스 회차를 생성한다.
+회차에 2호차와 기사 테스트 계정을 배정한다.
+기사 앱의 오늘의 운행에 배정이 표시된다.
+기사가 자동 점검을 통과하고 운행 시작을 누른다.
+서버가 해당 차량 운행을 RUNNING으로 변경하고 actual_start_at을 기록한다.
+기사 앱이 GPS를 5초 간격으로 전송한다.
+학생 앱과 관리자 웹에 동일한 차량 위치·마지막 수신 시각·RUNNING 상태가 표시된다.
+관리자 웹에서 공지를 등록하면 학생 앱 공지에 반영된다.
+기사가 운행 종료를 누른다.
+서버가 COMPLETED와 actual_end_at을 기록하고 이후 위치를 받지 않는다.
+학생 앱은 운행 완료를 반영하고 기사 앱 운행 이력에 기록이 나타난다.
+19.1 통합 인수 기준
+검증 항목
+완료 기준
+상태 일치
+학생·기사·관리자가 동일 operation_vehicle 상태를 표시
+위치 일치
+학생·관리자 최신 좌표와 수신 시각이 동일
+중복 방지
+시작·종료 버튼 연속 클릭에도 한 번만 처리
+종료 후 차단
+COMPLETED/FORCE_ENDED 이후 위치 저장·공개되지 않음
+권한
+다른 기사 배정 운행 시작 불가, 학생의 관리자 데이터 수정 불가
+오류
+네트워크 단절 시 마지막 위치와 지연 상태 표시
+시간
+예정·실제 시작·종료 시각이 구분되어 저장
+
+20. 개발 순서 및 병렬 작업
+단계
+프론트 A
+프론트 B
+백엔드
+1. 공통 기반
+학생 Android/관리자 프로젝트 생성, 디자인 토큰, Compose Navigation·Next.js 라우팅
+기사 Android 프로젝트 생성, 디자인 토큰, Compose Navigation
+Supabase 프로젝트, migrations, Auth, seed
+2. 정적 화면
+학생 P0 Compose 화면, 관리자 대시보드·목록
+기사 오늘의 운행·상세·점검 Compose 화면
+공통 조회 View/타입, RLS
+3. 핵심 연동
+학생 운행 조회·Realtime, 관리자 패턴/배정
+시작·종료·Foreground Service GPS 전송
+운행 생성·상태 RPC·latest 위치
+4. 통합
+학생 지도·공지, 관리자 관제·강제 종료
+백그라운드 위치·프로세스 재생성·앱 재진입 복구·종료
+Realtime·FCM·감사로그
+5. P1
+즐겨찾기·제보, 관리자 제보/중단
+중단 요청·알림
+제보 만료·알림 함수
+
+21. 환경변수 및 외부 서비스 준비
+프로젝트
+필수 환경변수/설정
+Android 앱 공통
+local.properties 또는 BuildConfig: SUPABASE_URL, SUPABASE_ANON_KEY, NAVER_MAP_CLIENT_ID / google-services.json
+관리자 Next.js
+NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NAVER_MAP_CLIENT_ID, 서버 전용 비밀값
+Supabase
+JWT/RLS, Storage bucket, Edge Function secrets, FCM service account(서버 전용)
+Firebase
+학생·기사 Android applicationId 각각 등록, google-services.json 발급
+네이버 지도
+학생·기사 Android applicationId와 SHA-1/SHA-256(필요 시), 관리자 웹 도메인 등록
+
+현재 확정된 Android applicationId는 com.onda.mju.student, com.onda.mju.driver이다. Vercel 배포 도메인이 결정되면 네이버 지도 웹 허용 도메인에 추가한다.
+22. 개발 전에 남은 준비 항목
+항목
+현재 처리
+개발 차단 여부
+정류장 실제 위도·경도
+공식 명칭 기준으로 임시 seed 후 네이버 지도에서 확인
+지도 실연 전 필요
+노선 polyline
+시연할 핵심 노선부터 수동 좌표 또는 테스트 경로 등록
+ETA/통과 추정 전 필요
+학기 고정 기사·차량 배정
+가상 기사·1~5호차 seed 사용
+차단 아님
+Supabase/Firebase/네이버 계정
+담당자가 프로젝트 생성
+외부 연동 전에 필요
+관리자 Vercel 도메인
+배포 시 결정
+초기 개발 차단 아님
+GPS 임계값 현장 보정
+기본값 15/60초와 5초 전송으로 시작
+현장 테스트 후 조정
+
+23. 변경 관리 규칙
+DB 테이블·enum·상태 전이를 변경할 때는 세 앱 영향 범위를 반드시 적는다.
+Figma 수정만으로 기능 규칙을 변경하지 않는다. 공통 명세와 Issue를 함께 수정한다.
+프론트에서 임시 필드가 필요해도 서버와 합의 없이 새로운 이름을 만들지 않는다.
+MVP 범위가 늘어나면 기존 P0 일정과 통합 시나리오 완료일을 먼저 재평가한다.
+시연용 하드코딩은 허용하되 Repository·Fake/Mock 데이터 계층에 한정하고 Compose 화면 코드에 직접 흩어놓지 않는다.
+24. 팀 개발 착수 체크리스트
+☐ GitHub 저장소와 develop 브랜치 생성
+☐ Kotlin 학생·기사 Android 프로젝트를 확정 식별자로 생성
+☐ Next.js 관리자 프로젝트 생성
+☐ Supabase 프로젝트와 migration 폴더 생성
+☐ Firebase에 학생·기사 앱 등록
+☐ 네이버 지도 API 애플리케이션 등록
+☐ 테스트 계정 3개 생성
+☐ 공식 노선·시간표 seed 입력
+☐ 가상 차량 1~5호차와 기사 계정 seed 입력
+☐ 공통 enum을 Kotlin/TypeScript/DB에서 동일하게 정의
+☐ 첫 통합 시나리오 담당·완료일 지정
+☐ 실제 기기에서 기사 백그라운드 위치 권한 테스트
+부록 A. 권장 가상 시연 데이터
+구분
+값
+기사
+김민수(driver01), 이정호(driver02), 박영수(driver03), 최동현(driver04), 정성호(driver05)
+차량
+1호차~5호차
+대표 시연 회차
+기흥역 통학버스 명지대→기흥역, 09:05, 2호차/김민수
+학생
+김명지(student@mju.ac.kr)
+관리자
+관리자(admin@mju.ac.kr)
+
+부록 B. 기준 자료
+명지대학교 자연캠퍼스 셔틀버스 통합 안내 서비스 제안서 v1.0
+명지대학교 자연캠퍼스 셔틀버스 통합 안내 서비스 기능명세서 v1.0 초본
+학생용·기사용·관리자용 Figma 화면
+명지대학교 공식 교통편 안내: https://www.mju.ac.kr/mjukr/506/subview.do
+팀 확정 운영 규칙: 단일 관리자, 학기 반복 배정, 기사 시작·종료, 운행 중 GPS, 30분 학생 제보, 대상별 공지
+주의: 공식 홈페이지의 운행 정보가 변경되면 관리자 초기 데이터와 명세를 함께 갱신해야 한다.
+부록 C. Android Kotlin 구현 공통 규칙
+공통 계층 권장 구조는 ui(Compose) → viewmodel → usecase(선택) → repository → remote/local data source이다. 비동기 처리는 suspend 함수와 Flow로 통일한다.
+학생 앱과 기사 앱의 화면 상태는 ViewModel의 StateFlow로 제공하며 Compose에서는 collectAsStateWithLifecycle을 사용한다. Composable에서 Supabase를 직접 호출하지 않는다.
+기사 앱의 운행 중 위치 전송은 일반 백그라운드 작업이 아니라 Android Foreground Service로 구현한다. 서비스는 지속 알림을 표시하고 운행 종료·중단·강제 종료 시 위치 콜백 해제와 서비스 종료를 수행한다.
+WorkManager는 재시도·지연 작업에만 사용하며 5초 주기의 실시간 위치 전송 수단으로 사용하지 않는다.
+화면 이동은 Navigation Compose를 사용하고 route 문자열과 argument key는 한 곳에서 상수 또는 sealed 구조로 관리한다.
+DI는 Hilt를 사용하고 Repository 구현체, Supabase client, 위치 제공자, 알림 처리기를 모듈에서 주입한다.

@@ -78,6 +78,8 @@ private val CardGap = 10.dp
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
     initialTab: FavoriteTab = FavoriteTab.Route,
+    favoriteRoutes: List<FavoriteRoute> = emptyList(),
+    favoriteStops: List<FavoriteStop> = emptyList(),
     onBackClick: () -> Unit = {},
     onManageClick: () -> Unit = {},
     onRouteClick: (String) -> Unit = {},
@@ -89,8 +91,8 @@ fun FavoriteScreen(
     onNotificationSettingClick: () -> Unit = {},
 ) {
     var selectedTab by remember { mutableStateOf(initialTab) }
-    val routes = remember { sampleFavoriteRoutes() }
-    val stops = remember { sampleFavoriteStops() }
+    val routes = favoriteRoutes
+    val stops = favoriteStops
 
     Column(
         modifier = modifier

@@ -2,12 +2,12 @@
 -- Prefer: 1) fix_rls_recursion.sql  2) this file  3) node scripts/seed-demo-scenario.mjs
 -- Run in Supabase SQL Editor
 
--- Ensure demo columns exist (3NF: origin/destination 텍스트 없음 → stop_id 사용)
+-- Ensure demo columns exist
 alter table public.operations
   add column if not exists external_id text,
   add column if not exists round integer default 1,
-  add column if not exists origin_stop_id uuid,
-  add column if not exists destination_stop_id uuid,
+  add column if not exists origin_stop_id uuid references public.stops (id) on delete set null,
+  add column if not exists destination_stop_id uuid references public.stops (id) on delete set null,
   add column if not exists expected_end_time time;
 
 create unique index if not exists operations_external_id_uidx
@@ -73,8 +73,8 @@ resolved as (
     b.id as bus_id,
     s.id as schedule_id,
     t.end_t::time as expected_end_time,
-    t.origin,
-    t.destination,
+    os.id as origin_stop_id,
+    ds.id as destination_stop_id,
     t.round
   from tpl t
   join public.users u on u.email = t.email
@@ -86,6 +86,8 @@ resolved as (
    and s.departure_time = t.depart::time
    and s.weekday = wd.weekday
    and s.semester = 'SEMESTER'
+  left join public.stops os on os.stop_name = t.origin
+  left join public.stops ds on ds.stop_name = t.destination
 )
 insert into public.operations (
   id, schedule_id, driver_id, bus_id, operation_date, status,
@@ -107,8 +109,8 @@ select
   'SCHEDULED'::public.operation_status,
   r.external_id,
   r.round,
-  (select id from public.stops where stop_name = r.origin limit 1),
-  (select id from public.stops where stop_name = r.destination limit 1),
+  r.origin_stop_id,
+  r.destination_stop_id,
   r.expected_end_time
 from resolved r
 on conflict (id) do update set
@@ -126,10 +128,12 @@ on conflict (id) do update set
   ended_at = null,
   updated_at = now();
 
-select o.external_id, o.operation_date, u.email, b.bus_name, v.origin, v.destination
+select o.external_id, o.operation_date, u.email, b.bus_name,
+       os.stop_name as origin, ds.stop_name as destination
 from public.operations o
 join public.users u on u.id = o.driver_id
 join public.buses b on b.id = o.bus_id
-left join public.v_operations v on v.id = o.id
+left join public.stops os on os.id = o.origin_stop_id
+left join public.stops ds on ds.id = o.destination_stop_id
 where o.operation_date = current_date
 order by o.external_id;

@@ -1,467 +1,770 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  AlertTriangle,
+  AlignCenter,
+  AlignJustify,
   AlignLeft,
+  AlignRight,
   Bell,
   Bold,
-  Building2,
-  Bus,
   CalendarDays,
-  Car,
-  CircleDollarSign,
-  Clock3,
-  Database,
-  Download,
-  ExternalLink,
+  ChevronRight,
   Eye,
-  FileText,
-  Gauge,
-  GripVertical,
-  Hourglass,
-  Image as ImageIcon,
   Italic,
-  Link2,
   List,
-  ListChecks,
   ListOrdered,
-  MapPin,
   Megaphone,
-  MessageSquare,
-  MoreHorizontal,
-  PieChart,
-  Plus,
-  RadioTower,
-  RefreshCw,
-  Route as RouteIcon,
-  Search,
-  Check,
-  Info,
-  Minus,
-  PencilLine,
-  Settings2,
-  Shield,
-  Smartphone,
-  ThumbsDown,
-  ThumbsUp,
-  TriangleAlert,
+  Paperclip,
   Underline,
-  UserRound,
-  UserX,
-  Users,
-  Wrench,
 } from 'lucide-react'
-import mapImg from '../assets/map.png'
+import { maintenances, notices, reports, routes, systemLogs as mockSystemLogs, users } from '../data/mock'
 import {
   createNotice,
+  endNotice,
+  fetchNotices,
+  fetchReports,
   fetchRoutes,
+  fetchUsers,
+  updateNotice,
+  type NoticeRow,
+  type ReportRow,
   type RouteRow,
+  type UserRow,
 } from '../lib/api'
-import {
-  SCHEDULE_ROUTE_OPTIONS,
-  maintenances,
-  notices as mockNotices,
-  reports as mockReports,
-  routes as mockRoutes,
-  systemLogs,
-  users as mockUsers,
-  vehicles as mockVehicles,
-} from '../data/mock'
-import { StatusBadge } from '../components/ui/Form'
-import { isNaverMapConfigured } from '../lib/naverMaps'
+import type { NoticeAudience, NoticeStatus, NoticeType } from '../types/database'
+import { noticeAudienceLabel, normalizeNoticeAudience } from '../lib/noticeAudience'
+import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
+import { fetchGpsReceiveLogs, GPS_LOGS_MAX, type GpsReceiveLog } from '../lib/gpsLogsApi'
+import { isSupabaseConfigured } from '../lib/supabase'
+import { fetchSystemLogs, type SystemLogRow } from '../lib/systemLogsApi'
 import { useAuth } from '../state/AuthContext'
+import { StatusBadge } from '../components/ui/Form'
+import { ListPagination } from '../components/ui/ListPagination'
 import '../styles/figma-pages.css'
-import '../styles/reports.css'
-import '../styles/notices.css'
-import '../styles/routes.css'
-import '../styles/vehicles.css'
-import '../styles/users.css'
-import '../styles/system.css'
-import '../styles/settings.css'
 
-type ReportTypeKey = (typeof mockReports)[number]['typeKey']
+const reportStatusKo: Record<string, string> = {
+  PENDING: '처리 대기',
+  PROCESSING: '검토 중',
+  COMPLETED: '처리 완료',
+}
 
-const reportKpis = [
-  { label: '오늘 제보 수', value: '38', unit: '건', hint: '▲ 6건 (전일 대비)', hintTone: 'up' as const, icon: FileText, tone: 'blue' },
-  { label: '처리 대기', value: '12', unit: '건', hint: '▲ 3건 (전일 대비)', hintTone: 'up' as const, icon: Hourglass, tone: 'orange' },
-  { label: '자동 만료 예정', value: '4', unit: '건', hint: '24시간 이내 만료', hintTone: 'muted' as const, icon: Clock3, tone: 'green' },
-  { label: '비활성 처리', value: '26', unit: '건', hint: '전체 제보의 14.6%', hintTone: 'muted' as const, icon: UserX, tone: 'gray' },
-]
+const NOTICE_BODY_MAX = 2000
+const NOTICE_PAGE_SIZE = 10
+const USERS_PAGE_SIZE = 10
+const REPORTS_PAGE_SIZE = 10
+const ROUTES_PAGE_SIZE = 10
+const SYSTEM_LOGS_PAGE_SIZE = 5
+const GPS_LOGS_PAGE_SIZE = 10
 
-function ReportTypeIcon({ typeKey }: { typeKey: ReportTypeKey }) {
-  if (typeKey === 'crowded' || typeKey === 'queue') return <Users size={14} />
-  if (typeKey === 'traffic') return <Car size={14} />
-  if (typeKey === 'passed') return <Bus size={14} />
-  return <MessageSquare size={14} />
+const DEFAULT_NOTICE_BODY = [
+  '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.',
+  '자세한 내용은 노선별 운행 정보에서 확인해 주세요.',
+  '이용에 불편을 드려 죄송합니다.',
+].join('\n')
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+function plainTextToEditorHtml(text: string): string {
+  if (!text.trim()) return ''
+  return text
+    .split('\n')
+    .map((line) => `<div>${line ? escapeHtml(line) : '<br>'}</div>`)
+    .join('')
+}
+
+function htmlToPlainText(html: string): string {
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return el.innerText.replace(/\u00a0/g, ' ')
+}
+
+const NOTICE_TYPE_KO: Record<NoticeType, string> = {
+  URGENT: '긴급',
+  IMPORTANT: '중요',
+  OPERATION_CHANGE: '운행 변경',
+  GENERAL: '일반',
+}
+
+const NOTICE_TYPE_FROM_KO: Record<string, NoticeType> = {
+  긴급: 'URGENT',
+  중요: 'IMPORTANT',
+  '운행 변경': 'OPERATION_CHANGE',
+  일반: 'GENERAL',
+}
+
+function noticeTypeTone(type: string): 'red' | 'orange' | 'blue' | 'gray' {
+  if (type === '긴급' || type === 'URGENT' || type === '중요' || type === 'IMPORTANT') return 'red'
+  if (type === '운행 변경' || type === 'OPERATION_CHANGE' || type === '일반' || type === 'GENERAL') {
+    return 'blue'
+  }
+  return 'gray'
+}
+
+function noticeTypeLabel(row: NoticeRow): string {
+  if (row.type && NOTICE_TYPE_KO[row.type]) return NOTICE_TYPE_KO[row.type]
+  const m = row.title.match(/^\[(.+?)\]/)
+  if (m?.[1]) return m[1].replace(/\s*공지$/, '')
+  return '일반'
+}
+
+function noticeTitlePlain(row: NoticeRow): string {
+  return row.title.replace(/^\[.*?\]\s*/, '')
+}
+
+function truncateChars(value: string, max: number): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}...`
+}
+
+function formatNoticeDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`
+}
+
+function noticePeriodLabel(row: NoticeRow): string {
+  const start = formatNoticeDate(row.starts_at)
+  const end = formatNoticeDate(row.ends_at)
+  if (!start && !end) return '-'
+  if (start && end) return `${start} ~ ${end}`
+  return start || end
+}
+
+function todayDateInputValue(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function noticeStatusLabel(row: NoticeRow): '예약' | '게시 중' | '종료' {
+  if (row.status === 'ENDED') return '종료'
+  const now = Date.now()
+  if (row.ends_at) {
+    const end = Date.parse(row.ends_at)
+    if (Number.isFinite(end) && end < now) return '종료'
+  }
+  if (row.status === 'SCHEDULED' || row.starts_at) {
+    const start = row.starts_at ? Date.parse(row.starts_at) : NaN
+    if (Number.isFinite(start) && start > now) return '예약'
+  }
+  return '게시 중'
+}
+
+function noticeStatusTone(label: '예약' | '게시 중' | '종료'): 'orange' | 'blue' | 'gray' {
+  if (label === '예약') return 'orange'
+  if (label === '게시 중') return 'blue'
+  return 'gray'
+}
+
+function resolveNoticeWriteStatus(opts: {
+  permanent: boolean
+  startsAt: string | null
+  endsAt: string | null
+}): NoticeStatus {
+  const now = Date.now()
+  if (!opts.permanent && opts.endsAt) {
+    const end = Date.parse(opts.endsAt)
+    if (Number.isFinite(end) && end < now) return 'ENDED'
+  }
+  if (!opts.permanent && opts.startsAt) {
+    const start = Date.parse(opts.startsAt)
+    if (Number.isFinite(start) && start > now) return 'SCHEDULED'
+  }
+  return 'PUBLISHED'
+}
+
+function noticeViewCount(row: NoticeRow): number {
+  const extra = row as NoticeRow & { view_count?: number | null; views?: number | null }
+  return Number(extra.view_count ?? extra.views ?? 0) || 0
+}
+
+type EditorCmdState = {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  ul: boolean
+  ol: boolean
+  left: boolean
+  center: boolean
+  right: boolean
+  full: boolean
+}
+
+const emptyEditorCmds: EditorCmdState = {
+  bold: false,
+  italic: false,
+  underline: false,
+  ul: false,
+  ol: false,
+  left: false,
+  center: false,
+  right: false,
+  full: false,
 }
 
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
-  const [selected, setSelected] = useState(3)
-  const [reason, setReason] = useState('허위 또는 사실 아님')
-  const [reasonDetail, setReasonDetail] = useState('버스 운행 기록 확인 결과, 해당 시간대에 정상 운행.')
-  const [typeFilter, setTypeFilter] = useState('전체 유형')
-  const [statusFilter, setStatusFilter] = useState('전체 상태')
-  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState(0)
+  const [listPage, setListPage] = useState(1)
+  const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
 
-  const list = useMemo(() => {
-    return mockReports.filter((row) => {
-      if (typeFilter !== '전체 유형' && row.type !== typeFilter) return false
-      if (statusFilter !== '전체 상태' && row.status !== statusFilter) return false
-      if (!query.trim()) return true
-      const q = query.trim().toLowerCase()
-      return (
-        row.content.toLowerCase().includes(q) ||
-        row.route.toLowerCase().includes(q) ||
-        row.stop.toLowerCase().includes(q) ||
-        row.type.toLowerCase().includes(q)
-      )
+  useEffect(() => {
+    void fetchReports().then((data) => {
+      if (data) setDbReports(data)
     })
-  }, [typeFilter, statusFilter, query])
+  }, [])
 
-  const item = list[Math.min(selected, Math.max(list.length - 1, 0))] ?? list[0]
+  const usingDb = Boolean(dbReports && dbReports.length >= 0 && isSupabaseConfigured && dbReports !== null)
+  const reportTotal = dbReports?.length ?? reports.length
+  const reportPageCount = Math.max(1, Math.ceil(reportTotal / REPORTS_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, reportPageCount)
+  const pagedDbReports = useMemo(() => {
+    if (!dbReports) return null
+    const start = (safeListPage - 1) * REPORTS_PAGE_SIZE
+    return dbReports.slice(start, start + REPORTS_PAGE_SIZE)
+  }, [dbReports, safeListPage])
+  const pagedMockReports = useMemo(() => {
+    if (dbReports) return null
+    const start = (safeListPage - 1) * REPORTS_PAGE_SIZE
+    return reports.slice(start, start + REPORTS_PAGE_SIZE)
+  }, [dbReports, safeListPage])
+
+  useEffect(() => {
+    if (listPage > reportPageCount) setListPage(reportPageCount)
+  }, [listPage, reportPageCount])
+
+  const item = usingDb && dbReports?.[selected] ? dbReports[selected] : null
+  const mockItem = reports[Math.min(selected, reports.length - 1)] ?? reports[0]
 
   return (
-    <div className="page reports-page">
-      <p className="page-subtitle">학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.</p>
-
-      <div className="reports-kpis">
-        {reportKpis.map((kpi) => {
-          const Icon = kpi.icon
-          return (
-            <div key={kpi.label} className="reports-kpi">
-              <div className={`reports-kpi-icon ${kpi.tone}`}>
-                <Icon size={18} />
-              </div>
-              <div>
-                <div className="label">{kpi.label}</div>
-                <div className="value">
-                  {kpi.value}
-                  <em>{kpi.unit}</em>
-                </div>
-                <div className={`hint ${kpi.hintTone}`}>{kpi.hint}</div>
-              </div>
-            </div>
-          )
-        })}
+    <div className="page">
+      <p className="page-subtitle">
+        학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
+        {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
+      </p>
+      <div className="grid grid-3 reports-kpis">
+        {[
+          ['전체 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
+          ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
+          ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
+        ].map(([t, v, s, tone]) => (
+          <div key={t} className="card card-pad reports-kpi">
+            <div className="muted reports-kpi-label">{t}</div>
+            <div className="reports-kpi-value">{v}</div>
+            <StatusBadge tone={tone as 'blue' | 'orange' | 'green' | 'gray'}>{s}</StatusBadge>
+          </div>
+        ))}
       </div>
 
-      <div className="reports-main">
-        <section className="reports-panel">
-          <div className="reports-panel-head">
-            <h3>
-              <ListChecks size={17} />
-              제보 목록
-            </h3>
+      <div className="split-13">
+        <section className="card card-pad">
+          <div className="card-head">
+            <h3>제보 목록</h3>
           </div>
-
-          <div className="reports-filters">
-            <select className="input" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setSelected(0) }}>
-              <option>전체 유형</option>
-              <option>만석</option>
-              <option>대기줄 김</option>
-              <option>교통 정체</option>
-              <option>버스 지나감</option>
-              <option>기타</option>
-            </select>
-            <select className="input" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setSelected(0) }}>
-              <option>전체 상태</option>
-              <option>처리 대기</option>
-              <option>검토 중</option>
-              <option>처리 완료</option>
-              <option>비활성</option>
-            </select>
-            <div className="reports-date">
-              <CalendarDays size={14} />
-              2026-07-01 ~ 2026-07-08
-            </div>
-            <label className="reports-search">
-              <Search size={14} />
-              <input
-                className="input"
-                placeholder="검색어 입력 (내용, 노선, 정류장)"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSelected(0)
-                }}
-              />
-            </label>
-          </div>
-
-          <div className="reports-table-wrap">
-            <table className="data-table dense">
-              <thead>
-                <tr>
-                  <th>제보 유형</th>
-                  <th>노선/차량/정류장</th>
-                  <th>등록 시간</th>
-                  <th>좋아요</th>
-                  <th>싫어요</th>
-                  <th>상태</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((row, idx) => (
-                  <tr
-                    key={`${row.type}-${row.time}-${idx}`}
-                    className={idx === selected ? 'selected' : undefined}
-                    onClick={() => setSelected(idx)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td>
-                      <span className="reports-type">
-                        <span className={`reports-type-ico ${row.typeKey}`}>
-                          <ReportTypeIcon typeKey={row.typeKey} />
-                        </span>
-                        {row.type}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="reports-target">
-                        <strong>노선 {row.route} / 차량 {row.vehicle}</strong>
-                        <span>{row.stop}</span>
-                      </div>
-                    </td>
-                    <td>{row.time}</td>
-                    <td>{row.likes}</td>
-                    <td>{row.dislikes}</td>
-                    <td>
-                      <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-outline btn-xs"
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelected(idx)
-                        }}
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{dbReports ? '제목' : '유형'}</th>
+                <th>{dbReports ? '상태' : '대상'}</th>
+                <th>시간</th>
+                {!dbReports ? <th>좋아요</th> : null}
+                {!dbReports ? <th>상태</th> : null}
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {pagedDbReports
+                ? pagedDbReports.map((row, idx) => {
+                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
+                    return (
+                      <tr key={row.id} style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}>
+                        <td style={{ fontWeight: 700 }}>{row.title}</td>
+                        <td>
+                          <StatusBadge
+                            tone={
+                              row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'
+                            }
+                          >
+                            {reportStatusKo[row.status] ?? row.status}
+                          </StatusBadge>
+                        </td>
+                        <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
+                        <td>
+                          <button
+                            className="btn btn-outline"
+                            type="button"
+                            style={{ height: 28 }}
+                            onClick={() => setSelected(absoluteIdx)}
+                          >
+                            상세
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                : (pagedMockReports ?? []).map((row, idx) => {
+                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
+                    return (
+                      <tr
+                        key={row.type + row.time}
+                        style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
                       >
-                        상세
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="reports-pager">
-            <span>전체 126건</span>
-            <div className="reports-pages">
-              <button type="button">‹</button>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" className={n === 1 ? 'active' : undefined}>
-                  {n}
-                </button>
-              ))}
-              <button type="button">›</button>
-              <select defaultValue="10개씩">
-                <option>10개씩</option>
-                <option>20개씩</option>
-                <option>50개씩</option>
-              </select>
-            </div>
-          </div>
+                        <td>{row.type}</td>
+                        <td>{row.target}</td>
+                        <td>{row.time}</td>
+                        <td>{row.likes}</td>
+                        <td>
+                          <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-outline"
+                            type="button"
+                            style={{ height: 28 }}
+                            onClick={() => setSelected(absoluteIdx)}
+                          >
+                            상세
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+            </tbody>
+          </table>
+          <ListPagination
+            total={reportTotal}
+            page={safeListPage}
+            pageSize={REPORTS_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="제보 목록 페이지"
+          />
         </section>
 
-        <section className="reports-panel reports-detail">
-          <div className="reports-panel-head">
-            <h3>
-              <FileText size={17} />
-              제보 상세
-            </h3>
-            {item ? <StatusBadge tone={item.tone}>{item.status}</StatusBadge> : null}
+        <section className="card card-pad">
+          <div className="card-head">
+            <h3>제보 상세</h3>
+            {item ? (
+              <StatusBadge tone={item.status === 'PENDING' ? 'orange' : item.status === 'PROCESSING' ? 'blue' : 'green'}>
+                {reportStatusKo[item.status] ?? item.status}
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone={mockItem.tone}>{mockItem.status}</StatusBadge>
+            )}
           </div>
-
-          {item ? (
-            <>
-              <div className="reports-section">
-                <p className="reports-section-title">제보 정보</p>
-                <div className="reports-info-grid">
-                  <div className="reports-info-row">
-                    <span>제보 유형</span>
-                    <strong>
-                      <span className={`reports-type-ico ${item.typeKey}`}>
-                        <ReportTypeIcon typeKey={item.typeKey} />
-                      </span>
-                      {item.type}
-                    </strong>
-                  </div>
-                  <div className="reports-info-row">
-                    <span>등록 시각</span>
-                    <strong>{item.datetime}</strong>
-                  </div>
-                  <div className="reports-info-row">
-                    <span>제보자</span>
-                    <strong>
-                      {item.reporter} <span className="muted">(ID: {item.reporterId})</span>
-                    </strong>
-                  </div>
-                  <div className="reports-info-row">
-                    <span>노선/정류장</span>
-                    <strong>
-                      노선 {item.route} / 차량 {item.vehicle} / {item.stop}
-                    </strong>
-                  </div>
-                  <div className="reports-info-row">
-                    <span>반응</span>
-                    <strong className="reports-votes">
-                      <em>
-                        <ThumbsUp size={13} /> {item.likes}
-                      </em>
-                      <em>
-                        <ThumbsDown size={13} /> {item.dislikes}
-                      </em>
-                    </strong>
-                  </div>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
+            <div>
+              <strong>{item?.title ?? mockItem.type}</strong>
+              <div className="muted">
+                {item
+                  ? `${item.created_at ? new Date(item.created_at).toLocaleString('ko-KR') : '-'} · ${item.user_id.slice(0, 8)}`
+                  : `${mockItem.time} · student_1024`}
               </div>
-
-              <div className="reports-section">
-                <p className="reports-section-title">제보 내용</p>
-                <blockquote className="reports-content-box">{item.content}</blockquote>
-              </div>
-
-              <div className="reports-section">
-                <p className="reports-section-title">첨부/상황 정보</p>
-                <div className="reports-attach">
-                  <div className="reports-thumb">
-                    <img src={mapImg} alt="첨부 이미지 1" />
-                  </div>
-                  <div className="reports-thumb">
-                    <img src={mapImg} alt="첨부 이미지 2" style={{ objectPosition: '70% 40%' }} />
-                  </div>
-                </div>
-                <div className="reports-meta">
-                  <span>등록 기기: Android / Chrome</span>
-                  <span>위치: 37.5665, 126.9780</span>
-                  <span>반경: 50m</span>
-                </div>
-              </div>
-
-              <div className="reports-section">
-                <p className="reports-section-title">상태 관리</p>
-                <div className="reports-status-box">
-                  <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
-                  <p>
-                    {item.status === '비활성'
-                      ? '신뢰도가 낮거나 허위로 판단된 제보입니다.'
-                      : item.status === '처리 완료'
-                        ? '검토가 완료되어 통계에 반영된 제보입니다.'
-                        : '관리자 검토가 필요한 제보입니다.'}
-                  </p>
-                </div>
-                <div className="reports-form">
-                  <label>
-                    <span>비활성 사유</span>
-                    <select className="input" value={reason} onChange={(e) => setReason(e.target.value)}>
-                      <option>허위 또는 사실 아님</option>
-                      <option>중복 제보</option>
-                      <option>정보 부족</option>
-                      <option>기타</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>상세 사유 (선택)</span>
-                    <textarea
-                      className="input"
-                      maxLength={200}
-                      value={reasonDetail}
-                      onChange={(e) => setReasonDetail(e.target.value)}
-                    />
-                    <div className="reports-char">{reasonDetail.length}/200</div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="reports-actions">
-                <button type="button" className="btn btn-ghost">
-                  비활성화
-                </button>
-                <button type="button" className="btn btn-danger">
-                  삭제
-                </button>
-                <button type="button" className="btn btn-primary">
-                  완료 처리
-                </button>
-              </div>
-
-              <div className="reports-expire">
-                <Clock3 size={14} />
-                24시간 후 자동 만료 예정
-              </div>
-              <p className="reports-note">
-                제보는 등록 후 24시간이 지나면 자동 만료됩니다. 비활성 처리된 제보는 통계에서 제외됩니다.
-              </p>
-            </>
-          ) : (
-            <p className="muted">표시할 제보가 없습니다.</p>
-          )}
+            </div>
+            <div className="card card-pad" style={{ boxShadow: 'none', background: '#fafbff', whiteSpace: 'pre-wrap' }}>
+              {item?.content ??
+                '버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.'}
+            </div>
+          </div>
         </section>
       </div>
     </div>
   )
 }
 
-/** ADM-06 공지·긴급 알림 관리 */
+/** ADM-06 공지·긴급 알림 관리 — Figma 430:19126 */
 export function NoticesPage() {
   const { user } = useAuth()
-  const [noticeType, setNoticeType] = useState<'긴급' | '중요' | '운행 변경' | '일반'>('긴급')
+  const [dbNotices, setDbNotices] = useState<NoticeRow[] | null>(null)
+  const [noticeType, setNoticeType] = useState('긴급')
   const [push, setPush] = useState(true)
   const [title, setTitle] = useState('폭설로 인한 운행 지연 안내')
-  const [body, setBody] = useState(
-    '폭설로 인해 일부 노선의 운행이 지연되고 있습니다.\n자세한 내용은 노선별 운행 정보에서 확인해 주세요.\n이용에 불편을 드려 죄송합니다.',
-  )
-  const [target, setTarget] = useState<'all' | 'route'>('all')
-  const [routeName, setRouteName] = useState('기흥역 통학버스')
-  const [alwaysOn, setAlwaysOn] = useState(false)
-  const [typeFilter, setTypeFilter] = useState('전체 유형')
-  const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState(0)
+  const [bodyHtml, setBodyHtml] = useState(() => plainTextToEditorHtml(DEFAULT_NOTICE_BODY))
+  const [bodyLen, setBodyLen] = useState(() => DEFAULT_NOTICE_BODY.length)
+  const [targetStudent, setTargetStudent] = useState(true)
+  const [targetDriver, setTargetDriver] = useState(false)
+  const [permanent, setPermanent] = useState(false)
+  const [startDate, setStartDate] = useState(() => todayDateInputValue())
+  const [startHour, setStartHour] = useState('00')
+  const [startMinute, setStartMinute] = useState('00')
+  const [endDate, setEndDate] = useState(() => todayDateInputValue())
+  const [endHour, setEndHour] = useState('23')
+  const [endMinute, setEndMinute] = useState('59')
   const [saving, setSaving] = useState(false)
-  const [saveMsg, setSaveMsg] = useState('')
+  const [flash, setFlash] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [listPage, setListPage] = useState(1)
+  const [listQuery, setListQuery] = useState('')
+  const [listTypeFilter, setListTypeFilter] = useState('전체 유형')
+  const [editorCmds, setEditorCmds] = useState<EditorCmdState>(emptyEditorCmds)
+  const editorRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const list = useMemo(() => {
-    return mockNotices.filter((row) => {
-      if (typeFilter !== '전체 유형' && row.type !== typeFilter) return false
-      if (!query.trim()) return true
-      const q = query.trim().toLowerCase()
-      return row.title.toLowerCase().includes(q) || row.target.toLowerCase().includes(q)
+  const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), [])
+  const minuteOptions = useMemo(() => Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')), [])
+
+  const refreshEditorCmds = () => {
+    try {
+      setEditorCmds({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        ul: document.queryCommandState('insertUnorderedList'),
+        ol: document.queryCommandState('insertOrderedList'),
+        left: document.queryCommandState('justifyLeft'),
+        center: document.queryCommandState('justifyCenter'),
+        right: document.queryCommandState('justifyRight'),
+        full: document.queryCommandState('justifyFull'),
+      })
+    } catch {
+      setEditorCmds(emptyEditorCmds)
+    }
+  }
+
+  const syncEditorState = () => {
+    const el = editorRef.current
+    if (!el) return
+    const plain = htmlToPlainText(el.innerHTML)
+    if (plain.length > NOTICE_BODY_MAX) {
+      document.execCommand('undo')
+      return
+    }
+    setBodyHtml(el.innerHTML)
+    setBodyLen(plain.replace(/\n$/g, '').length)
+    refreshEditorCmds()
+  }
+
+  const setEditorContent = (htmlOrPlain: string, asHtml = false) => {
+    const html = asHtml ? htmlOrPlain : plainTextToEditorHtml(htmlOrPlain)
+    if (editorRef.current) editorRef.current.innerHTML = html || ''
+    setBodyHtml(html)
+    setBodyLen(htmlToPlainText(html).replace(/\n$/g, '').length)
+  }
+
+  const runEditorCommand = (command: string, value?: string) => {
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    document.execCommand(command, false, value)
+    syncEditorState()
+    refreshEditorCmds()
+  }
+
+  const onAttachFile = () => {
+    fileInputRef.current?.click()
+  }
+
+  const onFileAttachChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const src = typeof reader.result === 'string' ? reader.result : ''
+        if (!src) return
+        runEditorCommand('insertImage', src)
+      }
+      reader.readAsDataURL(file)
+      return
+    }
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    document.execCommand('insertText', false, `[첨부: ${file.name}]`)
+    syncEditorState()
+  }
+
+  const formLocked = Boolean(selectedNoticeId) && !editing
+
+  const buildNoticePayload = () => {
+    const contentPlain = htmlToPlainText(editorRef.current?.innerHTML ?? bodyHtml).trim()
+    const audience: NoticeAudience[] = []
+    if (targetStudent) audience.push('STUDENT')
+    if (targetDriver) audience.push('DRIVER')
+    const type = NOTICE_TYPE_FROM_KO[noticeType] ?? 'GENERAL'
+    const toIso = (date: string, hour: string, minute: string) =>
+      new Date(`${date}T${hour}:${minute}:00`).toISOString()
+    const startsAt = permanent ? null : toIso(startDate, startHour, startMinute)
+    const endsAt = permanent ? null : toIso(endDate, endHour, endMinute)
+    return {
+      title: title.trim(),
+      content: contentPlain,
+      type,
+      audience,
+      is_push: push,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      status: resolveNoticeWriteStatus({ permanent, startsAt, endsAt }),
+    }
+  }
+
+  const loadNoticeIntoForm = (row: NoticeRow) => {
+    setSelectedNoticeId(row.id)
+    setEditing(false)
+    setShowPreview(false)
+    const typeKo = noticeTypeLabel(row)
+    setNoticeType(typeKo)
+    setTitle(noticeTitlePlain(row))
+    setEditorContent(row.content)
+    const audience = normalizeNoticeAudience(row.audience)
+    setTargetStudent(audience.includes('STUDENT'))
+    setTargetDriver(audience.includes('DRIVER'))
+    const hasPeriod = Boolean(row.starts_at || row.ends_at)
+    setPermanent(!hasPeriod)
+    if (row.starts_at) {
+      const d = new Date(row.starts_at)
+      setStartDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      )
+      setStartHour(String(d.getHours()).padStart(2, '0'))
+      setStartMinute(String(d.getMinutes()).padStart(2, '0'))
+    }
+    if (row.ends_at) {
+      const d = new Date(row.ends_at)
+      setEndDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      )
+      setEndHour(String(d.getHours()).padStart(2, '0'))
+      setEndMinute(String(d.getMinutes()).padStart(2, '0'))
+    }
+    setPush(Boolean(row.is_push))
+  }
+
+  const resetFormForCreate = () => {
+    setSelectedNoticeId(null)
+    setEditing(false)
+    setShowPreview(false)
+    setNoticeType('긴급')
+    setTitle('')
+    setEditorContent(DEFAULT_NOTICE_BODY)
+    setTargetStudent(true)
+    setTargetDriver(false)
+    setPermanent(false)
+    const today = todayDateInputValue()
+    setStartDate(today)
+    setStartHour('00')
+    setStartMinute('00')
+    setEndDate(today)
+    setEndHour('23')
+    setEndMinute('59')
+    setPush(true)
+  }
+
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = plainTextToEditorHtml(DEFAULT_NOTICE_BODY)
+    }
+  }, [])
+
+  useEffect(() => {
+    void fetchNotices().then((data) => {
+      if (data) setDbNotices(data)
     })
-  }, [typeFilter, query])
+  }, [])
 
   const onCreate = async () => {
+    if (selectedNoticeId) {
+      setFlash('목록 공지를 수정 중이면 「저장」을 눌러 주세요. 새 공지는 선택을 해제한 뒤 등록하세요.')
+      return
+    }
+    if (!targetStudent && !targetDriver) {
+      setFlash('대상을 학생 또는 기사 중 하나 이상 선택하세요.')
+      return
+    }
     setSaving(true)
-    setSaveMsg('')
-    const result = await createNotice({
-      title: title.trim() || '제목 없음',
-      content: body.trim() || '',
+    setFlash('')
+    const payload = buildNoticePayload()
+    const res = await createNotice({
+      ...payload,
       author_id: user?.id ?? null,
     })
     setSaving(false)
-    if (!result.ok) {
-      setSaveMsg(result.message ?? '등록 실패 (로컬 미리보기만 반영)')
+    if (!res.ok) {
+      setFlash(res.message ?? '등록 실패')
       return
     }
-    setSaveMsg('등록되었습니다.')
+    setFlash('공지 등록 완료')
+    setListPage(1)
+    const data = await fetchNotices()
+    if (data) setDbNotices(data)
   }
 
-  const onSelectRow = (idx: number) => {
-    setSelected(idx)
-    const row = list[idx]
-    if (!row) return
-    setNoticeType(row.type as '긴급' | '중요' | '운행 변경' | '일반')
-    setTitle(row.title)
-    setTarget(row.target === '전체' ? 'all' : 'route')
-    if (row.target.startsWith('노선')) setRouteName(row.target.replace('노선 ', ''))
+  const onStartEdit = () => {
+    if (!selectedNoticeId) {
+      setFlash('목록에서 수정할 공지를 먼저 선택하세요.')
+      return
+    }
+    const selected = dbNotices?.find((n) => n.id === selectedNoticeId)
+    if (selected && noticeStatusLabel(selected) === '종료') {
+      setFlash('종료된 공지는 수정할 수 없습니다.')
+      return
+    }
+    setEditing(true)
+    setFlash('수정 모드입니다. 내용을 바꾼 뒤 「저장」을 눌러 주세요.')
   }
 
-  const typeTone =
-    noticeType === '긴급' ? 'red' : noticeType === '중요' ? 'orange' : noticeType === '운행 변경' ? 'blue' : 'gray'
+  const onSave = async () => {
+    if (!selectedNoticeId) {
+      setFlash('저장할 공지가 없습니다.')
+      return
+    }
+    if (!targetStudent && !targetDriver) {
+      setFlash('대상을 학생 또는 기사 중 하나 이상 선택하세요.')
+      return
+    }
+    setSaving(true)
+    setFlash('')
+    const payload = buildNoticePayload()
+    const res = await updateNotice(selectedNoticeId, payload)
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '저장 실패')
+      return
+    }
+    setEditing(false)
+    setFlash('공지 저장 완료')
+    const data = await fetchNotices()
+    if (data) setDbNotices(data)
+  }
 
-  const typeLabel =
+  const onDelete = async () => {
+    if (!selectedNoticeId) {
+      setFlash('목록에서 종료할 공지를 먼저 선택하세요.')
+      return
+    }
+    const selected = dbNotices?.find((n) => n.id === selectedNoticeId)
+    if (selected && noticeStatusLabel(selected) === '종료') {
+      setFlash('이미 종료된 공지입니다.')
+      return
+    }
+    const ok = window.confirm(
+      '이 공지를 종료할까요?\n학생·기사 앱에서는 더 이상 보이지 않고, 관리자 목록에는 「종료」로 남습니다.',
+    )
+    if (!ok) return
+    setSaving(true)
+    setFlash('')
+    const res = await endNotice(selectedNoticeId)
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '종료 실패')
+      return
+    }
+    setEditing(false)
+    setFlash('공지를 종료했습니다. 앱에서는 더 이상 표시되지 않습니다.')
+    const data = await fetchNotices()
+    if (data) {
+      setDbNotices(data)
+      const updated = data.find((n) => n.id === selectedNoticeId)
+      if (updated) loadNoticeIntoForm(updated)
+    }
+  }
+
+  const noticeKpis = useMemo(() => {
+    const rows = dbNotices ?? []
+    const now = Date.now()
+    const day30 = 30 * 24 * 60 * 60 * 1000
+    const recent = rows.filter((n) => {
+      if (!n.created_at) return true
+      const t = Date.parse(n.created_at)
+      return Number.isFinite(t) && now - t <= day30
+    })
+    const urgent = recent.filter((n) => noticeTypeLabel(n) === '긴급').length
+    const scheduled = recent.filter((n) => noticeStatusLabel(n) === '예약').length
+    const views = recent.reduce((sum, n) => sum + noticeViewCount(n), 0)
+    return {
+      total: recent.length,
+      urgent,
+      scheduled,
+      views,
+    }
+  }, [dbNotices])
+
+  const noticeRows = dbNotices
+  const filteredDbNotices = useMemo(() => {
+    if (!noticeRows) return null
+    const q = listQuery.trim().toLowerCase()
+    return noticeRows.filter((row) => {
+      if (listTypeFilter !== '전체 유형' && noticeTypeLabel(row) !== listTypeFilter) return false
+      if (q) {
+        const hay = `${noticeTitlePlain(row)} ${row.content ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [noticeRows, listQuery, listTypeFilter])
+  const filteredMockNotices = useMemo(() => {
+    if (noticeRows) return null
+    const q = listQuery.trim().toLowerCase()
+    return notices.filter((row) => {
+      if (listTypeFilter !== '전체 유형' && row.type !== listTypeFilter) return false
+      if (q && !`${row.title}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [noticeRows, listQuery, listTypeFilter])
+  const noticeTotal = filteredDbNotices?.length ?? filteredMockNotices?.length ?? 0
+  const noticePageCount = Math.max(1, Math.ceil(noticeTotal / NOTICE_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, noticePageCount)
+  const pagedDbNotices = useMemo(() => {
+    if (!filteredDbNotices) return null
+    const start = (safeListPage - 1) * NOTICE_PAGE_SIZE
+    return filteredDbNotices.slice(start, start + NOTICE_PAGE_SIZE)
+  }, [filteredDbNotices, safeListPage])
+  const pagedMockNotices = useMemo(() => {
+    if (filteredDbNotices) return null
+    const start = (safeListPage - 1) * NOTICE_PAGE_SIZE
+    return (filteredMockNotices ?? []).slice(start, start + NOTICE_PAGE_SIZE)
+  }, [filteredDbNotices, filteredMockNotices, safeListPage])
+  useEffect(() => {
+    if (listPage > noticePageCount) setListPage(noticePageCount)
+  }, [listPage, noticePageCount])
+  useEffect(() => {
+    setListPage(1)
+  }, [listQuery, listTypeFilter])
+
+  const kpis = [
+    {
+      label: '전체 공지',
+      value: `${noticeKpis.total.toLocaleString('ko-KR')}건`,
+      hint: '최근 30일 기준',
+      tone: 'blue',
+      icon: <Megaphone size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '긴급 공지',
+      value: `${noticeKpis.urgent.toLocaleString('ko-KR')}건`,
+      hint: '최근 30일 기준',
+      tone: 'red',
+      icon: <AlertTriangle size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '예약 공지',
+      value: `${noticeKpis.scheduled.toLocaleString('ko-KR')}건`,
+      hint: '게시 예정',
+      tone: 'orange',
+      icon: <CalendarDays size={40} strokeWidth={2.8} />,
+    },
+    {
+      label: '최근 조회수',
+      value: `${noticeKpis.views.toLocaleString('ko-KR')}회`,
+      hint: '최근 30일 기준',
+      tone: 'purple',
+      icon: <Eye size={40} strokeWidth={2.8} />,
+    },
+  ] as const
+
+  const previewTypeLabel = noticeType === '긴급' || noticeType === '일반' ? `${noticeType} 공지` : noticeType
+  const driverAlarmTitle =
     noticeType === '긴급'
       ? '긴급 공지'
       : noticeType === '중요'
@@ -469,52 +772,48 @@ export function NoticesPage() {
         : noticeType === '운행 변경'
           ? '운행 변경'
           : '일반 공지'
+  const previewPlainBody = htmlToPlainText(bodyHtml).trim()
+  const driverAlarmBody = previewPlainBody
+    ? `${title.trim() || '제목'} — ${previewPlainBody}`
+    : title.trim() || '제목'
+  const previewAsDriver = targetDriver
 
   return (
-    <div className="page notices-page">
-      <div className="notices-kpis">
-        {[
-          { label: '전체 공지', value: '128', unit: '건', hint: '최근 30일 기준', icon: Megaphone, tone: 'blue' },
-          { label: '긴급 공지', value: '8', unit: '건', hint: '최근 30일 기준', icon: TriangleAlert, tone: 'red' },
-          { label: '예약 공지', value: '15', unit: '건', hint: '게시 예정', icon: CalendarDays, tone: 'orange' },
-          { label: '최근 조회수', value: '23,450', unit: '회', hint: '최근 30일 기준', icon: Eye, tone: 'purple' },
-        ].map((kpi) => {
-          const Icon = kpi.icon
-          return (
-            <div key={kpi.label} className="notices-kpi">
-              <div className={`notices-kpi-icon ${kpi.tone}`}>
-                <Icon size={18} />
-              </div>
-              <div>
-                <div className="label">{kpi.label}</div>
-                <div className="value">
-                  {kpi.value}
-                  <em>{kpi.unit}</em>
-                </div>
-                <div className="hint">{kpi.hint}</div>
-              </div>
+    <div className="page">
+      {flash ? <div className="alert alert-info">{flash}</div> : null}
+      <div className="figma-kpis notice-kpis">
+        {kpis.map((k) => (
+          <div key={k.label} className="figma-kpi">
+            <div className={`figma-kpi-icon ${k.tone}`}>{k.icon}</div>
+            <div className="figma-kpi-text">
+              <div className="label">{k.label}</div>
+              <div className="value">{k.value}</div>
+              <div className="hint">{k.hint}</div>
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
 
-      <div className="notices-main">
-        <section className="notices-panel">
-          <div className="notices-panel-head">
+      <div className="figma-split-notice">
+        <section className="figma-panel">
+          <div className="figma-panel-head">
             <h3>
-              <ListChecks size={17} />
-              공지 목록 <span className="muted">(전체 128건)</span>
+              공지 목록{' '}
+              <span className="muted">
+                (전체 {(dbNotices?.length ?? notices.length).toLocaleString('ko-KR')}건
+                {noticeTotal !== (dbNotices?.length ?? notices.length)
+                  ? ` · 검색 ${noticeTotal.toLocaleString('ko-KR')}건`
+                  : ''}
+                )
+              </span>
             </h3>
           </div>
-
-          <div className="notices-filters">
+          <div className="toolbar notice-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="input"
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value)
-                setSelected(0)
-              }}
+              className="select notice-filter-control"
+              style={{ width: 110, height: 32 }}
+              value={listTypeFilter}
+              onChange={(e) => setListTypeFilter(e.target.value)}
             >
               <option>전체 유형</option>
               <option>긴급</option>
@@ -522,128 +821,183 @@ export function NoticesPage() {
               <option>운행 변경</option>
               <option>일반</option>
             </select>
-            <label className="notices-search">
-              <Search size={14} />
-              <input
-                className="input"
-                placeholder="제목 또는 내용을 검색하세요."
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSelected(0)
-                }}
-              />
-            </label>
-            <button className="btn btn-primary btn-xs" type="button">
+            <input
+              className="input notice-filter-control"
+              style={{ flex: 1, height: 32 }}
+              placeholder="제목 또는 내용을 검색하세요."
+              value={listQuery}
+              onChange={(e) => setListQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setListPage(1)
+              }}
+            />
+            <button className="btn btn-primary btn-xs" type="button" onClick={() => setListPage(1)}>
               검색
             </button>
           </div>
-
-          <div className="notices-table-wrap">
-            <table className="data-table dense">
-              <thead>
-                <tr>
-                  <th>번호</th>
-                  <th>유형</th>
-                  <th>제목</th>
-                  <th>대상</th>
-                  <th>게시 기간</th>
-                  <th>조회수</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((row, idx) => (
-                  <tr
-                    key={row.no}
-                    className={idx === selected ? 'selected' : undefined}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => onSelectRow(idx)}
-                  >
-                    <td>{row.no}</td>
-                    <td>
-                      <StatusBadge tone={row.tone}>{row.type}</StatusBadge>
-                    </td>
-                    <td className="notices-title-cell" title={row.title}>
-                      {row.title}
-                    </td>
-                    <td>{row.target}</td>
-                    <td>{row.period}</td>
-                    <td>{row.views.toLocaleString()}</td>
-                    <td>
-                      <StatusBadge tone={row.status === '게시중' ? 'red' : 'gray'}>{row.status}</StatusBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="notices-pager">
-            <span>전체 128건</span>
-            <div className="notices-pages">
-              <button type="button">‹</button>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" className={n === 1 ? 'active' : undefined}>
-                  {n}
-                </button>
-              ))}
-              <button type="button">›</button>
-              <select defaultValue="10개씩">
-                <option>10개씩</option>
-                <option>20개씩</option>
-                <option>50개씩</option>
-              </select>
-            </div>
-          </div>
-          <p className="notices-foot-note">* 공지사항은 학생 앱 [알림] 탭과 푸시 알림으로 발송됩니다.</p>
+          <table className="data-table dense">
+            <thead>
+              <tr>
+                <th className="notice-col-center">번호</th>
+                <th className="notice-col-center">유형</th>
+                <th>제목</th>
+                <th className="notice-col-center">대상</th>
+                <th className="notice-col-center">게시 기간</th>
+                <th className="notice-col-center">조회수</th>
+                <th className="notice-col-center">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedDbNotices
+                ? pagedDbNotices.map((row, idx) => {
+                    const typeKo = noticeTypeLabel(row)
+                    const statusKo = noticeStatusLabel(row)
+                    const period = noticePeriodLabel(row)
+                    const no = (safeListPage - 1) * NOTICE_PAGE_SIZE + idx + 1
+                    return (
+                      <tr
+                        key={row.id}
+                        className={selectedNoticeId === row.id ? 'is-selected' : undefined}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => loadNoticeIntoForm(row)}
+                      >
+                        <td className="notice-col-center">{no}</td>
+                        <td className="notice-col-center">
+                          <StatusBadge tone={noticeTypeTone(typeKo)}>{typeKo}</StatusBadge>
+                        </td>
+                        <td title={noticeTitlePlain(row)}>{truncateChars(noticeTitlePlain(row), 8)}</td>
+                        <td className="notice-col-center">{noticeAudienceLabel(row.audience)}</td>
+                        <td className="notice-period-cell notice-col-center" title={period === '-' ? undefined : period}>
+                          {period}
+                        </td>
+                        <td className="notice-col-center">{noticeViewCount(row).toLocaleString('ko-KR')}</td>
+                        <td className="notice-col-center">
+                          <StatusBadge tone={noticeStatusTone(statusKo)}>{statusKo}</StatusBadge>
+                        </td>
+                      </tr>
+                    )
+                  })
+                : (pagedMockNotices ?? []).map((row, idx) => (
+                    <tr key={row.no}>
+                      <td className="notice-col-center">
+                        {(safeListPage - 1) * NOTICE_PAGE_SIZE + idx + 1}
+                      </td>
+                      <td className="notice-col-center">
+                        <StatusBadge tone={row.tone}>{row.type}</StatusBadge>
+                      </td>
+                      <td title={row.title}>{truncateChars(row.title, 8)}</td>
+                      <td className="notice-col-center">{row.target === '전체' ? '학생/기사' : row.target}</td>
+                      <td className="notice-period-cell notice-col-center">{row.period.replace(' - ', ' ~ ')}</td>
+                      <td className="notice-col-center">{row.views.toLocaleString()}</td>
+                      <td className="notice-col-center">
+                        <StatusBadge tone={row.status === '게시중' || row.status === '게시 중' ? 'blue' : 'gray'}>
+                          {row.status === '게시중' ? '게시 중' : row.status}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  ))}
+            </tbody>
+          </table>
+          <ListPagination
+            total={noticeTotal}
+            page={safeListPage}
+            pageSize={NOTICE_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="공지 목록 페이지"
+          />
+          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            학생 대상은 학생 앱 공지·푸시로, 기사 대상은 기사 앱 [운행 알림](종) 목록으로 전달됩니다.
+          </p>
         </section>
 
-        <section className="notices-panel">
-          <div className="notices-panel-head">
-            <h3>
-              <FileText size={17} />
-              공지 등록/수정
-            </h3>
-            <div className="notices-head-actions">
-              <button className="btn btn-outline btn-xs" type="button">
-                <Eye size={12} />
-                미리보기
-              </button>
-              <button className="btn btn-danger btn-xs" type="button" style={{ background: 'transparent', color: '#eb4047', border: '1px solid #eb4047' }}>
-                삭제
-              </button>
-              <button className="btn btn-outline btn-xs" type="button">
-                수정
-              </button>
-              <button className="btn btn-primary btn-xs" type="button" disabled={saving} onClick={() => void onCreate()}>
-                {saving ? '등록 중...' : '공지 등록'}
-              </button>
-              <button className="btn btn-danger btn-xs" type="button">
-                긴급 공지 발송
-              </button>
-            </div>
+        <section className="figma-panel notice-edit-panel">
+          <div className="figma-panel-head">
+            <h3>공지 등록/수정</h3>
           </div>
-          {saveMsg ? <p className="notices-save-msg">{saveMsg}</p> : null}
 
-          <div className="notices-form-layout">
-            <div className="notices-form">
-              <div className="notices-field">
-                <span className="label">공지 유형</span>
-                <div className="notices-type-grid">
+          <div className={`notice-form-grid${showPreview ? '' : ' preview-off'}`}>
+            <div className={`notice-form-main${formLocked ? ' is-readonly' : ''}`}>
+              <div className="notice-form-actions">
+                <button
+                  className={`btn btn-outline btn-xs notice-preview-btn${showPreview ? ' is-active' : ''}`}
+                  type="button"
+                  onClick={() => setShowPreview((v) => !v)}
+                >
+                  <Eye size={12} /> 미리보기
+                </button>
+                <button
+                  className="btn btn-outline btn-xs"
+                  type="button"
+                  disabled={saving || !selectedNoticeId}
+                  onClick={() => void onDelete()}
+                  title={selectedNoticeId ? '앱에서 숨기고 목록에는 종료로 남깁니다' : '목록에서 공지를 선택하세요'}
+                >
+                  삭제
+                </button>
+                <button
+                  className={`btn btn-outline btn-xs${editing ? ' is-active' : ''}`}
+                  type="button"
+                  disabled={saving || !selectedNoticeId || editing}
+                  onClick={onStartEdit}
+                  title={!selectedNoticeId ? '목록에서 공지를 선택하세요' : '수정 모드로 전환'}
+                >
+                  수정
+                </button>
+                {selectedNoticeId && editing ? (
+                  <button
+                    className="btn btn-primary btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void onSave()}
+                  >
+                    {saving ? '저장 중...' : '저장'}
+                  </button>
+                ) : null}
+                {!selectedNoticeId ? (
+                  <button
+                    className="btn btn-primary btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void onCreate()}
+                  >
+                    {saving ? '등록 중...' : '공지 등록'}
+                  </button>
+                ) : null}
+                {selectedNoticeId ? (
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    type="button"
+                    disabled={saving}
+                    onClick={resetFormForCreate}
+                  >
+                    새 공지
+                  </button>
+                ) : null}
+              </div>
+
+              {formLocked ? (
+                <p className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  목록에서 선택한 공지입니다. 내용을 바꾸려면 「수정」을 눌러 주세요.
+                </p>
+              ) : null}
+
+              <div className="field">
+                <label>공지 유형</label>
+                <div className="type-pills">
                   {(
                     [
                       ['긴급', 'danger'],
-                      ['중요', 'warn'],
-                      ['운행 변경', ''],
-                      ['일반', ''],
+                      ['중요', 'danger'],
+                      ['운행 변경', 'info'],
+                      ['일반', 'info'],
                     ] as const
                   ).map(([t, tone]) => (
                     <button
                       key={t}
                       type="button"
-                      className={`notices-type-btn${noticeType === t ? ` active${tone ? ` ${tone}` : ''}` : ''}`}
+                      className={`type-pill${noticeType === t ? ` active ${tone}` : ''}`}
                       onClick={() => setNoticeType(t)}
+                      disabled={formLocked}
                     >
                       {t === '긴급' || t === '일반' ? `${t} 공지` : t}
                     </button>
@@ -651,130 +1005,337 @@ export function NoticesPage() {
                 </div>
               </div>
 
-              <div className="notices-field">
-                <label htmlFor="notice-title">제목</label>
-                <div className="notices-title-row">
+              <div className="field notice-title-field">
+                <div className="field-label-row">
+                  <label>제목</label>
+                  <span className="field-hint">{title.length}/100</span>
+                </div>
+                <input
+                  className="input notice-filter-control"
+                  style={{ height: 36 }}
+                  maxLength={100}
+                  placeholder="제목을 입력하세요."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={formLocked}
+                  readOnly={formLocked}
+                />
+              </div>
+
+              <div className="field">
+                <label>내용</label>
+                <div className="notice-editor">
+                  <div className="notice-editor-toolbar" role="toolbar" aria-label="본문 서식">
+                    <div className="notice-editor-group">
+                      <button type="button" className={`notice-editor-btn${editorCmds.bold ? ' is-active' : ''}`} title="굵게" aria-label="굵게" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('bold')}>
+                        <Bold size={14} strokeWidth={2.5} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.italic ? ' is-active' : ''}`} title="기울임" aria-label="기울임" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('italic')}>
+                        <Italic size={14} strokeWidth={2.5} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.underline ? ' is-active' : ''}`} title="밑줄" aria-label="밑줄" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('underline')}>
+                        <Underline size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button type="button" className={`notice-editor-btn${editorCmds.ul ? ' is-active' : ''}`} title="글머리 기호" aria-label="글머리 기호" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertUnorderedList')}>
+                        <List size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.ol ? ' is-active' : ''}`} title="번호 목록" aria-label="번호 목록" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('insertOrderedList')}>
+                        <ListOrdered size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button type="button" className={`notice-editor-btn${editorCmds.left ? ' is-active' : ''}`} title="왼쪽 정렬" aria-label="왼쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyLeft')}>
+                        <AlignLeft size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.center ? ' is-active' : ''}`} title="가운데 정렬" aria-label="가운데 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyCenter')}>
+                        <AlignCenter size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.right ? ' is-active' : ''}`} title="오른쪽 정렬" aria-label="오른쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyRight')}>
+                        <AlignRight size={14} strokeWidth={2.2} />
+                      </button>
+                      <button type="button" className={`notice-editor-btn${editorCmds.full ? ' is-active' : ''}`} title="양쪽 정렬" aria-label="양쪽 정렬" onMouseDown={(e) => e.preventDefault()} onClick={() => runEditorCommand('justifyFull')}>
+                        <AlignJustify size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                    <span className="notice-editor-sep" />
+                    <div className="notice-editor-group">
+                      <button
+                        type="button"
+                        className="notice-editor-btn is-chip"
+                        title="파일 첨부"
+                        aria-label="파일 첨부"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={onAttachFile}
+                      >
+                        <Paperclip size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                  </div>
                   <input
-                    id="notice-title"
-                    className="input"
-                    maxLength={100}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="공지 제목을 입력하세요"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.zip"
+                    hidden
+                    onChange={onFileAttachChange}
                   />
-                  <div className="notices-char">{title.length}/100</div>
-                </div>
-              </div>
-
-              <div className="notices-field">
-                <span className="label">내용</span>
-                <div className="notices-editor">
-                  <div className="notices-toolbar">
-                    <button type="button" aria-label="굵게"><Bold size={14} /></button>
-                    <button type="button" aria-label="기울임"><Italic size={14} /></button>
-                    <button type="button" aria-label="밑줄"><Underline size={14} /></button>
-                    <button type="button" aria-label="글머리"><List size={14} /></button>
-                    <button type="button" aria-label="번호 목록"><ListOrdered size={14} /></button>
-                    <button type="button" aria-label="정렬"><AlignLeft size={14} /></button>
-                    <button type="button" aria-label="링크"><Link2 size={14} /></button>
-                    <button type="button" aria-label="이미지"><ImageIcon size={14} /></button>
+                  <div
+                    ref={editorRef}
+                    className={`notice-editor-body${bodyLen === 0 ? ' is-empty' : ''}`}
+                    contentEditable={!formLocked}
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label="공지 내용"
+                    aria-readonly={formLocked}
+                    data-placeholder="공지 내용을 입력하세요."
+                    suppressContentEditableWarning
+                    onInput={syncEditorState}
+                    onKeyUp={refreshEditorCmds}
+                    onMouseUp={refreshEditorCmds}
+                  />
+                  <div className="notice-editor-foot">
+                    <span>
+                      {bodyLen}/{NOTICE_BODY_MAX}
+                    </span>
                   </div>
-                  <textarea
-                    maxLength={2000}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="공지 내용을 입력하세요"
-                  />
                 </div>
-                <div className="notices-char">{body.length}/2000</div>
               </div>
 
-              <div className="notices-field">
-                <span className="label">대상</span>
-                <div className="notices-target-row">
-                  <label className="notices-radio">
-                    <input type="radio" name="target" checked={target === 'all'} onChange={() => setTarget('all')} />
-                    전체 학생
-                  </label>
-                  <label className="notices-radio">
-                    <input type="radio" name="target" checked={target === 'route'} onChange={() => setTarget('route')} />
-                    특정 노선 선택
-                  </label>
-                  <select
-                    className="input"
-                    style={{ height: 34, minWidth: 160, fontSize: 12 }}
-                    disabled={target !== 'route'}
-                    value={routeName}
-                    onChange={(e) => setRouteName(e.target.value)}
+              <div className="field">
+                <label>대상</label>
+                <div className="notice-target-line">
+                  <button
+                    type="button"
+                    className={`type-pill${targetStudent ? ' active' : ''}`}
+                    onClick={() => setTargetStudent((v) => !v)}
+                    disabled={formLocked}
                   >
-                    {mockRoutes.map((r) => (
-                      <option key={r.name}>{r.name}</option>
-                    ))}
-                  </select>
+                    학생
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-pill${targetDriver ? ' active' : ''}`}
+                    onClick={() => setTargetDriver((v) => !v)}
+                    disabled={formLocked}
+                  >
+                    기사
+                  </button>
+                  <label className="check-row notice-inline-check">
+                    <input
+                      type="checkbox"
+                      checked={permanent}
+                      disabled={formLocked}
+                      onChange={(e) => setPermanent(e.target.checked)}
+                    />
+                    게시 기간 없음 (상시 게시)
+                  </label>
+                  <label className="check-row notice-inline-check">
+                    <input
+                      type="checkbox"
+                      checked={push}
+                      disabled={formLocked}
+                      onChange={(e) => setPush(e.target.checked)}
+                    />
+                    푸시 알림 동시 발송
+                  </label>
                 </div>
+                {push ? (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    ONDA 셔틀 앱 푸시 알림으로 즉시 발송됩니다.
+                  </div>
+                ) : null}
               </div>
 
-              <div className="notices-field">
-                <span className="label">게시 기간</span>
-                <div className="notices-period">
-                  <div className="notices-period-box">
-                    <input className="input" type="datetime-local" defaultValue="2026-07-08T09:00" disabled={alwaysOn} />
-                  </div>
-                  <span className="notices-period-sep">~</span>
-                  <div className="notices-period-box">
-                    <input className="input" type="datetime-local" defaultValue="2026-07-15T18:00" disabled={alwaysOn} />
+              <div className={`notice-datetime-stack${permanent || formLocked ? ' is-disabled' : ''}`}>
+                <div className="field">
+                  <label>시작일</label>
+                  <div className="notice-datetime">
+                    <input
+                      className="input notice-date-input"
+                      type="date"
+                      value={startDate}
+                      disabled={permanent}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setStartDate(next)
+                        if (next) setEndDate(next)
+                      }}
+                    />
+                    <select
+                      className="select notice-time-select"
+                      value={startHour}
+                      disabled={permanent}
+                      onChange={(e) => setStartHour(e.target.value)}
+                      aria-label="시작 시"
+                    >
+                      {hourOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {h}시
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="select notice-time-select"
+                      value={startMinute}
+                      disabled={permanent}
+                      onChange={(e) => setStartMinute(e.target.value)}
+                      aria-label="시작 분"
+                    >
+                      {minuteOptions.map((m) => (
+                        <option key={m} value={m}>
+                          {m}분
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-                <label className="notices-check">
-                  <input type="checkbox" checked={alwaysOn} onChange={(e) => setAlwaysOn(e.target.checked)} />
-                  게시 기간 없음 (상시 게시)
-                </label>
-              </div>
-
-              <div className="notices-push">
-                <div>
-                  <strong>푸시 알림 동시 발송</strong>
-                  <p>등록과 동시에 학생 앱으로 푸시 알림을 보냅니다. 긴급 공지 발송 시 권장됩니다.</p>
+                <div className="field">
+                  <label>종료일</label>
+                  <div className="notice-datetime">
+                    <input
+                      className="input notice-date-input"
+                      type="date"
+                      value={endDate}
+                      disabled={permanent}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                    <select
+                      className="select notice-time-select"
+                      value={endHour}
+                      disabled={permanent}
+                      onChange={(e) => setEndHour(e.target.value)}
+                      aria-label="종료 시"
+                    >
+                      {hourOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {h}시
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="select notice-time-select"
+                      value={endMinute}
+                      disabled={permanent}
+                      onChange={(e) => setEndMinute(e.target.value)}
+                      aria-label="종료 분"
+                    >
+                      {minuteOptions.map((m) => (
+                        <option key={m} value={m}>
+                          {m}분
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <label className="notices-switch">
-                  <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
-                  <span />
-                </label>
               </div>
             </div>
 
-            <aside className="notices-previews">
-              <p className="notices-preview-cap">학생 앱 미리보기</p>
-              <div className="notices-phone">
-                <div className="notices-phone-notch" />
-                <div className="notices-phone-screen">
-                  <div className="notices-phone-top">
-                    <span>‹ 공지사항</span>
-                    <span>⋯</span>
-                  </div>
-                  <span className={`notices-phone-tag ${typeTone}`}>{typeLabel}</span>
-                  <strong>{title || '제목'}</strong>
-                  <div className="notices-phone-time">2026.07.08 · 관리자</div>
-                  <p className="notices-phone-body">{body || '내용이 여기에 표시됩니다.'}</p>
-                  <button type="button" className="notices-phone-btn">
-                    오늘 하루 보지 않기
-                  </button>
+            {showPreview ? (
+              <aside className="phone-preview">
+                {previewAsDriver ? (
+                  <>
+                    <div className="cap">기사 앱 [운행 알림] 목록 · 상세 미리보기입니다.</div>
+                    <div className="screen driver-alarm-preview">
+                      <div className="driver-alarm-preview-head">
+                        <span>운행 알림</span>
+                        <Bell size={14} strokeWidth={2.4} />
+                      </div>
+                      <div className="driver-alarm-chip-row">
+                        <span className="driver-alarm-chip is-active">전체</span>
+                        <span className="driver-alarm-chip">미확인</span>
+                        <span className="driver-alarm-chip">공지</span>
+                      </div>
+                      <div className="driver-alarm-card">
+                        <div className="driver-alarm-icon" aria-hidden>
+                          <Bell size={16} strokeWidth={2.4} />
+                        </div>
+                        <div className="driver-alarm-text">
+                          <strong>{driverAlarmTitle}</strong>
+                          <p>{driverAlarmBody}</p>
+                        </div>
+                        <ChevronRight size={16} className="driver-alarm-chevron" aria-hidden />
+                      </div>
+                    </div>
+                    <div className="screen" style={{ marginTop: 10 }}>
+                      <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
+                        공지사항
+                      </div>
+                      <span className={`tag tone-${noticeTypeTone(noticeType)}`}>{driverAlarmTitle}</span>
+                      <strong>{title || '제목'}</strong>
+                      <div className="time">
+                        {permanent
+                          ? '상시 게시'
+                          : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
+                      </div>
+                      <div
+                        className="notice-preview-body"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            bodyLen > 0
+                              ? bodyHtml
+                              : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
+                        }}
+                      />
+                      <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
+                        오늘 하루 보지 않기
+                      </div>
+                    </div>
+                    {targetStudent ? (
+                      <div className="muted" style={{ fontSize: 10, marginTop: 8 }}>
+                        학생도 선택됨 — 학생 앱 공지에도 함께 노출됩니다.
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <div className="cap">실제 학생 앱에 표시되는 화면입니다.</div>
+                    <div className="screen">
+                      <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>
+                        공지사항
+                      </div>
+                      <span className={`tag tone-${noticeTypeTone(noticeType)}`}>{previewTypeLabel}</span>
+                      <strong>{title || '제목'}</strong>
+                      <div className="time">
+                        {permanent
+                          ? '상시 게시'
+                          : `${startDate.replaceAll('-', '.')} ${startHour}:${startMinute}`}
+                      </div>
+                      <div
+                        className="notice-preview-body"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            bodyLen > 0
+                              ? bodyHtml
+                              : '<span style="color:#9ca3af">공지 내용을 입력하세요.</span>',
+                        }}
+                      />
+                      <div className="muted" style={{ fontSize: 10, marginTop: 12, textAlign: 'center' }}>
+                        오늘 하루 보지 않기
+                      </div>
+                    </div>
+                    <div className="push">
+                      <span className="app">ONDA 셔틀</span>
+                      <span className="when">지금</span>
+                      <div className="body">
+                        {previewPlainBody.split('\n')[0] || '푸시 미리보기'}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </aside>
+            ) : (
+              <aside className="phone-preview is-placeholder">
+                <div className="cap">미리보기</div>
+                <div className="notice-preview-empty">
+                  미리보기 버튼을 누르면
+                  <br />
+                  {previewAsDriver ? '기사 앱 알림 화면이' : '학생 앱 화면이'} 표시됩니다.
                 </div>
-              </div>
-
-              <p className="notices-preview-cap">푸시 알림 미리보기</p>
-              <div className="notices-push-preview">
-                <div className="notices-push-card">
-                  <div className="notices-push-app">ON</div>
-                  <div>
-                    <span className="notices-push-when">지금</span>
-                    <strong>ON-DA · {typeLabel}</strong>
-                    <p>{title || '공지 제목'}</p>
-                    <p>{body || '공지 내용 미리보기'}</p>
-                  </div>
-                </div>
-              </div>
-            </aside>
+              </aside>
+            )}
           </div>
         </section>
       </div>
@@ -782,703 +1343,470 @@ export function NoticesPage() {
   )
 }
 
-type RouteView = {
-  id: string
-  name: string
-  status: string
-  buses: string
-  type: string
-  days: string
-  hours: string
-  desc: string
-  stopCount: string
-  distance: string
-  duration: string
-  interval: string
-  origin: string
-  destination: string
-}
-
-const cityStops = [
-  { no: 1, name: '버스관리사무소', tag: 'start' as const, time: '17:15' },
-  { no: 2, name: '상공회의소', tag: null, time: '17:18' },
-  { no: 3, name: '진입로(럭스나인 앞)', tag: null, time: '17:21' },
-  { no: 4, name: '동부경찰서 중앙지구대', tag: null, time: '17:24' },
-  { no: 5, name: '용인 CGV', tag: null, time: '17:28' },
-  { no: 6, name: '중앙공영주차장', tag: 'end' as const, time: '17:32' },
-]
-
-const cityTimetable = [
-  { no: '1', time: '07:15', interval: '60분', buses: '3대', next: false },
-  { no: '2', time: '08:15', interval: '60분', buses: '3대', next: false },
-  { no: '3', time: '09:15', interval: '60분', buses: '2대', next: false },
-  { no: '4', time: '10:15', interval: '60분', buses: '2대', next: false },
-  { no: '5', time: '11:15', interval: '60분', buses: '2대', next: false },
-  { no: '18', time: '17:15', interval: '60분', buses: '2대', next: true },
-  { no: '19', time: '18:15', interval: '60분', buses: '2대', next: false },
-  { no: '20', time: '19:15', interval: '60분', buses: '2대', next: false },
-]
-
-const cityBuses = [
-  { no: 1, name: '1호차', plate: '70가 1234', spec: '45인승 | 현대 유니버스' },
-  { no: 2, name: '2호차', plate: '70가 5678', spec: '45인승 | 현대 유니버스' },
-  { no: 3, name: '3호차', plate: '70가 9012', spec: '45인승 | 현대 유니버스' },
-]
-
-/** ADM-04 노선·운행 관리 */
+/** ADM-04 노선·운행 관리 — Figma 430:18166 */
 export function RoutesPage() {
-  const [selected, setSelected] = useState(2)
-  const [tab, setTab] = useState<'basic' | 'stops' | 'timetable' | 'buses'>('basic')
+  const [selected, setSelected] = useState(0)
+  const [listPage, setListPage] = useState(1)
   const [dbRoutes, setDbRoutes] = useState<RouteRow[] | null>(null)
 
   useEffect(() => {
     void fetchRoutes().then((data) => {
-      if (data && data.length > 0) {
-        setDbRoutes(data)
-        setSelected(0)
-      }
+      if (data) setDbRoutes(data)
     })
   }, [])
 
-  const list: RouteView[] =
-    dbRoutes && dbRoutes.length > 0
-      ? dbRoutes.map((r) => {
-          const mock = mockRoutes.find((m) => m.name === r.route_name)
-          return {
-            id: r.id,
-            name: r.route_name,
-            status: r.is_active ? '운행 중' : '비활성',
-            buses: mock?.buses ?? '—',
-            type: r.direction ?? mock?.type ?? '—',
-            days: mock?.days ?? '월~금',
-            hours: mock?.hours ?? '—',
-            desc: r.description ?? mock?.desc ?? '',
-            stopCount: mock ? `${mock.stops}개소` : '—',
-            distance: '12.4 km',
-            duration: '28분',
-            interval: '20분',
-            origin: '버스관리사무소',
-            destination: '중앙공영주차장',
-          }
-        })
-      : mockRoutes.map((r, i) => ({
-          id: String(i),
-          name: r.name,
-          status: r.status,
-          buses: r.buses,
-          type: r.type,
-          days: r.days,
-          hours: r.hours,
-          desc: r.desc,
-          stopCount: `${r.stops}개소`,
-          distance: '12.4 km',
-          duration: '28분',
-          interval: '20분',
-          origin: i === 2 ? '버스관리사무소' : '기흥역',
-          destination: i === 2 ? '중앙공영주차장' : '명지대 정문',
-        }))
+  const list = dbRoutes?.length
+    ? dbRoutes.map((r) => ({
+        name: r.route_name,
+        status: r.is_active ? '운행 중' : '중지',
+        buses: '-',
+        type: r.direction ?? '노선',
+        days: '-',
+        hours: '-',
+        desc: r.description ?? `${r.start_location ?? ''} → ${r.end_location ?? ''}`,
+      }))
+    : routes
+
+  const routePageCount = Math.max(1, Math.ceil(list.length / ROUTES_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, routePageCount)
+  const pagedList = useMemo(() => {
+    const start = (safeListPage - 1) * ROUTES_PAGE_SIZE
+    return list.slice(start, start + ROUTES_PAGE_SIZE)
+  }, [list, safeListPage])
+
+  useEffect(() => {
+    if (listPage > routePageCount) setListPage(routePageCount)
+  }, [listPage, routePageCount])
 
   const detail = list[selected] ?? list[0]
 
   return (
-    <div className="page routes-page">
-      <div className="routes-split">
-        <section className="routes-panel">
-          <div className="routes-panel-head">
-            <h3>
-              <ListChecks size={17} />
-              노선 목록
-            </h3>
-            <Link className="btn btn-primary btn-xs" to="/routes/new">
-              <Plus size={14} />
+    <div className="page">
+      <p className="page-subtitle" style={{ marginTop: 0 }}>
+        {dbRoutes ? `Supabase routes ${dbRoutes.length}건` : 'mock 노선'}
+      </p>
+      <div className="split-11">
+        <section className="card card-pad">
+          <div className="card-head">
+            <h3>노선 목록</h3>
+            <button className="btn btn-primary" type="button" style={{ height: 30 }}>
               노선 추가
-            </Link>
+            </button>
           </div>
-          <div className="routes-table-wrap">
-            <table className="data-table dense">
-              <thead>
-                <tr>
-                  <th>노선명</th>
-                  <th>운행 상태</th>
-                  <th>배정 차량 수</th>
-                  <th>관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((row, idx) => (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>노선명</th>
+                <th>운행 상태</th>
+                <th>배정 차량 수</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedList.map((row, idx) => {
+                const absoluteIdx = (safeListPage - 1) * ROUTES_PAGE_SIZE + idx
+                return (
                   <tr
-                    key={row.id}
-                    className={idx === selected ? 'selected' : undefined}
-                    onClick={() => setSelected(idx)}
+                    key={row.name + absoluteIdx}
+                    style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
+                    onClick={() => setSelected(absoluteIdx)}
                   >
-                    <td style={{ fontWeight: 700 }}>{row.name}</td>
+                    <td>{row.name}</td>
                     <td>
-                      <StatusBadge tone={row.status.includes('운행') ? 'green' : 'gray'}>{row.status}</StatusBadge>
+                      <StatusBadge tone="green">{row.status}</StatusBadge>
                     </td>
                     <td>{row.buses}</td>
                     <td>
-                      <button
-                        className="btn btn-outline btn-xs"
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelected(idx)
-                        }}
-                      >
+                      <button className="btn btn-outline" type="button" style={{ height: 28 }}>
                         수정
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="routes-pager">
-            <button type="button">‹</button>
-            <button type="button" className="active">
-              1
-            </button>
-            <button type="button">›</button>
-          </div>
+                )
+              })}
+            </tbody>
+          </table>
+          <ListPagination
+            total={list.length}
+            page={safeListPage}
+            pageSize={ROUTES_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="노선 목록 페이지"
+          />
         </section>
 
-        <section className="routes-panel">
-          <div className="routes-panel-head">
-            <h3>
-              <RouteIcon size={17} />
-              노선 상세 - {detail?.name ?? '-'}
-            </h3>
-            <Link className="btn btn-outline btn-xs" to="/routes/detail">
-              <ExternalLink size={12} />
+        <section className="card card-pad">
+          <div className="card-head">
+            <h3>노선 상세 - {detail.name}</h3>
+            <Link className="btn btn-ghost" to="/routes/detail" style={{ height: 30 }}>
               상세 보기
             </Link>
           </div>
-
-          <div className="routes-tabs">
-            {(
-              [
-                ['basic', '기본 정보'],
-                ['stops', '정류장'],
-                ['timetable', '시간표'],
-                ['buses', '배정 차량'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={`routes-tab${tab === key ? ' active' : ''}`}
-                onClick={() => setTab(key)}
-              >
-                {label}
+          <div className="toolbar" style={{ marginBottom: 12 }}>
+            {['기본 정보', '정류장', '시간표', '배정 차량'].map((tab, i) => (
+              <button key={tab} className={`btn ${i === 0 ? 'btn-ghost' : 'btn-outline'}`} type="button" style={{ height: 30 }}>
+                {tab}
               </button>
             ))}
           </div>
-
-          {tab === 'basic' ? (
-            <>
-              <div className="routes-meta-row">
-                {[
-                  ['노선 유형', detail?.type],
-                  ['운행 상태', detail?.status],
-                  ['운행 요일', detail?.days],
-                  ['운행 시간', detail?.hours],
-                  ['배정 차량 수', detail?.buses],
-                ].map(([k, v]) => (
-                  <div key={k} className="routes-meta-item">
-                    <div className="label">{k}</div>
-                    <div className="value">
-                      {k === '운행 상태' ? <StatusBadge tone="green">{v}</StatusBadge> : v}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="routes-section">
-                <span className="label">노선 설명</span>
-                <p className="routes-desc">{detail?.desc}</p>
-              </div>
-
-              <div className="routes-section" style={{ flex: 1 }}>
-                <span className="label">노선 경로 미리보기</span>
-                <div className="routes-map">
-                  <img src={mapImg} alt="노선 경로" />
-                  <div className="routes-map-controls">
-                    <button type="button">+</button>
-                    <button type="button">−</button>
-                    <button type="button">◎</button>
-                  </div>
-                  <div className="routes-map-stops">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <span key={n}>{n}</span>
-                    ))}
-                  </div>
+          <div className="grid grid-3">
+            {[
+              ['노선 유형', detail.type],
+              ['운행 상태', detail.status],
+              ['운행 요일', detail.days],
+              ['운행 시간', detail.hours],
+              ['배정 차량 수', detail.buses],
+            ].map(([k, v]) => (
+              <div key={k} className="card card-pad" style={{ boxShadow: 'none' }}>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {k}
                 </div>
-                <div className="routes-stats">
-                  {[
-                    { label: '총 정류장 수', value: detail?.stopCount, icon: MapPin },
-                    { label: '총 운행 거리', value: detail?.distance, icon: RouteIcon },
-                    { label: '예상 소요 시간', value: detail?.duration, icon: Clock3 },
-                    { label: '운행 간격', value: detail?.interval, icon: RefreshCw },
-                  ].map((s) => {
-                    const Icon = s.icon
-                    return (
-                      <div key={s.label} className="routes-stat">
-                        <div className="label">
-                          <Icon size={12} />
-                          {s.label}
-                        </div>
-                        <div className="value">{s.value}</div>
-                      </div>
-                    )
-                  })}
+                <div style={{ fontWeight: 700 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div className="field" style={{ marginTop: 12 }}>
+            <label>노선 설명</label>
+            <p style={{ margin: 0, fontSize: 13 }}>{detail.desc}</p>
+          </div>
+          <div className="field" style={{ marginTop: 8 }}>
+            <label>노선 경로 미리보기</label>
+            <div className="map-frame" style={{ height: 120, background: '#eef5ff' }} />
+          </div>
+          <div className="grid grid-4" style={{ marginTop: 12 }}>
+            {[
+              ['총 정류장 수', '6개소'],
+              ['총 운행 거리', '12.4 km'],
+              ['예상 소요 시간', '28분'],
+              ['운행 간격', '20분'],
+            ].map(([k, v]) => (
+              <div key={k} className="card card-pad" style={{ boxShadow: 'none' }}>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {k}
                 </div>
+                <div style={{ fontWeight: 700 }}>{v}</div>
               </div>
-
-              <div className="routes-actions">
-                <button className="btn btn-outline btn-xs" type="button">
-                  취소
-                </button>
-                <button className="btn btn-primary btn-xs" type="button">
-                  저장
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="routes-empty-tab" style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
-              {tab === 'stops' ? (
-                <>
-                  <span>정류장 순서·좌표는 정류장 관리에서 등록하고, 노선 상세에서 배치합니다.</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Link className="btn btn-outline btn-xs" to="/stops">
-                      정류장 관리
-                    </Link>
-                    <Link className="btn btn-primary btn-xs" to="/routes/detail">
-                      상세 보기
-                    </Link>
-                  </div>
-                </>
-              ) : null}
-              {tab === 'timetable' ? (
-                <>
-                  <span>시간표 상세는 [상세 보기]에서 편집할 수 있습니다.</span>
-                  <Link className="btn btn-primary btn-xs" to="/routes/detail">
-                    상세 보기
-                  </Link>
-                </>
-              ) : null}
-              {tab === 'buses' ? (
-                <>
-                  <span>배정 차량은 차량·기사 관리와 연동됩니다.</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Link className="btn btn-outline btn-xs" to="/vehicles">
-                      차량 관리
-                    </Link>
-                    <Link className="btn btn-outline btn-xs" to="/drivers">
-                      기사 관리
-                    </Link>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          )}
+            ))}
+          </div>
+          <div className="toolbar" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+            <button className="btn btn-outline" type="button">
+              취소
+            </button>
+            <button className="btn btn-primary" type="button">
+              저장
+            </button>
+          </div>
         </section>
       </div>
     </div>
   )
 }
 
-/** ADM-04-01 노선 상세 */
+/** ADM-04-01 노선 상세 — Figma 430:18374 */
 export function RouteDetailPage() {
-  const [tab, setTab] = useState<'basic' | 'stops' | 'timetable' | 'buses'>('basic')
-
-  const showStops = tab === 'basic' || tab === 'stops'
-  const showTimetable = tab === 'basic' || tab === 'timetable'
-  const showBuses = tab === 'basic' || tab === 'buses'
+  const [tab, setTab] = useState<'basic' | 'stops' | 'timetable' | 'buses'>('stops')
+  const stopOrder = [
+    ['1', '상공회의소'],
+    ['2', '진입로(럭스나인 앞)'],
+    ['3', '동부경찰서 중앙지구대'],
+    ['4', '용인 CGV'],
+    ['5', '버스관리사무소'],
+    ['6', '중앙공영주차장'],
+  ]
 
   return (
-    <div className="page route-detail-page">
-      <p className="route-detail-crumb">
-        <Link to="/routes">노선 관리</Link> &gt; 노선 상세
-      </p>
+    <div className="page">
+      <div className="split-14">
+        <section className="card card-pad">
+          <div className="card-head">
+          <h3>
+            시내 셔틀 <StatusBadge tone="green">운행 중</StatusBadge>
+          </h3>
+          <Link className="btn btn-outline" to="/routes" style={{ height: 30 }}>
+            목록으로
+          </Link>
+        </div>
 
-      <section className="route-detail-hero">
-        <div className="route-detail-hero-ico">
-          <Bus size={24} />
-        </div>
-        <div className="route-detail-hero-main">
-          <h2>시내 셔틀</h2>
-          <StatusBadge tone="green">운행 중</StatusBadge>
-        </div>
-        <div className="route-detail-hero-meta">
-          <div>
-            <div className="label">출발지</div>
-            <div className="value">버스관리사무소</div>
-          </div>
-          <div>
-            <div className="label">도착지</div>
-            <div className="value">중앙공영주차장</div>
-          </div>
-          <div>
-            <div className="label">학생 앱 노출 여부</div>
-            <div className="route-detail-exposed">
-              <i />
-              노출 중
-            </div>
-          </div>
-        </div>
-        <button type="button" className="route-detail-more" aria-label="더보기">
-          <MoreHorizontal size={16} />
-        </button>
-      </section>
-
-      <div className="routes-tabs" style={{ background: '#fff', borderRadius: 10, padding: '0 12px', border: '1px solid #eef1f6' }}>
-        {(
-          [
+        <div className="toolbar" style={{ marginBottom: 14 }}>
+          {[
             ['basic', '기본 정보'],
             ['stops', '정류장'],
             ['timetable', '시간표'],
             ['buses', '배정 차량'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className={`routes-tab${tab === key ? ' active' : ''}`}
-            onClick={() => setTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="route-detail-body">
-        <div className="route-detail-left">
-          {(showStops || showTimetable) && (
-            <div className="route-detail-grid-2">
-              {showStops ? (
-                <section className="rd-card">
-                  <div className="rd-card-head">
-                    <h3>정류장 순서</h3>
-                  </div>
-                  <ul className="rd-stop-list">
-                    {cityStops.map((s) => (
-                      <li key={s.no} className="rd-stop-item">
-                        <span className="rd-stop-no">{s.no}</span>
-                        <span>{s.name}</span>
-                        {s.tag === 'start' ? <span className="rd-stop-tag start">출발지</span> : null}
-                        {s.tag === 'end' ? <span className="rd-stop-tag end">도착지</span> : null}
-                        {!s.tag ? <span /> : null}
-                        <GripVertical size={14} className="rd-grip" />
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" className="rd-add-btn">
-                    <Plus size={14} />
-                    정류장 추가
-                  </button>
-                </section>
-              ) : null}
-
-              {showTimetable ? (
-                <section className="rd-card">
-                  <div className="rd-card-head">
-                    <h3>
-                      시간표 <span className="chip">편도</span>
-                    </h3>
-                    <button className="btn btn-outline btn-xs" type="button">
-                      시간표 편집
-                    </button>
-                  </div>
-                  <div className="rd-table-wrap">
-                    <table className="data-table dense">
-                      <thead>
-                        <tr>
-                          <th>순번</th>
-                          <th>출발시간</th>
-                          <th>간격</th>
-                          <th>운행 대수</th>
-                          <th>비고</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cityTimetable.map((row) => (
-                          <tr key={row.no} className={row.next ? 'next' : undefined}>
-                            <td>{row.no}</td>
-                            <td>
-                              {row.time}
-                              {row.next ? <span className="rd-next-tag">다음 출발</span> : null}
-                            </td>
-                            <td>{row.interval}</td>
-                            <td>{row.buses}</td>
-                            <td>{row.next ? '다음 출발' : '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="rd-note">※ 교통 상황에 따라 ±5분 정도 오차가 발생할 수 있습니다.</p>
-                </section>
-              ) : null}
-            </div>
-          )}
-
-          {showBuses ? (
-            <section className="rd-card">
-              <div className="rd-card-head">
-                <h3>배정 차량</h3>
-                <button className="btn btn-outline btn-xs" type="button">
-                  차량 변경
-                </button>
-              </div>
-              <div className="rd-bus-list">
-                {cityBuses.map((b) => (
-                  <div key={b.no} className="rd-bus-card">
-                    <span className="rd-bus-no">{b.no}</span>
-                    <div>
-                      <strong>
-                        {b.name}
-                        <StatusBadge tone="green">운행 중</StatusBadge>
-                      </strong>
-                      <p>
-                        {b.plate} · {b.spec}
-                      </p>
-                    </div>
-                    <div className="rd-bus-thumb">
-                      <Bus size={22} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="rd-add-btn">
-                <Plus size={14} />
-                차량 추가
-              </button>
-            </section>
-          ) : null}
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              className={`btn ${tab === key ? 'btn-ghost' : 'btn-outline'}`}
+              type="button"
+              style={{ height: 30 }}
+              onClick={() => setTab(key as typeof tab)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        <aside className="rd-card rd-preview">
-          <div className="rd-preview-cap">
-            <h3>학생 앱 미리보기</h3>
-            <a href="#preview">
-              전체 화면 보기
-              <ExternalLink size={11} />
-            </a>
-          </div>
-          <div className="rd-phone">
-            <div className="rd-phone-notch" />
-            <div className="rd-phone-screen">
-              <div className="rd-phone-head">
-                <strong>시내 셔틀</strong>
-                <StatusBadge tone="green">운행 중</StatusBadge>
+        {tab === 'basic' ? (
+          <div className="grid grid-3">
+            {[
+              ['출발지', '버스관리사무소'],
+              ['도착지', '중앙공영주차장'],
+              ['학생 앱 노출 여부', '노출 중'],
+            ].map(([k, v]) => (
+              <div key={k} className="card card-pad" style={{ boxShadow: 'none' }}>
+                <div className="muted">{k}</div>
+                <div style={{ fontWeight: 700 }}>{v}</div>
               </div>
-              <p className="rd-phone-summary">현재 3대 운행 중 · 다음 출발 17:15</p>
-              <ul className="rd-timeline">
-                {cityStops.map((s, idx) => (
-                  <li key={s.no}>
-                    <span className={`dot${idx === 1 ? ' bus' : ''}`} />
-                    <span className="name">
-                      {s.name}
-                      {s.tag === 'start' ? <span className="rd-stop-tag start">출발지</span> : null}
-                      {s.tag === 'end' ? <span className="rd-stop-tag end">도착지</span> : null}
-                    </span>
-                    <span className="time">{s.time}</span>
-                  </li>
-                ))}
-              </ul>
+            ))}
+          </div>
+        ) : null}
+
+        {tab === 'stops' ? (
+          <>
+            <div className="card-head">
+              <h3>정류장 순서</h3>
+              <button className="btn btn-primary" type="button" style={{ height: 30 }}>
+                + 정류장 추가
+              </button>
             </div>
-          </div>
-          <div className="rd-side-actions">
-            <button type="button" className="rd-phone-btn" aria-label="앱 미리보기">
-              <Smartphone size={18} />
-            </button>
-            <button className="btn btn-outline" type="button">
-              저장
-            </button>
-            <button className="btn btn-primary" type="button">
-              오늘 운행에 반영
-            </button>
-          </div>
-        </aside>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>순번</th>
+                  <th>정류장</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stopOrder.map(([no, name]) => (
+                  <tr key={no}>
+                    <td>{no}</td>
+                    <td>{name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+              학생 앱 미리보기 · 현재 3대 운행 중 · 다음 출발 17:18 / 17:21 / 17:24
+            </p>
+          </>
+        ) : null}
+
+        {tab === 'timetable' ? (
+          <>
+            <div className="card-head">
+              <h3>시간표 편집</h3>
+              <button className="btn btn-outline" type="button" style={{ height: 30 }}>
+                편도
+              </button>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>순번</th>
+                  <th>출발시간</th>
+                  <th>간격</th>
+                  <th>운행 대수</th>
+                  <th>비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['1', '07:15', '30분', '3대', ''],
+                  ['2', '08:15', '30분', '3대', ''],
+                  ['3', '09:15', '30분', '2대', ''],
+                  ['18', '17:15', '30분', '2대', '다음 출발'],
+                  ['19', '18:15', '30분', '2대', ''],
+                  ['20', '19:15', '30분', '2대', ''],
+                ].map((row) => (
+                  <tr key={row[0] + row[1]}>
+                    {row.map((cell) => (
+                      <td key={cell}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+              교통 상황에 따라 ±5분 정도 오차가 발생할 수 있습니다.
+            </p>
+          </>
+        ) : null}
+
+        {tab === 'buses' ? (
+          <>
+            <div className="card-head">
+              <h3>배정 차량</h3>
+              <div className="toolbar">
+                <button className="btn btn-outline" type="button" style={{ height: 30 }}>
+                  차량 변경
+                </button>
+                <button className="btn btn-primary" type="button" style={{ height: 30 }}>
+                  + 차량 추가
+                </button>
+              </div>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>호차</th>
+                  <th>번호판</th>
+                  <th>정원</th>
+                  <th>차종</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['1호차', '70가 1234', '45인승', '현대 유니버스'],
+                  ['2호차', '70가 5678', '45인승', '현대 유니버스'],
+                  ['3호차', '70가 9012', '45인승', '현대 유니버스'],
+                ].map((row) => (
+                  <tr key={row[0]}>
+                    {row.map((cell) => (
+                      <td key={cell}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : null}
+
+        <div className="toolbar" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" type="button">
+            오늘 운행에 반영
+          </button>
+          <button className="btn btn-primary" type="button">
+            저장
+          </button>
+        </div>
+        </section>
+        <div className="stack" />
       </div>
     </div>
   )
 }
 
-const maintTypeSegments = [
-  { label: '정기 점검', count: 6, pct: 50, color: '#266ef4' },
-  { label: '수리', count: 3, pct: 25, color: '#3fb46a' },
-  { label: '소모품 교체', count: 2, pct: 16.7, color: '#fdac38' },
-  { label: '기타', count: 1, pct: 8.3, color: '#7964f2' },
-]
-
-const costTrend = [
-  { month: '02', value: 2100 },
-  { month: '03', value: 3300 },
-  { month: '04', value: 4600 },
-  { month: '05', value: 3900 },
-  { month: '06', value: 5200 },
-  { month: '07', value: 4850 },
-]
-
-const scheduledMaint = [
-  { date: '07.24', plate: '73버 1122', item: '브레이크 패드 점검', due: '2일 후' },
-  { date: '07.24', plate: '74버 7788', item: '엔진오일 교환', due: '2일 후' },
-  { date: '07.25', plate: '72버 5678', item: '타이어 위치 교환', due: '3일 후' },
-  { date: '07.26', plate: '75버 9900', item: '에어컨 필터 교체', due: '4일 후' },
-]
-
-const maintAlerts = [
-  { tone: 'orange' as const, text: '72버 1234 차량의 정기점검이 예정되어 있습니다.', time: '20분 전' },
-  { tone: 'red' as const, text: '75버 9900 차량의 타이어 교체가 필요합니다.', time: '1시간 전' },
-  { tone: 'orange' as const, text: '73버 1122 차량의 브레이크 패드 점검이 다가옵니다.', time: '2시간 전' },
-  { tone: 'green' as const, text: '74버 7788 차량의 엔진오일 교환이 완료되었습니다.', time: '어제' },
-]
-
-function donutBackground(segments: { pct: number; color: string }[]) {
-  let start = 0
-  const parts = segments.map((s) => {
-    const end = start + s.pct
-    const part = `${s.color} ${start}% ${end}%`
-    start = end
-    return part
-  })
-  return { background: `conic-gradient(${parts.join(', ')})` }
-}
-
-function CostTrendChart() {
-  const w = 360
-  const h = 168
-  const pad = { t: 28, r: 20, b: 28, l: 20 }
-  const plotH = h - pad.t - pad.b
-  const plotW = w - pad.l - pad.r
-  const max = 6000
-  const min = 0
-  const xs = costTrend.map((_, i) => pad.l + (i * plotW) / (costTrend.length - 1))
-  const ys = costTrend.map((d) => pad.t + ((max - d.value) / (max - min)) * plotH)
-
-  let line = `M ${xs[0]} ${ys[0]}`
-  for (let i = 0; i < xs.length - 1; i += 1) {
-    const cx = (xs[i] + xs[i + 1]) / 2
-    line += ` C ${cx} ${ys[i]}, ${cx} ${ys[i + 1]}, ${xs[i + 1]} ${ys[i + 1]}`
-  }
-  const area = `${line} L ${xs[xs.length - 1]} ${h - pad.b} L ${xs[0]} ${h - pad.b} Z`
-  const gridYs = [0.25, 0.5, 0.75].map((t) => pad.t + plotH * t)
-
+export function StopsPage() {
   return (
-    <svg className="vehicles-area" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet" aria-hidden>
-      <defs>
-        <linearGradient id="vehCostGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#266ef4" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#266ef4" stopOpacity="0.03" />
-        </linearGradient>
-      </defs>
-      {gridYs.map((y) => (
-        <line key={y} x1={pad.l} y1={y} x2={w - pad.r} y2={y} stroke="#eef1f6" strokeWidth="1" />
-      ))}
-      <path d={area} fill="url(#vehCostGrad)" />
-      <path d={line} fill="none" stroke="#266ef4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      {xs.map((x, i) => (
-        <g key={costTrend[i].month}>
-          <circle cx={x} cy={ys[i]} r="4" fill="#fff" stroke="#266ef4" strokeWidth="2" />
-          <text x={x} y={ys[i] - 10} textAnchor="middle" fontSize="10" fontWeight="700" fill="#54627c">
-            {costTrend[i].value.toLocaleString()}
-          </text>
-          <text x={x} y={h - 8} textAnchor="middle" fontSize="10" fontWeight="700" fill="#8b92a4">
-            2026-{costTrend[i].month}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div className="page">
+      <section className="card card-pad">
+        <div className="card-head">
+          <h3>정류장 관리</h3>
+          <button className="btn btn-primary" type="button">
+            + 정류장 등록
+          </button>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>정류장명</th>
+              <th>이용 노선</th>
+              <th>좌표</th>
+              <th>안내</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['기흥역 5번 출구', '기흥역 통학버스', '37.2754, 127.1159', '5번 출구 앞 정류장'],
+              ['채플관 앞', '기흥역 통학버스', '37.2240, 127.1872', '채플관 정문 버스정류장'],
+              ['명지대역', '명지대역 셔틀', '37.2381, 127.1905', '명지대역 2번 출구'],
+            ].map((row) => (
+              <tr key={row[0]}>
+                <td>{row[0]}</td>
+                <td>{row[1]}</td>
+                <td>{row[2]}</td>
+                <td>{row[3]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
   )
 }
 
-/** ADM-07 차량·정비 관리 */
+/** ADM-07 차량·정비 관리 — Figma 430:19461 */
 export function VehiclesPage() {
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('전체 상태')
+  const [maintQuery, setMaintQuery] = useState('')
+  const [maintStatus, setMaintStatus] = useState('전체 상태')
 
-  const list = useMemo(() => {
+  const filteredMaintenances = useMemo(() => {
+    const q = maintQuery.trim().toLowerCase()
     return maintenances.filter((row) => {
-      if (statusFilter !== '전체 상태' && row.status !== statusFilter) return false
-      if (!query.trim()) return true
-      const q = query.trim().toLowerCase()
-      return row.plate.toLowerCase().includes(q) || row.item.toLowerCase().includes(q) || row.mechanic.toLowerCase().includes(q)
+      if (maintStatus !== '전체 상태' && row.status !== maintStatus) return false
+      if (q) {
+        const hay = `${row.plate} ${row.item} ${row.type} ${row.mechanic}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
     })
-  }, [query, statusFilter])
+  }, [maintQuery, maintStatus])
+
+  const kpis = [
+    { label: '전체 차량', value: '28', unit: '대', meta: '정상 20 · 정비중 4 · 점검 필요 4', tone: 'blue' },
+    { label: '예정 정비', value: '6', unit: '건', meta: '이번 주 2 · 이번 달 6', tone: 'orange' },
+    { label: '정비 완료', value: '12', unit: '건', meta: '지난달 대비 20%', tone: 'green' },
+    { label: '정비 비용', value: '4,850', unit: '만원', meta: '(이번달) · 지난달 대비 15%', tone: 'purple' },
+    { label: '가동률', value: '92.6', unit: '%', meta: '목표 90%', tone: 'blue' },
+  ] as const
 
   return (
-    <div className="page vehicles-page">
-      <div className="vehicles-toolbar">
-        <select className="input" defaultValue="전체 차량">
+    <div className="page">
+      <div className="toolbar vehicle-filter-toolbar" style={{ justifyContent: 'flex-end' }}>
+        <select className="select vehicle-filter-control" style={{ width: 120, height: 32 }}>
           <option>전체 차량</option>
-          {mockVehicles.map((v) => (
-            <option key={v.plate}>{v.plate}</option>
-          ))}
         </select>
-        <div className="vehicles-date">
-          <CalendarDays size={14} />
-          2026.07.01 ~ 2026.07.31
-        </div>
-        <Link className="btn btn-primary btn-xs" to="/vehicles/maintenance/new">
-          <Plus size={14} />
+        <input
+          className="input vehicle-filter-control"
+          style={{ width: 220, height: 32 }}
+          defaultValue="2026.07.01 ~ 2026.07.31"
+        />
+        <button className="btn btn-primary btn-xs" type="button" style={{ height: 32 }}>
           정비 등록
-        </Link>
+        </button>
       </div>
 
-      <div className="vehicles-kpis">
-        {[
-          { label: '전체 차량', value: '28', unit: '대', hint: '정상 20 | 정비중 4 | 점검 필요 4', tone: 'blue', icon: Wrench, hintTone: '' },
-          { label: '예정 정비', value: '6', unit: '건', hint: '이번 주 2 | 이번 달 6', tone: 'green', icon: CalendarDays, hintTone: '' },
-          { label: '정비 완료 (이달)', value: '12', unit: '건', hint: '지난달 대비 ▲ 20%', tone: 'orange', icon: Clock3, hintTone: 'up' },
-          { label: '정비 비용 (이달)', value: '4,850', unit: '만원', hint: '지난달 대비 ▼ 15%', tone: 'red', icon: CircleDollarSign, hintTone: 'down' },
-          { label: '가동률', value: '92.6', unit: '%', hint: '목표 90%', tone: 'purple', icon: Gauge, hintTone: '' },
-        ].map((kpi) => {
-          const Icon = kpi.icon
-          return (
-            <div key={kpi.label} className="vehicles-kpi">
-              <div className={`vehicles-kpi-icon ${kpi.tone}`}>
-                <Icon size={18} />
+      <div className="figma-kpis-5">
+        {kpis.map((k) => (
+          <div key={k.label} className="figma-kpi">
+            <div>
+              <div className="label">{k.label}</div>
+              <div className="value">
+                {k.value}
+                <em>{k.unit}</em>
               </div>
-              <div>
-                <div className="label">{kpi.label}</div>
-                <div className="value">
-                  {kpi.value}
-                  <em>{kpi.unit}</em>
-                </div>
-                <div className={`hint ${kpi.hintTone}`}>{kpi.hint}</div>
+              <div className="meta">{k.meta}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="figma-split-vehicle">
+        <div className="stack">
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>정비 이력</h3>
+              <div className="toolbar vehicle-filter-toolbar">
+                <input
+                  className="input vehicle-filter-control"
+                  style={{ width: 220, height: 32 }}
+                  placeholder="차량 번호 / 정비 항목 검색"
+                  value={maintQuery}
+                  onChange={(e) => setMaintQuery(e.target.value)}
+                />
+                <select
+                  className="select vehicle-filter-control"
+                  style={{ width: 110, height: 32 }}
+                  value={maintStatus}
+                  onChange={(e) => setMaintStatus(e.target.value)}
+                >
+                  <option>전체 상태</option>
+                  <option>완료</option>
+                  <option>예정</option>
+                  <option>점검중</option>
+                </select>
               </div>
             </div>
-          )
-        })}
-      </div>
-
-      <div className="vehicles-mid">
-        <section className="vehicles-panel">
-          <div className="vehicles-panel-head">
-            <h3>
-              <ListChecks size={17} />
-              정비 이력
-            </h3>
-          </div>
-          <div className="vehicles-filters">
-            <label className="vehicles-search">
-              <Search size={14} />
-              <input
-                className="input"
-                placeholder="차량 번호 / 정비 항목 검색"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option>전체 상태</option>
-              <option>완료</option>
-              <option>점검중</option>
-              <option>예정</option>
-            </select>
-          </div>
-          <div className="vehicles-table-wrap">
             <table className="data-table dense">
               <thead>
                 <tr>
@@ -1492,433 +1820,466 @@ export function VehiclesPage() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((row) => (
-                  <tr key={`${row.date}-${row.plate}-${row.item}`}>
-                    <td>{row.date}</td>
-                    <td style={{ fontWeight: 700 }}>{row.plate}</td>
-                    <td>{row.item}</td>
-                    <td>{row.type}</td>
-                    <td>{row.mechanic}</td>
-                    <td>{row.cost}</td>
+                {filteredMaintenances.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                      검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMaintenances.map((row) => (
+                    <tr key={row.date + row.plate + row.item}>
+                      <td>{row.date}</td>
+                      <td>{row.plate}</td>
+                      <td>{row.item}</td>
+                      <td>{row.type}</td>
+                      <td>{row.mechanic}</td>
+                      <td>{row.cost}</td>
+                      <td>
+                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>예정 정비</h3>
+            </div>
+            <table className="data-table dense">
+              <thead>
+                <tr>
+                  <th>일자</th>
+                  <th>차량</th>
+                  <th>항목</th>
+                  <th>잔여</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['07.24', '73버 1122', '브레이크 패드 점검', '2일 후'],
+                  ['07.24', '74버 7788', '엔진오일 교환', '2일 후'],
+                  ['07.24', '72버 5678', '타이어 위치 교환', '3일 후'],
+                ].map((row) => (
+                  <tr key={row.join('-')}>
+                    <td>{row[0]}</td>
+                    <td>{row[1]}</td>
+                    <td>{row[2]}</td>
+                    <td>{row[3]}</td>
                     <td>
-                      <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      <button className="btn btn-outline btn-xs" type="button">
+                        상세
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="vehicles-pager">
-            <button type="button">‹</button>
-            {[1, 2, 3, 4].map((n) => (
-              <button key={n} type="button" className={n === 1 ? 'active' : undefined}>
-                {n}
-              </button>
-            ))}
-            <button type="button">›</button>
-          </div>
-        </section>
-
-        <div className="vehicles-charts">
-          <section className="vehicles-panel">
-            <div className="vehicles-panel-head">
-              <h3>
-                <PieChart size={17} />
-                정비 유형별 통계 (이달)
-              </h3>
-            </div>
-            <div className="vehicles-donut-row">
-              <div className="vehicles-donut" style={donutBackground(maintTypeSegments)}>
-                <div className="vehicles-donut-hole">
-                  <strong>12건</strong>
-                  <span>총</span>
-                </div>
-              </div>
-              <ul className="vehicles-donut-legend">
-                {maintTypeSegments.map((s) => (
-                  <li key={s.label}>
-                    <span className="dot" style={{ background: s.color }} />
-                    <span className="name">{s.label}</span>
-                    <strong>
-                      {s.count} ({s.pct}%)
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section className="vehicles-panel">
-            <div className="vehicles-panel-head">
-              <h3>
-                <CircleDollarSign size={17} />
-                월별 정비 비용 추이 (만원)
-              </h3>
-            </div>
-            <CostTrendChart />
           </section>
         </div>
-      </div>
 
-      <div className="vehicles-bottom">
-        <section className="vehicles-panel">
-          <div className="vehicles-panel-head">
-            <h3>
-              <CalendarDays size={17} />
-              예정 정비
-            </h3>
-            <Link to="/vehicles/maintenance/detail" className="vehicles-more">
-              더보기 →
-            </Link>
-          </div>
-          <ul className="vehicles-sched-list">
-            {scheduledMaint.map((row) => (
-              <li key={`${row.date}-${row.plate}`}>
-                <span className="vehicles-sched-date">{row.date}</span>
-                <div>
-                  <strong>{row.plate}</strong>
-                  <p>
-                    {row.item} · <span className="due">{row.due}</span>
-                  </p>
-                </div>
-                <Link className="btn btn-outline btn-xs" to="/vehicles/maintenance/detail">
-                  상세
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="vehicles-panel">
-          <div className="vehicles-panel-head">
-            <h3>
-              <TriangleAlert size={17} />
-              정비 알림
-            </h3>
-            <Link to="/notifications" className="vehicles-more">
-              더보기 →
-            </Link>
-          </div>
-          <ul className="vehicles-alerts">
-            {maintAlerts.map((a) => (
-              <li key={a.text}>
-                <span className={`bullet ${a.tone}`} />
-                <div>
-                  {a.text}
-                  <time>{a.time}</time>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="vehicles-panel">
-          <div className="vehicles-panel-head">
-            <h3>
-              <Gauge size={17} />
-              정비 통계 요약
-            </h3>
-          </div>
-          <div className="vehicles-summary-grid">
-            {[
-              { label: '완료율', value: '75%', meta: '12/16', tone: '' },
-              { label: '평균 정비 주기', value: '45일', meta: '▼ 5일', tone: 'down' },
-              { label: '평균 정비 비용', value: '405천원', meta: '▼ 12%', tone: 'down' },
-              { label: '가동률', value: '92.6%', meta: '▲ 2.6%', tone: 'up' },
-            ].map((s) => (
-              <div key={s.label} className="vehicles-summary-card">
-                <div className="label">{s.label}</div>
-                <div className="value">{s.value}</div>
-                <div className={`meta ${s.tone}`}>{s.meta}</div>
+        <div className="stack">
+          <section className="figma-panel">
+            <h3>정비 유형별 통계 (이번 달)</h3>
+            <div className="donut-sm">
+              <div className="donut-sm-hole">
+                총
+                <br />
+                12건
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
+            <div className="stat-list">
+              <div className="stat-list-row">
+                <span>정기 점검</span>
+                <strong>6 (50%)</strong>
+              </div>
+              <div className="stat-list-row">
+                <span>수리</span>
+                <strong>3 (25%)</strong>
+              </div>
+              <div className="stat-list-row">
+                <span>소모품 교체</span>
+                <strong>2 (16.7%)</strong>
+              </div>
+              <div className="stat-list-row">
+                <span>기타</span>
+                <strong>1 (8.3%)</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="figma-panel">
+            <h3>월별 정비 비용 추이 (만원)</h3>
+            <div className="bar-chart" aria-hidden>
+              {[
+                ['02', 35],
+                ['03', 55],
+                ['04', 76],
+                ['05', 64],
+                ['06', 85],
+                ['07', 80],
+              ].map(([m, h]) => (
+                <div key={m} className="bar-col">
+                  <div className="bar" style={{ height: `${h}%` }} />
+                  <span>2026-{m}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="figma-panel">
+            <h3>알림</h3>
+            <div className="alert-stack">
+              <div className="alert alert-warning">72버 1234 차량의 정기점검이 예정되어 있습니다. · 20분 전</div>
+              <div className="alert alert-danger">75버 9900 차량의 타이어 교체가 필요합니다. · 1시간 전</div>
+              <div className="alert alert-success">73버 1122 차량의 브레이크 패드 교체가 완료되었습니다. · 2시간 전</div>
+            </div>
+          </section>
+
+          <section className="figma-panel">
+            <h3>정비 통계 요약</h3>
+            <div className="grid grid-2">
+              {[
+                ['완료율', '75%', '%', '(12/16)'],
+                ['평균 정비 주기', '45', '일', ''],
+                ['평균 정비 비용', '405', '천원', ''],
+                ['가동률 (목표)', '92.6', '%', ''],
+              ].map(([k, v, u, s]) => (
+                <div key={k}>
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {k}
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>
+                    {v}
+                    <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>{u}</span>
+                  </div>
+                  {s ? (
+                    <div className="muted" style={{ fontSize: 10 }}>
+                      {s}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   )
 }
 
-/** ADM-08 사용자 관리 — Figma 430:19862 + public.users */
-const rolePermMatrix = [
-  { menu: '대시보드', admin: true, operator: true, user: true },
-  { menu: '운행 관리', admin: true, operator: true, user: false },
-  { menu: '차량 관리', admin: true, operator: true, user: false },
-  { menu: '사용자 관리', admin: true, operator: false, user: false },
-  { menu: '시스템 관리', admin: true, operator: false, user: false },
-]
-
-const recentLogins = [
-  { name: '김관리', id: 'admin', time: '2026.07.20 09:32', ip: '203.241.xx.12' },
-  { name: '김운영', id: 'operator1', time: '2026.07.20 08:15', ip: '203.241.xx.44' },
-  { name: '박사용', id: 'user01', time: '2026.07.20 07:50', ip: '121.130.xx.8' },
-  { name: '이운영', id: 'operator2', time: '2026.07.19 17:45', ip: '203.241.xx.51' },
-  { name: '최사용', id: 'user02', time: '2026.07.18 14:20', ip: '175.223.xx.3' },
-]
-
-function roleTone(role: string): 'red' | 'orange' | 'purple' | 'gray' {
-  if (role === '관리자') return 'red'
-  if (role === '운영자') return 'orange'
-  if (role.includes('일반')) return 'purple'
-  return 'gray'
+export function DriversPage() {
+  return (
+    <div className="page">
+      <section className="card card-pad">
+        <div className="card-head">
+          <h3>기사 계정 관리</h3>
+          <button className="btn btn-primary" type="button">
+            + 기사 계정 생성
+          </button>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>이메일</th>
+              <th>상태</th>
+              <th>최근 운행</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>김민수</td>
+              <td>driver01@onda.local</td>
+              <td>
+                <StatusBadge tone="blue">운행 가능</StatusBadge>
+              </td>
+              <td>2026.08.06 09:05</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  )
 }
 
-/** ADM-08 사용자 관리 */
+/** ADM-08 사용자 관리 — Figma 430:19862 */
 export function UsersPage() {
-  const [selected, setSelected] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [listPage, setListPage] = useState(1)
+  const [listQuery, setListQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('전체 역할')
-  const [query, setQuery] = useState('')
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([])
+  const [dbUsers, setDbUsers] = useState<UserRow[] | null>(null)
 
-  const list = useMemo(() => {
-    return mockUsers.filter((u) => {
-      if (roleFilter !== '전체 역할' && u.role !== roleFilter) return false
-      if (!query.trim()) return true
-      const q = query.trim().toLowerCase()
-      return u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+  useEffect(() => {
+    void fetchUsers().then((data) => {
+      if (data) setDbUsers(data)
     })
-  }, [roleFilter, query])
+  }, [])
+
+  const list = dbUsers?.length
+    ? dbUsers.map((u) => ({
+        id: u.email ?? u.id.slice(0, 8),
+        name: u.name,
+        email: u.email ?? '-',
+        role: u.role === 'ADMIN' ? '관리자' : u.role === 'DRIVER' ? '기사' : '일반 사용자',
+        lastLogin: u.updated_at ? new Date(u.updated_at).toLocaleString('ko-KR') : '-',
+        status: '활성',
+      }))
+    : users
+
+  const filteredList = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
+    return list.filter((row) => {
+      if (roleFilter !== '전체 역할') {
+        if (roleFilter === '관리자' && !row.role.includes('관리')) return false
+        if (roleFilter === '운영자' && !row.role.includes('운영') && !row.role.includes('기사')) return false
+        if (roleFilter === '일반' && !row.role.includes('일반')) return false
+      }
+      if (q) {
+        const hay = `${row.id} ${row.name} ${row.email}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [list, listQuery, roleFilter])
+
+  const userPageCount = Math.max(1, Math.ceil(filteredList.length / USERS_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, userPageCount)
+  const pagedList = useMemo(() => {
+    const start = (safeListPage - 1) * USERS_PAGE_SIZE
+    return filteredList.slice(start, start + USERS_PAGE_SIZE)
+  }, [filteredList, safeListPage])
+
+  useEffect(() => {
+    if (listPage > userPageCount) setListPage(userPageCount)
+  }, [listPage, userPageCount])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [listQuery, roleFilter])
+
+  const user = filteredList.find((u) => u.id === selectedId) ?? filteredList[0] ?? list[0]
+
+  useEffect(() => {
+    if (selectedId && !filteredList.some((u) => u.id === selectedId)) {
+      setSelectedId(filteredList[0]?.id ?? null)
+    }
+  }, [filteredList, selectedId])
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const rows = await fetchLoginHistory()
+      if (alive) setLoginHistory(rows)
+    }
+    void load()
+    const timer = window.setInterval(load, 5_000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const lastLoginByUser = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of loginHistory) {
+      if (!map.has(row.userId)) map.set(row.userId, toLastLoginDisplay(row.time))
+    }
+    return map
+  }, [loginHistory])
 
   return (
-    <div className="page users-page">
-      <div className="users-kpis">
+    <div className="page">
+      <div className="figma-kpis">
         {[
-          { label: '전체 사용자', value: '36', unit: '명', hint: '활성 32명', tone: 'blue', icon: Users },
-          { label: '관리자', value: '5', unit: '명', hint: '전체의 13.9%', tone: 'green', icon: Shield },
-          { label: '운영자', value: '12', unit: '명', hint: '전체의 33.3%', tone: 'orange', icon: UserRound },
-          { label: '일반 사용자', value: '19', unit: '명', hint: '전체의 52.8%', tone: 'purple', icon: Users },
-        ].map((kpi) => {
-          const Icon = kpi.icon
-          return (
-            <div key={kpi.label} className="users-kpi">
-              <div className={`users-kpi-icon ${kpi.tone}`}>
-                <Icon size={18} />
-              </div>
-              <div>
-                <div className="label">{kpi.label}</div>
-                <div className="value">
-                  {kpi.value}
-                  <em>{kpi.unit}</em>
-                </div>
-                <div className="hint">{kpi.hint}</div>
-              </div>
+          { label: '전체 사용자', value: `${list.length}명`, hint: dbUsers ? 'Supabase users' : 'mock', tone: 'blue' },
+          { label: '관리자', value: `${list.filter((u) => u.role.includes('관리')).length}명`, hint: 'ADMIN', tone: 'purple' },
+          { label: '기사', value: `${list.filter((u) => u.role.includes('기사')).length}명`, hint: 'DRIVER', tone: 'orange' },
+          { label: '일반 사용자', value: `${list.filter((u) => u.role.includes('일반')).length}명`, hint: 'STUDENT', tone: 'gray' },
+        ].map((k) => (
+          <div key={k.label} className="figma-kpi">
+            <div>
+              <div className="label">{k.label}</div>
+              <div className="value">{k.value}</div>
+              <div className="hint">{k.hint}</div>
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
 
-      <div className="users-main">
-        <section className="users-panel">
-          <div className="users-panel-head">
+      <div className="figma-split-notice">
+        <section className="figma-panel">
+          <div className="figma-panel-head">
             <h3>
-              <ListChecks size={17} />
-              사용자 목록 <span className="muted">(36명)</span>
+              사용자 목록{' '}
+              <span className="muted">
+                ({filteredList.length}명{dbUsers ? ' · DB' : ''}
+                {filteredList.length !== list.length ? ` / 전체 ${list.length}명` : ''})
+              </span>
             </h3>
           </div>
-
-          <div className="users-filters">
+          <div className="toolbar users-list-toolbar" style={{ marginBottom: 8 }}>
             <select
-              className="input"
+              className="select users-filter-control"
+              style={{ width: 120, height: 32 }}
               value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value)
-                setSelected(0)
-              }}
+              onChange={(e) => setRoleFilter(e.target.value)}
             >
               <option>전체 역할</option>
               <option>관리자</option>
               <option>운영자</option>
-              <option>일반 사용자</option>
+              <option>일반</option>
             </select>
-            <label className="users-search">
-              <Search size={14} />
-              <input
-                className="input"
-                placeholder="이름, 아이디, 이메일 검색"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSelected(0)
-                }}
-              />
-            </label>
-            <Link className="btn btn-primary btn-xs" to="/users/new">
-              <Plus size={14} />
+            <input
+              className="input users-filter-control"
+              style={{ flex: 1, height: 32 }}
+              placeholder="이름, 아이디, 이메일 검색"
+              value={listQuery}
+              onChange={(e) => setListQuery(e.target.value)}
+            />
+            <button className="btn btn-primary btn-xs" type="button">
               사용자 추가
-            </Link>
+            </button>
           </div>
-
-          <div className="users-table-wrap">
-            <table className="data-table dense">
-              <thead>
+          <table className="data-table dense">
+            <thead>
+              <tr>
+                <th>아이디</th>
+                <th>이름</th>
+                <th>이메일</th>
+                <th>역할</th>
+                <th>상태</th>
+                <th>마지막 로그인</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedList.length === 0 ? (
                 <tr>
-                  <th>아이디</th>
-                  <th>이름</th>
-                  <th>이메일</th>
-                  <th>역할</th>
-                  <th>상태</th>
-                  <th>마지막 로그인</th>
-                  <th>관리</th>
+                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                    검색 결과가 없습니다.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {list.map((row, idx) => (
-                  <tr
-                    key={row.id}
-                    className={idx === selected ? 'selected' : undefined}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setSelected(idx)}
-                  >
-                    <td style={{ fontWeight: 700 }}>{row.id}</td>
+              ) : (
+                pagedList.map((row) => {
+                  const isSelected = (selectedId ?? filteredList[0]?.id) === row.id
+                  return (
+                  <tr key={row.id} style={isSelected ? { background: '#f5f8ff' } : undefined}>
+                    <td>{row.id}</td>
                     <td>{row.name}</td>
                     <td>{row.email}</td>
                     <td>
-                      <StatusBadge tone={roleTone(row.role)}>{row.role}</StatusBadge>
+                      <StatusBadge tone={row.role === '관리자' ? 'blue' : row.role === '운영자' ? 'purple' : 'gray'}>
+                        {row.role}
+                      </StatusBadge>
                     </td>
                     <td>
                       <StatusBadge tone={row.status === '활성' ? 'green' : 'gray'}>{row.status}</StatusBadge>
                     </td>
-                    <td>{row.lastLogin}</td>
+                    <td>{lastLoginByUser.get(row.id) ?? row.lastLogin}</td>
                     <td>
-                      <span className="users-manage">
-                        <button
-                          className="btn btn-outline btn-xs"
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelected(idx)
-                          }}
-                        >
-                          상세
-                        </button>
-                        <button type="button" className="users-more" aria-label="더보기">
-                          <MoreHorizontal size={14} />
-                        </button>
-                      </span>
+                      <button
+                        className="btn btn-outline btn-xs"
+                        type="button"
+                        onClick={() => setSelectedId(row.id)}
+                      >
+                        상세
+                      </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="users-pager">
-            <div className="users-pages">
-              <button type="button">‹</button>
-              {[1, 2, 3, 4].map((n) => (
-                <button key={n} type="button" className={n === 1 ? 'active' : undefined}>
-                  {n}
-                </button>
-              ))}
-              <button type="button">›</button>
-            </div>
-            <select defaultValue="10개씩 보기">
-              <option>10개씩 보기</option>
-              <option>20개씩 보기</option>
-              <option>50개씩 보기</option>
-            </select>
-          </div>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+          <ListPagination
+            total={filteredList.length}
+            page={safeListPage}
+            pageSize={USERS_PAGE_SIZE}
+            onPageChange={setListPage}
+            ariaLabel="사용자 목록 페이지"
+          />
         </section>
 
-        <div className="users-side">
-          <section className="users-panel">
-            <div className="users-panel-head">
-              <h3>
-                <Shield size={17} />
-                역할 권한 설정
-              </h3>
-              <Link to="/settings#security" className="users-link">
-                권한 가이드
-              </Link>
+        <div className="stack">
+          <section className="figma-panel">
+            <h3>
+              역할 권한 설정 · {user.name} ({user.id})
+            </h3>
+            <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+              권한 가이드 · ○ 접근 가능 · × 접근 불가
             </div>
-            <table className="users-perm-table">
+            <table className="data-table dense perm-table">
               <thead>
                 <tr>
                   <th>메뉴</th>
-                  <th>관리자</th>
-                  <th>운영자</th>
-                  <th>일반</th>
+                  <th>권한</th>
                 </tr>
               </thead>
               <tbody>
-                {rolePermMatrix.map((row) => (
-                  <tr key={row.menu}>
-                    <td>{row.menu}</td>
-                    <td>
-                      <span className="users-perm-ok"><Check size={14} strokeWidth={2.5} /></span>
-                    </td>
-                    <td>
-                      {row.operator ? (
-                        <span className="users-perm-ok"><Check size={14} strokeWidth={2.5} /></span>
-                      ) : (
-                        <span className="users-perm-no"><Minus size={14} strokeWidth={2.5} /></span>
-                      )}
-                    </td>
-                    <td>
-                      {row.user ? (
-                        <span className="users-perm-ok"><Check size={14} strokeWidth={2.5} /></span>
-                      ) : (
-                        <span className="users-perm-no"><Minus size={14} strokeWidth={2.5} /></span>
-                      )}
-                    </td>
+                {[
+                  ['대시보드', '○'],
+                  ['운행 관리', '○'],
+                  ['차량 관리', user.role === '일반' ? '×' : '○'],
+                  ['시스템 설정', user.role === '관리자' ? '○' : '×'],
+                ].map(([k, v]) => (
+                  <tr key={k}>
+                    <td>{k}</td>
+                    <td>{v}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </section>
 
-          <section className="users-panel">
-            <div className="users-panel-head">
-              <h3>
-                <Clock3 size={17} />
-                최근 로그인 기록
-              </h3>
-              <Link to="/system" className="users-link">
-                전체 보기 →
-              </Link>
+          <section className="figma-panel users-security-panel">
+            <h3>보안 정책</h3>
+            <div className="field">
+              <label>비밀번호 최소 길이</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="10자 이상" />
             </div>
-            <ul className="users-login-list">
-              {recentLogins.map((log) => (
-                <li key={`${log.id}-${log.time}`}>
-                  <strong>
-                    {log.name} <span>({log.id})</span>
-                  </strong>
-                  <span>
-                    {log.time} · IP {log.ip}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="field">
+              <label>비밀번호 변경 주기</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="90일" />
+            </div>
+            <div className="field">
+              <label>세션 타임아웃</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="30분" />
+            </div>
+            <div className="field">
+              <label>연속 로그인 실패 허용 횟수</label>
+              <input className="input users-filter-control" style={{ height: 32 }} defaultValue="5회" />
+            </div>
+            <button className="btn btn-primary btn-xs" type="button" style={{ marginTop: 8 }}>
+              정책 설정
+            </button>
           </section>
 
-          <section className="users-panel">
-            <div className="users-panel-head">
-              <h3>
-                <Settings2 size={17} />
-                보안 정책
-              </h3>
-              <Link to="/settings#security" className="users-link">
-                <Settings2 size={12} />
-                정책 설정
-              </Link>
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>최근 로그인 기록</h3>
+              <button className="btn btn-ghost btn-xs" type="button">
+                전체 보기
+              </button>
             </div>
-            <ul className="users-policy-list">
-              <li>
-                <span>비밀번호 최소 길이</span>
-                <strong>10자 이상</strong>
-              </li>
-              <li>
-                <span>비밀번호 변경 주기</span>
-                <strong>90일</strong>
-              </li>
-              <li>
-                <span>로그인 실패 제한</span>
-                <strong>5회</strong>
-              </li>
-              <li>
-                <span>세션 타임아웃</span>
-                <strong>30분</strong>
-              </li>
-            </ul>
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.8 }}>
+              {loginHistory.length === 0 ? (
+                <span>로그인 기록이 없습니다. 관리자 웹(dev) 실행 후 기사 앱에서 로그인하면 여기에 반영됩니다.</span>
+              ) : (
+                loginHistory.slice(0, 8).map((row) => (
+                  <div key={`${row.userId}-${row.time}-${row.ip}`}>
+                    {row.name} ({row.userId}) · {row.time} · {row.ip}
+                    {row.source === 'driver-app' ? ' · 기사앱' : ''}
+                  </div>
+                ))
+              )}
+            </div>
           </section>
         </div>
       </div>
@@ -1926,789 +2287,950 @@ export function UsersPage() {
   )
 }
 
-const systemTypeSegments = [
-  { label: '운영 기록', count: '1,362', pct: 55.4, color: '#266ef4' },
-  { label: '사용자 활동', count: '736', pct: 29.9, color: '#3fb46a' },
-  { label: '시스템 변경', count: '248', pct: 10.1, color: '#fdac38' },
-  { label: '오류 / 경고', count: '112', pct: 4.6, color: '#eb4047' },
-]
-
-function systemDonutStyle(segments: { pct: number; color: string }[]) {
-  let start = 0
-  const parts = segments.map((s) => {
-    const end = start + s.pct
-    const part = `${s.color} ${start}% ${end}%`
-    start = end
-    return part
-  })
-  return { background: `conic-gradient(${parts.join(', ')})` }
+/** ADM-09 시스템 기록 조회 — Figma 430:20246 */
+function matchesSystemLogType(type: string, result: string, filter: string): boolean {
+  if (filter === '전체') return true
+  const t = type.toLowerCase()
+  if (filter === '운영 기록') {
+    return /운행|노선|차량|배차|정비|공지/.test(t)
+  }
+  if (filter === '사용자 활동') {
+    return /로그인|사용자|권한/.test(t)
+  }
+  if (filter === '시스템 변경') {
+    return /시스템|설정|내보내기/.test(t)
+  }
+  if (filter === '오류 / 경고') {
+    return result === '실패' || result === '경고' || /실패|오류|경고/.test(t)
+  }
+  return true
 }
 
-/** ADM-09 시스템 관리 */
-export function SystemPage() {
-  const [typeFilter, setTypeFilter] = useState('전체')
-  const [userFilter, setUserFilter] = useState('전체')
-  const [query, setQuery] = useState('')
+function parseSystemLogPeriod(period: string): { start: Date | null; end: Date | null } {
+  const m = period.trim().match(
+    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s*[~～-]\s*(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/,
+  )
+  if (!m) return { start: null, end: null }
+  const start = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0)
+  const end = new Date(Number(m[4]), Number(m[5]) - 1, Number(m[6]), 23, 59, 59)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { start: null, end: null }
+  return { start, end }
+}
 
-  const list = useMemo(() => {
-    return systemLogs.filter((row) => {
-      if (typeFilter !== '전체') {
-        const map: Record<string, string[]> = {
-          '운영 기록': ['운행 변경', '노선 수정', '차량 상태 변경', '공지사항 등록'],
-          '사용자 활동': ['사용자 로그인', '로그인 실패', '권한 변경'],
-          '시스템 변경': ['시스템 설정 변경', '데이터 내보내기'],
-          '오류 / 경고': ['오류 발생', '로그인 실패'],
-        }
-        if (!(map[typeFilter] ?? []).includes(row.type)) return false
+function systemLogTimeMs(time: string): number | null {
+  const m = time.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/)
+  if (!m) return null
+  const d = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] ?? 0),
+  )
+  const t = d.getTime()
+  return Number.isFinite(t) ? t : null
+}
+
+export function SystemPage() {
+  const [gpsLogs, setGpsLogs] = useState<GpsReceiveLog[]>([])
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [gpsUpdatedAt, setGpsUpdatedAt] = useState<string | null>(null)
+  const [gpsPage, setGpsPage] = useState(1)
+
+  const [dbSystemLogs, setDbSystemLogs] = useState<SystemLogRow[]>([])
+  const [systemLogsStatus, setSystemLogsStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [systemLogsPage, setSystemLogsPage] = useState(1)
+  const allSystemLogs: SystemLogRow[] = isSupabaseConfigured
+    ? dbSystemLogs
+    : (mockSystemLogs as SystemLogRow[])
+
+  const [draftTypeFilter, setDraftTypeFilter] = useState('전체')
+  const [draftActorFilter, setDraftActorFilter] = useState('전체')
+  const [draftPeriod, setDraftPeriod] = useState('')
+  const [draftKeyword, setDraftKeyword] = useState('')
+  const [appliedTypeFilter, setAppliedTypeFilter] = useState('전체')
+  const [appliedActorFilter, setAppliedActorFilter] = useState('전체')
+  const [appliedPeriod, setAppliedPeriod] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
+
+  const [selectedSystemLog, setSelectedSystemLog] = useState<SystemLogRow | null>(null)
+  const [selectedGpsLog, setSelectedGpsLog] = useState<GpsReceiveLog | null>(null)
+
+  const actorOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const row of allSystemLogs) {
+      const actor = (row.actor ?? '').trim()
+      if (actor) set.add(actor)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [allSystemLogs])
+
+  const systemLogsToShow = useMemo(() => {
+    const q = appliedKeyword.trim().toLowerCase()
+    const { start, end } = parseSystemLogPeriod(appliedPeriod)
+    return allSystemLogs.filter((row) => {
+      if (!matchesSystemLogType(row.type, row.result, appliedTypeFilter)) return false
+      if (appliedActorFilter !== '전체' && (row.actor ?? '') !== appliedActorFilter) return false
+      if (start && end) {
+        const t = systemLogTimeMs(row.time)
+        if (t != null && (t < start.getTime() || t > end.getTime())) return false
       }
-      if (userFilter !== '전체' && !row.actor.includes(userFilter)) return false
-      if (!query.trim()) return true
-      const q = query.trim().toLowerCase()
-      return (
-        row.action.toLowerCase().includes(q) ||
-        row.actor.toLowerCase().includes(q) ||
-        row.type.toLowerCase().includes(q) ||
-        row.target.toLowerCase().includes(q)
-      )
+      if (q) {
+        const hay = `${row.type} ${row.action} ${row.actor ?? ''} ${row.target ?? ''} ${row.result} ${row.ip ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
     })
-  }, [typeFilter, userFilter, query])
+  }, [allSystemLogs, appliedTypeFilter, appliedActorFilter, appliedPeriod, appliedKeyword])
+
+  const applySystemLogFilters = () => {
+    setAppliedTypeFilter(draftTypeFilter)
+    setAppliedActorFilter(draftActorFilter)
+    setAppliedPeriod(draftPeriod)
+    setAppliedKeyword(draftKeyword)
+    setSystemLogsPage(1)
+    setSelectedSystemLog(null)
+  }
+
+  const resetSystemLogFilters = () => {
+    setDraftTypeFilter('전체')
+    setDraftActorFilter('전체')
+    setDraftPeriod('')
+    setDraftKeyword('')
+    setAppliedTypeFilter('전체')
+    setAppliedActorFilter('전체')
+    setAppliedPeriod('')
+    setAppliedKeyword('')
+    setSystemLogsPage(1)
+    setSelectedSystemLog(null)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setGpsLogs([])
+          setGpsStatus('idle')
+        }
+        return
+      }
+      if (!cancelled) setGpsStatus((s) => (s === 'ok' ? s : 'loading'))
+      const rows = await fetchGpsReceiveLogs()
+      if (cancelled) return
+      if (rows == null) {
+        setGpsStatus('error')
+        return
+      }
+      setGpsLogs(rows)
+      setGpsStatus('ok')
+      setGpsUpdatedAt(new Date().toLocaleTimeString('ko-KR', { hour12: false }))
+      setGpsPage(1)
+      setSelectedGpsLog(null)
+    }
+    void load()
+    const timer = window.setInterval(() => {
+      void load()
+    }, 5_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setDbSystemLogs([])
+          setSystemLogsStatus('idle')
+        }
+        return
+      }
+      if (!cancelled) setSystemLogsStatus((s) => (s === 'ok' ? s : 'loading'))
+      const rows = await fetchSystemLogs()
+      if (cancelled) return
+      if (rows == null) {
+        setSystemLogsStatus('error')
+        return
+      }
+      setDbSystemLogs(rows)
+      setSystemLogsStatus('ok')
+    }
+    void load()
+    const timer = window.setInterval(() => {
+      void load()
+    }, 15_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const gpsPageClamped = Math.min(gpsPage, Math.max(1, Math.ceil(gpsLogs.length / GPS_LOGS_PAGE_SIZE)))
+  const visibleGpsLogs = gpsLogs.slice(
+    (gpsPageClamped - 1) * GPS_LOGS_PAGE_SIZE,
+    gpsPageClamped * GPS_LOGS_PAGE_SIZE,
+  )
+
+  const systemLogsPageClamped = Math.min(
+    systemLogsPage,
+    Math.max(1, Math.ceil(systemLogsToShow.length / SYSTEM_LOGS_PAGE_SIZE)),
+  )
+  const visibleSystemLogs = systemLogsToShow.slice(
+    (systemLogsPageClamped - 1) * SYSTEM_LOGS_PAGE_SIZE,
+    systemLogsPageClamped * SYSTEM_LOGS_PAGE_SIZE,
+  )
 
   return (
-    <div className="page system-page">
-      <section className="system-panel">
-        <div className="system-panel-head">
-          <h3>
-            <Search size={17} />
-            기록조회
-          </h3>
+    <div className="page">
+      <section className="card card-pad">
+        <div className="card-head">
+          <h3>기록조회</h3>
         </div>
-        <div className="system-filters">
-          <label className="system-field">
-            <span>기록 유형</span>
-            <select className="input" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <div className="toolbar system-log-filter-toolbar" style={{ flexWrap: 'wrap' }}>
+          <div className="field" style={{ minWidth: 120 }}>
+            <label>기록 유형</label>
+            <select
+              className="select system-log-filter-control"
+              value={draftTypeFilter}
+              onChange={(e) => setDraftTypeFilter(e.target.value)}
+            >
               <option>전체</option>
               <option>운영 기록</option>
               <option>사용자 활동</option>
               <option>시스템 변경</option>
               <option>오류 / 경고</option>
             </select>
-          </label>
-          <label className="system-field">
-            <span>사용자</span>
-            <select className="input" value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
-              <option>전체</option>
-              <option>김기사</option>
-              <option>이운영</option>
-              <option>박담당</option>
-              <option>시스템</option>
-            </select>
-          </label>
-          <label className="system-field">
-            <span>기간</span>
-            <div className="system-date">
-              <CalendarDays size={14} />
-              2026.07.13 ~ 2026.07.20
-            </div>
-          </label>
-          <div className="system-field" style={{ flex: 1, minWidth: 220 }}>
-            <span>키워드 검색</span>
-            <div className="system-search">
-              <Search size={14} />
-              <input
-                className="input"
-                placeholder="검색어를 입력하세요"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
           </div>
-          <div className="system-filter-actions">
-            <button
-              className="btn btn-outline"
-              type="button"
-              onClick={() => {
-                setTypeFilter('전체')
-                setUserFilter('전체')
-                setQuery('')
-              }}
+          <div className="field" style={{ minWidth: 120 }}>
+            <label>사용자</label>
+            <select
+              className="select system-log-filter-control"
+              value={draftActorFilter}
+              onChange={(e) => setDraftActorFilter(e.target.value)}
             >
-              초기화
-            </button>
-            <button className="btn btn-primary" type="button">
-              조회하기
-            </button>
+              <option>전체</option>
+              {actorOptions.map((actor) => (
+                <option key={actor} value={actor}>
+                  {actor}
+                </option>
+              ))}
+            </select>
           </div>
+          <div className="field" style={{ minWidth: 220 }}>
+            <label>기간</label>
+            <input
+              className="input system-log-filter-control"
+              value={draftPeriod}
+              onChange={(e) => setDraftPeriod(e.target.value)}
+              placeholder="YYYY.MM.DD ~ YYYY.MM.DD"
+            />
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 180 }}>
+            <label>키워드 검색</label>
+            <input
+              className="input system-log-filter-control"
+              placeholder="검색어를 입력하세요."
+              value={draftKeyword}
+              onChange={(e) => setDraftKeyword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySystemLogFilters()
+              }}
+            />
+          </div>
+          <button
+            className="btn btn-outline system-log-filter-btn"
+            type="button"
+            style={{ alignSelf: 'end' }}
+            onClick={resetSystemLogFilters}
+          >
+            초기화
+          </button>
+          <button
+            className="btn btn-primary system-log-filter-btn"
+            type="button"
+            style={{ alignSelf: 'end' }}
+            onClick={applySystemLogFilters}
+          >
+            조회하기
+          </button>
         </div>
       </section>
 
-      <section className="system-panel">
-        <div className="system-panel-head">
+      <section className="card card-pad system-log-summary">
+        <div className="card-head">
           <h3>
-            <PieChart size={17} />
-            기록 요약 <span className="muted">(2026.07.13 ~ 2026.07.20)</span>
+            기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
           </h3>
-          <button className="btn btn-outline btn-xs" type="button">
-            <Download size={12} />
+          <button className="btn btn-outline" type="button">
             엑셀 다운로드
           </button>
         </div>
-        <div className="system-kpis">
+
+        <div className="grid grid-5">
           {[
-            { label: '전체 기록 수', value: '2,458', unit: '건', hint: '일 평균 351건', tone: 'blue', icon: FileText },
-            { label: '운영 기록', value: '1,362', unit: '건', hint: '55.4%', tone: 'green', icon: Settings2 },
-            { label: '사용자 활동', value: '736', unit: '건', hint: '29.9%', tone: 'purple', icon: UserRound },
-            { label: '시스템 변경', value: '248', unit: '건', hint: '10.1%', tone: 'orange', icon: PencilLine },
-            { label: '오류 / 경고', value: '112', unit: '건', hint: '4.6%', tone: 'red', icon: TriangleAlert },
-          ].map((kpi) => {
-            const Icon = kpi.icon
-            return (
-              <div key={kpi.label} className="system-kpi">
-                <div className={`system-kpi-icon ${kpi.tone}`}>
-                  <Icon size={18} />
-                </div>
-                <div>
-                  <div className="label">{kpi.label}</div>
-                  <div className="value">
-                    {kpi.value}
-                    <em>{kpi.unit}</em>
-                  </div>
-                  <div className="hint">{kpi.hint}</div>
-                </div>
+            ['전체 기록 수', '2,458건', '일 평균 351건'],
+            ['운영 기록', '1,362건', '55.4%'],
+            ['사용자 활동', '736건', '29.9%'],
+            ['시스템 변경', '248건', '10.1%'],
+            ['오류 / 경고', '112건', '4.6%'],
+          ].map(([t, v, s]) => (
+            <div key={t} className="system-log-summary-tile">
+              <div className="muted" style={{ fontSize: 12 }}>
+                {t}
               </div>
-            )
-          })}
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
+              <div className="muted" style={{ fontSize: 11 }}>
+                {s}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      <div className="system-main">
-        <section className="system-panel">
-          <div className="system-panel-head">
-            <h3>
-              <ListChecks size={17} />
-              시스템 기록 목록
-            </h3>
-            <select className="input" style={{ height: 30, fontSize: 12, minWidth: 110 }} defaultValue="10개씩 보기">
-              <option>10개씩 보기</option>
-              <option>20개씩 보기</option>
-              <option>50개씩 보기</option>
-            </select>
+      <div className="split-14">
+        <section className="card card-pad">
+          <div className="card-head">
+            <h3>시스템 기록 목록</h3>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {systemLogsStatus === 'loading'
+                ? '불러오는 중…'
+                : systemLogsStatus === 'error'
+                  ? '조회 실패 (관리자 권한/RLS 확인)'
+                  : systemLogsStatus === 'ok'
+                    ? `${systemLogsToShow.length}건`
+                    : !isSupabaseConfigured
+                      ? 'mock'
+                      : ''}
+            </span>
           </div>
-          <div className="system-table-wrap">
-            <table className="data-table dense">
-              <thead>
+          <table className="data-table system-logs-table">
+            <thead>
+              <tr>
+                <th className="col-time">시간</th>
+                <th className="col-type">기록 유형</th>
+                <th className="col-action">상세 내용</th>
+                <th className="col-actor">사용자</th>
+                <th className="col-target">대상</th>
+                <th className="col-result">결과</th>
+              </tr>
+            </thead>
+            <tbody>
+              {systemLogsToShow.length === 0 ? (
                 <tr>
-                  <th>시간</th>
-                  <th>기록 유형</th>
-                  <th>상세 내용</th>
-                  <th>사용자</th>
-                  <th>IP 주소</th>
-                  <th>대상</th>
-                  <th>결과</th>
+                  <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                    {systemLogsStatus === 'error'
+                      ? '시스템 기록을 불러오지 못했습니다. 관리자 계정으로 로그인했는지 확인해 주세요.'
+                      : systemLogsStatus === 'loading'
+                        ? '불러오는 중…'
+                        : '저장된 시스템 기록이 없습니다.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {list.map((row) => (
-                  <tr key={`${row.time}-${row.action}`}>
-                    <td>{row.time}</td>
-                    <td
-                      className={
-                        row.type === '로그인 실패'
-                          ? 'system-type-fail'
-                          : row.type === '오류 발생'
-                            ? 'system-type-error'
-                            : undefined
-                      }
+              ) : (
+                visibleSystemLogs.map((row) => (
+                <tr
+                  key={row.id ?? row.time + row.action}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedSystemLog(row)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') setSelectedSystemLog(row)
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    outline: 'none',
+                    background: selectedSystemLog && 'id' in selectedSystemLog && 'id' in row && selectedSystemLog.id === row.id ? '#f2f6ff' : undefined,
+                  }}
+                >
+                  <td className="col-time">{row.time}</td>
+                  <td className="col-type">{row.type}</td>
+                  <td className="col-action">{row.action}</td>
+                  <td className="col-actor">{row.actor}</td>
+                  <td className="col-target">{row.target}</td>
+                  <td className="col-result">
+                    <StatusBadge
+                      tone={row.result === '성공' ? 'green' : row.result === '경고' ? 'orange' : 'red'}
                     >
-                      {row.type}
-                    </td>
-                    <td>{row.action}</td>
-                    <td>{row.actor}</td>
-                    <td>{row.ip}</td>
-                    <td>{row.target}</td>
-                    <td>
-                      <StatusBadge
-                        tone={row.result === '성공' ? 'green' : row.result === '경고' ? 'orange' : 'red'}
-                      >
-                        {row.result}
-                      </StatusBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="system-pager">
-            <button type="button">«</button>
-            <button type="button">‹</button>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} type="button" className={n === 1 ? 'active' : undefined}>
-                {n}
-              </button>
-            ))}
-            <button type="button">›</button>
-            <button type="button">»</button>
-          </div>
-          <p className="system-note">
-            <Info size={12} />
+                      {row.result}
+                    </StatusBadge>
+                  </td>
+                </tr>
+              ))
+              )}
+            </tbody>
+          </table>
+          <ListPagination
+            total={systemLogsToShow.length}
+            page={systemLogsPageClamped}
+            pageSize={SYSTEM_LOGS_PAGE_SIZE}
+            onPageChange={setSystemLogsPage}
+            ariaLabel="시스템 로그 페이지"
+          />
+          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
             시스템 시간 기준으로 기록이 저장됩니다.
           </p>
+
+          {selectedSystemLog ? (
+            <div
+              style={{
+                marginTop: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 12,
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontWeight: 800 }}>선택된 로그 상세</div>
+                <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelectedSystemLog(null)}>
+                  닫기
+                </button>
+              </div>
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+                <div>시간: {selectedSystemLog.time}</div>
+                <div>유형: {selectedSystemLog.type}</div>
+                <div>상세 내용: {selectedSystemLog.action}</div>
+                <div>사용자: {selectedSystemLog.actor ?? '-'}</div>
+                <div>대상: {selectedSystemLog.target ?? '-'}</div>
+                <div>결과: {selectedSystemLog.result}</div>
+              </div>
+            </div>
+          ) : null}
         </section>
 
-        <div className="system-side">
-          <section className="system-panel">
-            <div className="system-panel-head">
-              <h3>
-                <PieChart size={17} />
-                기록 유형 분포
-              </h3>
+        <div className="stack">
+          <section className="card card-pad">
+            <div className="card-head">
+              <h3>보관 정책</h3>
+              <button className="btn btn-outline" type="button" style={{ height: 28, fontSize: 12 }}>
+                보관 정책 관리
+              </button>
             </div>
-            <div className="system-donut-wrap">
-              <div className="system-donut" style={systemDonutStyle(systemTypeSegments)}>
-                <div className="system-donut-hole">
-                  <strong>2,458건</strong>
-                  <span>총</span>
-                </div>
-              </div>
-              <ul className="system-donut-legend">
-                {systemTypeSegments.map((s) => (
-                  <li key={s.label}>
-                    <span className="dot" style={{ background: s.color }} />
-                    <span className="name">{s.label}</span>
-                    <strong>
-                      {s.count} ({s.pct}%)
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section className="system-panel system-policy">
-            <div className="system-panel-head">
-              <h3>
-                <Settings2 size={17} />
-                보관 정책
-              </h3>
-            </div>
-            <p>시스템 기록은 1년간 보관됩니다. 보관 기간 이후 데이터는 자동 삭제됩니다.</p>
-            <Link className="btn btn-outline" to="/settings#retention">
-              보관 정책 관리
-            </Link>
+            <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+              시스템 기록은 1년간 보관됩니다. 보관 기간 이후 데이터는 자동 삭제됩니다.
+              <br />
+              operation_logs(GPS 포함)는 우선 최대 {GPS_LOGS_MAX}건만 유지합니다.
+            </p>
           </section>
         </div>
+      </div>
+
+      <div className="split-14">
+        <section className="card card-pad">
+          <div className="card-head">
+          <h3>GPS 수신 목록</h3>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {isSupabaseConfigured
+              ? gpsStatus === 'error'
+                ? 'DB 조회 실패 · RLS/테이블 확인'
+                : gpsStatus === 'loading' && gpsLogs.length === 0
+                  ? '불러오는 중…'
+                  : `LOCATION_UPDATED · ${gpsLogs.length}/${GPS_LOGS_MAX}건${gpsUpdatedAt ? ` · 갱신 ${gpsUpdatedAt}` : ''} · 5초 폴링`
+              : 'Supabase 미설정'}
+          </span>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>수신 시각</th>
+              <th>차량</th>
+                <th>위도</th>
+                <th>경도</th>
+                <th>정확도</th>
+                <th>상세</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gpsLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted">
+                    {isSupabaseConfigured
+                      ? '아직 GPS 수신 로그가 없습니다. 기사 앱에서 운행을 시작하면 LOCATION_UPDATED가 쌓입니다.'
+                      : 'Supabase를 연결하면 operation_logs GPS가 표시됩니다.'}
+                  </td>
+                </tr>
+              ) : (
+                visibleGpsLogs.map((row) => (
+                  <tr
+                    key={row.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedGpsLog(row)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') setSelectedGpsLog(row)
+                    }}
+                    style={{ cursor: 'pointer', background: selectedGpsLog?.id === row.id ? '#f2f6ff' : undefined }}
+                  >
+                    <td>{row.createdAtLabel}</td>
+                    <td>{row.vehicleName}</td>
+                    <td>{row.lat != null ? row.lat.toFixed(6) : '-'}</td>
+                    <td>{row.lng != null ? row.lng.toFixed(6) : '-'}</td>
+                    <td>{row.accuracy ?? '-'}</td>
+                    <td style={{ maxWidth: 360, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {row.message}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <ListPagination
+            total={gpsLogs.length}
+            page={gpsPageClamped}
+            pageSize={GPS_LOGS_PAGE_SIZE}
+            onPageChange={setGpsPage}
+            ariaLabel="GPS 로그 페이지"
+          />
+          <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            DB `operation_logs`의 GPS 수신만 표시합니다. {GPS_LOGS_MAX}건을 넘으면 오래된 로그부터 삭제됩니다.
+          </p>
+
+          {selectedGpsLog ? (
+            <div
+              style={{
+                marginTop: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: 12,
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontWeight: 800 }}>선택된 GPS 상세</div>
+                <button className="btn btn-outline btn-xs" type="button" onClick={() => setSelectedGpsLog(null)}>
+                  닫기
+                </button>
+              </div>
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+                <div>수신 시각: {selectedGpsLog.createdAtLabel}</div>
+                <div>차량: {selectedGpsLog.vehicleName}</div>
+                <div>운행 ID: {selectedGpsLog.operationId}</div>
+                <div>위도: {selectedGpsLog.lat != null ? selectedGpsLog.lat.toFixed(6) : '-'}</div>
+                <div>경도: {selectedGpsLog.lng != null ? selectedGpsLog.lng.toFixed(6) : '-'}</div>
+                <div>정확도: {selectedGpsLog.accuracy ?? '-'}</div>
+                <div>메시지: {selectedGpsLog.message}</div>
+                <div>이벤트 타입: {selectedGpsLog.eventType}</div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+        <div className="stack" />
       </div>
     </div>
   )
 }
 
-const settingsNav = [
-  { id: 'account', label: '계정·조직', icon: UserRound },
-  { id: 'security', label: '보안 정책', icon: Shield },
-  { id: 'notifications', label: '알림', icon: Bell },
-  { id: 'operations', label: '운행·서비스', icon: Bus },
-  { id: 'appearance', label: '화면·표시', icon: Settings2 },
-  { id: 'retention', label: '시스템·보관', icon: Database },
-  { id: 'integrations', label: '연동 상태', icon: Link2 },
-] as const
+type SettingsSection = 'account' | 'notifications' | 'operations' | 'integrations'
 
-type SettingsSectionId = (typeof settingsNav)[number]['id']
-
-const SETTINGS_STORAGE_KEY = 'onda-admin-settings-v1'
-
-type StoredSettings = {
-  pwMin: string
-  pwCycle: string
-  loginFail: string
-  sessionTimeout: string
+type AdminSettings = {
   notifyEmail: string
-  pushNotice: boolean
-  pushReport: boolean
-  pushMaint: boolean
-  pushGps: boolean
   timezone: string
-  reportExpire: string
-  gpsLossMin: string
-  defaultRoute: string
-  logRetain: string
-  autoDelete: boolean
-  density: 'comfortable' | 'compact'
-  showKpis: boolean
+  notifySafetyStop: boolean
+  notifyOperationChange: boolean
+  notifySystemAlert: boolean
+  notifyEmailDigest: boolean
+  defaultBusCapacity: number
+  liveMapRefreshSec: number
+  autoAssignDriver: boolean
+  showInactiveRoutes: boolean
 }
 
-function loadStoredSettings(): Partial<StoredSettings> {
+const SETTINGS_STORAGE_KEY = 'onda-admin-settings'
+
+const DEFAULT_SETTINGS: AdminSettings = {
+  notifyEmail: 'admin@mju.ac.kr',
+  timezone: 'Asia/Seoul',
+  notifySafetyStop: true,
+  notifyOperationChange: true,
+  notifySystemAlert: true,
+  notifyEmailDigest: false,
+  defaultBusCapacity: 45,
+  liveMapRefreshSec: 3,
+  autoAssignDriver: false,
+  showInactiveRoutes: false,
+}
+
+function loadAdminSettings(): AdminSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
-    if (!raw) return {}
-    return JSON.parse(raw) as Partial<StoredSettings>
+    if (!raw) return { ...DEFAULT_SETTINGS }
+    const parsed = JSON.parse(raw) as Partial<AdminSettings>
+    return {
+      notifyEmail: typeof parsed.notifyEmail === 'string' ? parsed.notifyEmail : DEFAULT_SETTINGS.notifyEmail,
+      timezone: typeof parsed.timezone === 'string' ? parsed.timezone : DEFAULT_SETTINGS.timezone,
+      notifySafetyStop:
+        typeof parsed.notifySafetyStop === 'boolean' ? parsed.notifySafetyStop : DEFAULT_SETTINGS.notifySafetyStop,
+      notifyOperationChange:
+        typeof parsed.notifyOperationChange === 'boolean'
+          ? parsed.notifyOperationChange
+          : DEFAULT_SETTINGS.notifyOperationChange,
+      notifySystemAlert:
+        typeof parsed.notifySystemAlert === 'boolean' ? parsed.notifySystemAlert : DEFAULT_SETTINGS.notifySystemAlert,
+      notifyEmailDigest:
+        typeof parsed.notifyEmailDigest === 'boolean' ? parsed.notifyEmailDigest : DEFAULT_SETTINGS.notifyEmailDigest,
+      defaultBusCapacity:
+        typeof parsed.defaultBusCapacity === 'number' ? parsed.defaultBusCapacity : DEFAULT_SETTINGS.defaultBusCapacity,
+      liveMapRefreshSec:
+        typeof parsed.liveMapRefreshSec === 'number' ? parsed.liveMapRefreshSec : DEFAULT_SETTINGS.liveMapRefreshSec,
+      autoAssignDriver:
+        typeof parsed.autoAssignDriver === 'boolean' ? parsed.autoAssignDriver : DEFAULT_SETTINGS.autoAssignDriver,
+      showInactiveRoutes:
+        typeof parsed.showInactiveRoutes === 'boolean'
+          ? parsed.showInactiveRoutes
+          : DEFAULT_SETTINGS.showInactiveRoutes,
+    }
   } catch {
-    return {}
+    return { ...DEFAULT_SETTINGS }
   }
 }
 
-/** 설정 — 운영 정책·알림·연동 (현업 콘솔형) */
+function SettingsToggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`settings-switch${checked ? ' is-on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="settings-switch-knob" />
+    </button>
+  )
+}
+
+function SettingsRow({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="settings-row">
+      <div className="settings-row-copy">
+        <div className="settings-row-title">{title}</div>
+        {description ? <div className="settings-row-desc">{description}</div> : null}
+      </div>
+      <div className="settings-row-control">{children}</div>
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const { user, usingSupabase } = useAuth()
-  const location = useLocation()
-  const stored = useMemo(() => loadStoredSettings(), [])
-  const [active, setActive] = useState<SettingsSectionId>('account')
-  const [savedMsg, setSavedMsg] = useState('')
+  const [section, setSection] = useState<SettingsSection>('account')
+  const [draft, setDraft] = useState<AdminSettings>(() => loadAdminSettings())
+  const [saved, setSaved] = useState<AdminSettings>(() => loadAdminSettings())
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const naverMapReady = Boolean((import.meta.env.VITE_NAVER_MAP_CLIENT_ID || '').trim())
 
-  const [pwMin, setPwMin] = useState(stored.pwMin ?? '10')
-  const [pwCycle, setPwCycle] = useState(stored.pwCycle ?? '90')
-  const [loginFail, setLoginFail] = useState(stored.loginFail ?? '5')
-  const [sessionTimeout, setSessionTimeout] = useState(stored.sessionTimeout ?? '30')
+  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved])
 
-  const [notifyEmail, setNotifyEmail] = useState(stored.notifyEmail ?? user?.email ?? 'admin@mju.ac.kr')
-  const [pushNotice, setPushNotice] = useState(stored.pushNotice ?? true)
-  const [pushReport, setPushReport] = useState(stored.pushReport ?? true)
-  const [pushMaint, setPushMaint] = useState(stored.pushMaint ?? true)
-  const [pushGps, setPushGps] = useState(stored.pushGps ?? true)
-
-  const [timezone, setTimezone] = useState(stored.timezone ?? 'Asia/Seoul')
-  const [reportExpire, setReportExpire] = useState(stored.reportExpire ?? '24')
-  const [gpsLossMin, setGpsLossMin] = useState(stored.gpsLossMin ?? '30')
-  const [defaultRoute, setDefaultRoute] = useState(stored.defaultRoute ?? '시내 셔틀')
-
-  const [logRetain, setLogRetain] = useState(stored.logRetain ?? '365')
-  const [autoDelete, setAutoDelete] = useState(stored.autoDelete ?? true)
-  const [density, setDensity] = useState<'comfortable' | 'compact'>(stored.density ?? 'comfortable')
-  const [showKpis, setShowKpis] = useState(stored.showKpis ?? true)
-
-  useEffect(() => {
-    const hash = (location.hash || '#account').replace('#', '') as SettingsSectionId
-    if (settingsNav.some((n) => n.id === hash)) {
-      setActive(hash)
-      const el = document.getElementById(`settings-${hash}`)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }, [location.hash])
-
-  const goSection = (id: SettingsSectionId) => {
-    setActive(id)
-    window.history.replaceState(null, '', `#${id}`)
-    const el = document.getElementById(`settings-${id}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const patch = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) => {
+    setDraft((prev) => ({ ...prev, [key]: value }))
+    setSaveMessage(null)
   }
 
   const onSave = () => {
-    const payload: StoredSettings = {
-      pwMin,
-      pwCycle,
-      loginFail,
-      sessionTimeout,
-      notifyEmail,
-      pushNotice,
-      pushReport,
-      pushMaint,
-      pushGps,
-      timezone,
-      reportExpire,
-      gpsLossMin,
-      defaultRoute,
-      logRetain,
-      autoDelete,
-      density,
-      showKpis,
-    }
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload))
-    document.documentElement.dataset.density = density
-    setSavedMsg('설정이 저장되었습니다.')
-    window.setTimeout(() => setSavedMsg(''), 2500)
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(draft))
+    setSaved(draft)
+    setSaveMessage('설정이 저장되었습니다.')
   }
 
-  const roleLabel = user?.role === 'ADMIN' ? '관리자' : user?.role === 'DRIVER' ? '기사' : '학생'
+  const onReset = () => {
+    setDraft(saved)
+    setSaveMessage(null)
+  }
+
+  const onRestoreDefaults = () => {
+    const next = {
+      ...DEFAULT_SETTINGS,
+      notifyEmail: user?.email || DEFAULT_SETTINGS.notifyEmail,
+    }
+    setDraft(next)
+    setSaveMessage(null)
+  }
+
+  useEffect(() => {
+    if (user?.email && draft.notifyEmail === DEFAULT_SETTINGS.notifyEmail) {
+      setDraft((prev) => ({ ...prev, notifyEmail: user.email }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email])
+
+  const sections: { id: SettingsSection; label: string; hint: string }[] = [
+    { id: 'account', label: '계정', hint: '로그인 계정 정보' },
+    { id: 'notifications', label: '알림', hint: '수신 채널·이벤트' },
+    { id: 'operations', label: '운행', hint: '관제·배차 기본값' },
+    { id: 'integrations', label: '연동', hint: '외부 서비스 상태' },
+  ]
+
+  const roleLabel =
+    user?.role === 'ADMIN' ? '관리자' : user?.role === 'DRIVER' ? '기사' : user?.role === 'STUDENT' ? '학생' : '-'
 
   return (
-    <div className="page settings-page">
-      <div className="settings-top">
+    <div className="page">
+      <div className="settings-hero">
         <div>
-          <h2 className="settings-page-title">설정</h2>
-          <p className="page-subtitle">
-            보안·알림·운행 정책과 연동 상태를 관리합니다. 변경 내용은 이 브라우저에 저장됩니다.
-          </p>
+          <h2 className="page-title">설정</h2>
+          <p className="page-subtitle">관리자 계정, 알림·운행 기본값을 관리합니다.</p>
         </div>
-        <div className="settings-actions">
-          {savedMsg ? <p className="settings-toast">{savedMsg}</p> : null}
-          <button className="btn btn-outline" type="button" onClick={() => goSection('security')}>
-            보안 바로가기
+        <div className="settings-hero-actions">
+          {saveMessage ? <span className="settings-save-toast">{saveMessage}</span> : null}
+          <button className="btn btn-outline" type="button" onClick={onRestoreDefaults}>
+            기본값
           </button>
-          <button className="btn btn-primary" type="button" onClick={onSave}>
-            변경사항 저장
+          <button className="btn btn-ghost" type="button" disabled={!dirty} onClick={onReset}>
+            취소
+          </button>
+          <button className="btn btn-primary" type="button" disabled={!dirty} onClick={onSave}>
+            변경 사항 저장
           </button>
         </div>
       </div>
 
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="설정 메뉴">
-          {settingsNav.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={active === item.id ? 'active' : undefined}
-                onClick={() => goSection(item.id)}
-              >
-                <Icon size={16} />
-                {item.label}
-              </button>
-            )
-          })}
+        <nav className="card settings-nav" aria-label="설정 메뉴">
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`settings-nav-item${section === item.id ? ' is-active' : ''}`}
+              onClick={() => setSection(item.id)}
+            >
+              <span className="settings-nav-label">{item.label}</span>
+              <span className="settings-nav-hint">{item.hint}</span>
+            </button>
+          ))}
         </nav>
 
-        <div className="settings-content">
-          <section className="settings-panel" id="settings-account">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <UserRound size={17} />
-                  계정·조직
-                </h3>
-                <p className="settings-panel-desc">현재 로그인 관리자 계정과 조직 기본 정보입니다.</p>
-              </div>
-            </div>
-            <div className="settings-profile">
-              <div className="settings-avatar">{(user?.name ?? '관').slice(0, 1)}</div>
-              <div>
-                <strong>{user?.name ?? '관리자'}</strong>
-                <span>
-                  {user?.email ?? 'admin@mju.ac.kr'} · {roleLabel}
-                </span>
-              </div>
-            </div>
-            <div className="settings-grid">
-              <div className="settings-field">
-                <label htmlFor="org-name">운영 기관</label>
-                <input id="org-name" className="input" defaultValue="명지대학교 셔틀 운영팀" />
-              </div>
-              <div className="settings-field">
-                <label htmlFor="org-contact">대표 문의 이메일</label>
-                <input id="org-contact" className="input" defaultValue="onda@mju.ac.kr" />
-              </div>
-              <div className="settings-field full">
-                <label htmlFor="org-desc">서비스 소개 (학생 앱 노출)</label>
-                <input id="org-desc" className="input" defaultValue="ON-DA 캠퍼스 셔틀 실시간 안내 서비스" />
-              </div>
-            </div>
-            <div className="settings-links">
-              <Link className="btn btn-outline btn-xs" to="/users">
-                <Users size={12} />
-                사용자 관리로 이동
-              </Link>
-              <Link className="btn btn-outline btn-xs" to="/drivers">
-                <UserRound size={12} />
-                기사 계정 관리
-              </Link>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-security">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Shield size={17} />
-                  보안 정책
-                </h3>
-                <p className="settings-panel-desc">
-                  사용자 관리 &gt; 보안 정책과 동일한 항목입니다. 변경 시 관리자 로그인·세션에 적용됩니다.
-                </p>
-              </div>
-              <Link className="btn btn-outline btn-xs" to="/users">
-                사용자 관리
-              </Link>
-            </div>
-            <div className="settings-grid">
-              <div className="settings-field">
-                <label htmlFor="pw-min">비밀번호 최소 길이</label>
-                <input id="pw-min" className="input" value={pwMin} onChange={(e) => setPwMin(e.target.value)} />
-                <span className="hint">권장 10자 이상</span>
-              </div>
-              <div className="settings-field">
-                <label htmlFor="pw-cycle">비밀번호 변경 주기 (일)</label>
-                <input id="pw-cycle" className="input" value={pwCycle} onChange={(e) => setPwCycle(e.target.value)} />
-              </div>
-              <div className="settings-field">
-                <label htmlFor="login-fail">로그인 실패 제한 (회)</label>
-                <input id="login-fail" className="input" value={loginFail} onChange={(e) => setLoginFail(e.target.value)} />
-              </div>
-              <div className="settings-field">
-                <label htmlFor="session-to">세션 타임아웃 (분)</label>
-                <input
-                  id="session-to"
-                  className="input"
-                  value={sessionTimeout}
-                  onChange={(e) => setSessionTimeout(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="settings-danger">
-              <strong>비밀번호 변경</strong>
-              <p>Supabase Auth 비밀번호는 Authentication 콘솔 또는 재설정 메일로 변경합니다.</p>
-              <button className="btn btn-outline btn-xs" type="button" disabled title="Auth 연동 후 활성화">
-                재설정 메일 보내기 (준비 중)
-              </button>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-notifications">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Bell size={17} />
-                  알림
-                </h3>
-                <p className="settings-panel-desc">
-                  공지·제보·정비·GPS 이상 알림 수신 설정입니다. 공지 관리의 푸시 발송과 연동됩니다.
-                </p>
-              </div>
-              <Link className="btn btn-outline btn-xs" to="/notices">
-                공지 관리
-              </Link>
-            </div>
-            <div className="settings-grid" style={{ marginBottom: 12 }}>
-              <div className="settings-field full">
-                <label htmlFor="notify-email">알림 수신 이메일</label>
-                <input
-                  id="notify-email"
-                  className="input"
-                  value={notifyEmail}
-                  onChange={(e) => setNotifyEmail(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="settings-grid">
-              {[
-                { key: 'notice', label: '긴급·공지 푸시', desc: '공지 등록/긴급 발송 시 관리자 알림', on: pushNotice, set: setPushNotice },
-                { key: 'report', label: '제보 접수 알림', desc: '커뮤니티 제보 등록·장시간 미처리 알림', on: pushReport, set: setPushReport },
-                { key: 'maint', label: '정비 일정 알림', desc: '예정 정비·점검 필요 차량 알림', on: pushMaint, set: setPushMaint },
-                { key: 'gps', label: 'GPS 미수신 알림', desc: '실시간 운행 장시간 미수신 경고', on: pushGps, set: setPushGps },
-              ].map((row) => (
-                <div key={row.key} className="settings-switch-row full">
-                  <div>
-                    <strong>{row.label}</strong>
-                    <p>{row.desc}</p>
-                  </div>
-                  <label className="settings-switch">
-                    <input type="checkbox" checked={row.on} onChange={(e) => row.set(e.target.checked)} />
-                    <span />
-                  </label>
-                </div>
-              ))}
-            </div>
-            <div className="settings-links">
-              <Link className="btn btn-outline btn-xs" to="/reports">
-                제보 관리
-              </Link>
-              <Link className="btn btn-outline btn-xs" to="/live">
-                실시간 운행
-              </Link>
-              <Link className="btn btn-outline btn-xs" to="/vehicles">
-                차량 관리
-              </Link>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-operations">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Bus size={17} />
-                  운행·서비스
-                </h3>
-                <p className="settings-panel-desc">
-                  제보 자동 만료, GPS 미수신 기준, 기본 노선 등 운영 기본값입니다.
-                </p>
-              </div>
-              <Link className="btn btn-outline btn-xs" to="/routes">
-                노선 관리
-              </Link>
-            </div>
-            <div className="settings-grid">
-              <div className="settings-field">
-                <label htmlFor="tz">기본 타임존</label>
-                <select id="tz" className="input" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                  <option value="Asia/Seoul">Asia/Seoul (KST)</option>
-                  <option value="UTC">UTC</option>
-                </select>
-              </div>
-              <div className="settings-field">
-                <label htmlFor="default-route">기본 노선 (미리보기)</label>
-                <select
-                  id="default-route"
-                  className="input"
-                  value={defaultRoute}
-                  onChange={(e) => setDefaultRoute(e.target.value)}
-                >
-                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="settings-field">
-                <label htmlFor="report-expire">제보 자동 만료 (시간)</label>
-                <input
-                  id="report-expire"
-                  className="input"
-                  value={reportExpire}
-                  onChange={(e) => setReportExpire(e.target.value)}
-                />
-                <span className="hint">제보 관리 화면의 24시간 만료와 연동</span>
-              </div>
-              <div className="settings-field">
-                <label htmlFor="gps-loss">GPS 장시간 미수신 기준 (분)</label>
-                <input
-                  id="gps-loss"
-                  className="input"
-                  value={gpsLossMin}
-                  onChange={(e) => setGpsLossMin(e.target.value)}
-                />
-                <span className="hint">실시간 운행 관제 경고 기준</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-appearance">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Settings2 size={17} />
-                  화면·표시
-                </h3>
-                <p className="settings-panel-desc">관리자 콘솔 밀도·대시보드 표시 옵션입니다.</p>
-              </div>
-            </div>
-            <div className="settings-grid">
-              <div className="settings-field">
-                <label htmlFor="density">UI 밀도</label>
-                <select
-                  id="density"
-                  className="select"
-                  value={density}
-                  onChange={(e) => setDensity(e.target.value as 'comfortable' | 'compact')}
-                >
-                  <option value="comfortable">기본</option>
-                  <option value="compact">좁게 (표·목록 밀도↑)</option>
-                </select>
-              </div>
-              <div className="settings-field">
-                <span className="label">대시보드 KPI</span>
-                <div className="settings-switch-row" style={{ padding: '8px 12px' }}>
-                  <div>
-                    <strong>상단 KPI 카드 표시</strong>
-                    <p>대시보드 첫 화면 요약 지표</p>
-                  </div>
-                  <label className="settings-switch">
-                    <input type="checkbox" checked={showKpis} onChange={(e) => setShowKpis(e.target.checked)} />
-                    <span />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-retention">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Database size={17} />
-                  시스템·보관
-                </h3>
-                <p className="settings-panel-desc">
-                  시스템 관리 &gt; 보관 정책과 연결됩니다. 기록 보관 기간과 자동 삭제 여부를 설정합니다.
-                </p>
-              </div>
-              <Link className="btn btn-outline btn-xs" to="/system">
-                시스템 관리
-              </Link>
-            </div>
-            <div className="settings-grid">
-              <div className="settings-field">
-                <label htmlFor="log-retain">시스템 기록 보관 기간 (일)</label>
-                <input id="log-retain" className="input" value={logRetain} onChange={(e) => setLogRetain(e.target.value)} />
-                <span className="hint">기본 365일 (1년)</span>
-              </div>
-              <div className="settings-field">
-                <span className="label">자동 삭제</span>
-                <div className="settings-switch-row" style={{ padding: '8px 12px' }}>
-                  <div>
-                    <strong>보관 기간 이후 자동 삭제</strong>
-                    <p>만료된 시스템 기록을 자동으로 정리합니다.</p>
-                  </div>
-                  <label className="settings-switch">
-                    <input type="checkbox" checked={autoDelete} onChange={(e) => setAutoDelete(e.target.checked)} />
-                    <span />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-panel" id="settings-integrations">
-            <div className="settings-panel-head">
-              <div>
-                <h3>
-                  <Link2 size={17} />
-                  연동 상태
-                </h3>
-                <p className="settings-panel-desc">Supabase·알림·지도 등 외부/백엔드 연동 상태입니다.</p>
-              </div>
-            </div>
-            <div className="settings-status">
-              <div className="settings-status-item">
+        <div className="settings-main">
+          {section === 'account' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
                 <div>
-                  <strong>Supabase Auth / DB</strong>
-                  <p>{usingSupabase ? '환경 변수가 설정되어 있습니다.' : '미설정 — 로컬 mock/데모 모드로 동작합니다.'}</p>
+                  <h3>계정</h3>
+                  <p className="settings-panel-desc">현재 로그인한 관리자 계정 정보입니다.</p>
                 </div>
-                <span className={`settings-pill ${usingSupabase ? 'ok' : 'warn'}`}>
-                  {usingSupabase ? '연결됨' : '데모 모드'}
-                </span>
+                <StatusBadge tone={usingSupabase ? 'blue' : 'gray'}>
+                  {usingSupabase ? 'Supabase Auth' : '로컬 데모'}
+                </StatusBadge>
               </div>
-              <div className="settings-status-item">
+              <div className="settings-profile">
+                <div className="settings-avatar" aria-hidden>
+                  {(user?.name || '관').slice(0, 1)}
+                </div>
                 <div>
-                  <strong>푸시 알림 채널</strong>
-                  <p>공지·긴급 알림 발송용 채널 (UI 준비 완료)</p>
+                  <div className="settings-profile-name">{user?.name || '관리자'}</div>
+                  <div className="muted">{user?.email || '-'}</div>
                 </div>
-                <span className="settings-pill warn">연동 대기</span>
               </div>
-              <div className="settings-status-item">
-                <div>
-                  <strong>네이버 지도 (Dynamic Map)</strong>
-                  <p>
-                    {isNaverMapConfigured()
-                      ? 'Client ID 설정됨 · 지도 1회 로드 + 마커 setPosition 방식'
-                      : '미설정 — map.png 폴백. MAPS.md 참고해 VITE_NAVER_MAP_CLIENT_ID 추가'}
-                  </p>
+              <div className="settings-divider" />
+              <div className="grid grid-2">
+                <div className="field">
+                  <label>이름</label>
+                  <input className="input settings-filter-control" value={user?.name || ''} readOnly />
                 </div>
-                <span className={`settings-pill ${isNaverMapConfigured() ? 'ok' : 'warn'}`}>
-                  {isNaverMapConfigured() ? '연동 준비됨' : '키 필요'}
-                </span>
+                <div className="field">
+                  <label>역할</label>
+                  <input className="input settings-filter-control" value={roleLabel} readOnly />
+                </div>
+                <div className="field">
+                  <label>이메일</label>
+                  <input className="input settings-filter-control" value={user?.email || ''} readOnly />
+                </div>
+                <div className="field">
+                  <label>사용자 ID</label>
+                  <input className="input settings-filter-control" value={user?.id || '-'} readOnly />
+                </div>
               </div>
-            </div>
-            <div className="settings-links">
-              <Link className="btn btn-outline btn-xs" to="/dashboard">
-                <Building2 size={12} />
-                대시보드
-              </Link>
-              <Link className="btn btn-outline btn-xs" to="/live">
-                <RadioTower size={12} />
-                실시간 운행
-              </Link>
-            </div>
-          </section>
+            </section>
+          ) : null}
 
-          <div className="settings-sticky-bar">
-            <span className="muted">변경 후 저장을 눌러 이 브라우저에 반영합니다.</span>
-            <div className="settings-actions">
-              <button className="btn btn-outline" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                맨 위로
-              </button>
-              <button className="btn btn-primary" type="button" onClick={onSave}>
-                변경사항 저장
-              </button>
-            </div>
-          </div>
+          {section === 'notifications' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>알림</h3>
+                  <p className="settings-panel-desc">관제·운행 이벤트 수신 방식을 선택합니다.</p>
+                </div>
+              </div>
+              <div className="field" style={{ maxWidth: 420, marginBottom: 8 }}>
+                <label>알림 수신 이메일</label>
+                <input
+                  className="input settings-filter-control"
+                  type="email"
+                  value={draft.notifyEmail}
+                  onChange={(e) => patch('notifyEmail', e.target.value)}
+                />
+              </div>
+              <div className="settings-divider" />
+              <SettingsRow
+                title="안전 정차 요청"
+                description="기사 앱에서 안전 정차가 요청되면 즉시 알림을 받습니다."
+              >
+                <SettingsToggle
+                  label="안전 정차 요청 알림"
+                  checked={draft.notifySafetyStop}
+                  onChange={(v) => patch('notifySafetyStop', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="운행·배차 변경"
+                description="운행 중단, 배차 변경, 긴급 공지 등록 시 알림을 받습니다."
+              >
+                <SettingsToggle
+                  label="운행·배차 변경 알림"
+                  checked={draft.notifyOperationChange}
+                  onChange={(v) => patch('notifyOperationChange', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="시스템 경고"
+                description="GPS 수신 지연, 연동 오류 등 시스템 경고를 받습니다."
+              >
+                <SettingsToggle
+                  label="시스템 경고 알림"
+                  checked={draft.notifySystemAlert}
+                  onChange={(v) => patch('notifySystemAlert', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="일일 이메일 요약"
+                description="하루 운행·제보·알림 요약을 이메일로 받습니다."
+              >
+                <SettingsToggle
+                  label="일일 이메일 요약"
+                  checked={draft.notifyEmailDigest}
+                  onChange={(v) => patch('notifyEmailDigest', v)}
+                />
+              </SettingsRow>
+            </section>
+          ) : null}
+
+          {section === 'operations' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>운행</h3>
+                  <p className="settings-panel-desc">실시간 관제와 배차 화면의 기본값을 설정합니다.</p>
+                </div>
+              </div>
+              <div className="grid grid-2">
+                <div className="field">
+                  <label>기본 타임존</label>
+                  <select
+                    className="select settings-filter-control"
+                    value={draft.timezone}
+                    onChange={(e) => patch('timezone', e.target.value)}
+                  >
+                    <option value="Asia/Seoul">Asia/Seoul (한국 표준시)</option>
+                    <option value="UTC">UTC</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>실시간 지도 갱신 주기 (초)</label>
+                  <select
+                    className="select settings-filter-control"
+                    value={draft.liveMapRefreshSec}
+                    onChange={(e) => patch('liveMapRefreshSec', Number(e.target.value))}
+                  >
+                    <option value={3}>3초</option>
+                    <option value={5}>5초</option>
+                    <option value={10}>10초</option>
+                  </select>
+                  <div className="field-hint">기사 GPS 업로드 주기와 맞춰 두는 것을 권장합니다.</div>
+                </div>
+                <div className="field">
+                  <label>기본 차량 정원</label>
+                  <input
+                    className="input settings-filter-control"
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={draft.defaultBusCapacity}
+                    onChange={(e) => patch('defaultBusCapacity', Number(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+              <div className="settings-divider" />
+              <SettingsRow
+                title="기사 자동 배정 제안"
+                description="배차 등록 시 가용 기사를 우선순위로 제안합니다."
+              >
+                <SettingsToggle
+                  label="기사 자동 배정 제안"
+                  checked={draft.autoAssignDriver}
+                  onChange={(v) => patch('autoAssignDriver', v)}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="비활성 노선 표시"
+                description="노선 관리 목록에 비활성 노선도 함께 표시합니다."
+              >
+                <SettingsToggle
+                  label="비활성 노선 표시"
+                  checked={draft.showInactiveRoutes}
+                  onChange={(v) => patch('showInactiveRoutes', v)}
+                />
+              </SettingsRow>
+            </section>
+          ) : null}
+
+          {section === 'integrations' ? (
+            <section className="card card-pad settings-panel">
+              <div className="card-head">
+                <div>
+                  <h3>연동</h3>
+                  <p className="settings-panel-desc">외부 서비스 연결 상태를 확인합니다. 키 값은 노출하지 않습니다.</p>
+                </div>
+              </div>
+              <div className="settings-status-list">
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">Supabase</div>
+                    <div className="settings-row-desc">인증 · DB · Realtime</div>
+                  </div>
+                  <StatusBadge tone={usingSupabase ? 'green' : 'orange'}>
+                    {usingSupabase ? '연결됨' : '미설정'}
+                  </StatusBadge>
+                </div>
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">네이버 지도</div>
+                    <div className="settings-row-desc">실시간 관제 지도 · Dynamic Map</div>
+                  </div>
+                  <StatusBadge tone={naverMapReady ? 'green' : 'orange'}>
+                    {naverMapReady ? '연결됨' : '미설정'}
+                  </StatusBadge>
+                </div>
+                <div className="settings-status-item">
+                  <div>
+                    <div className="settings-row-title">환경</div>
+                    <div className="settings-row-desc">관리자 웹 런타임</div>
+                  </div>
+                  <StatusBadge tone="gray">{import.meta.env.MODE}</StatusBadge>
+                </div>
+              </div>
+              <div className="field-hint" style={{ marginTop: 12 }}>
+                연동 키는 `.env.local`에서만 관리하세요. 프론트엔드에 Client Secret을 넣지 마세요.
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
     </div>

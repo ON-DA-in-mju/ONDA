@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // NAVER Map Android SDK
+        maven { url = uri("https://repository.map.naver.com/archive/maven") }
     }
 }
 

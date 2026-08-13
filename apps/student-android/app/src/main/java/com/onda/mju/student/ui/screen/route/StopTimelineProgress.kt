@@ -1,7 +1,10 @@
 package com.onda.mju.student.ui.screen.route
 
+import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
+import com.onda.mju.student.data.route.RouteStopCatalog
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -15,66 +18,109 @@ data class StopWaypoint(
 
 /**
  * GPS-derived timeline progress for one vehicle on one direction.
- * [lastPassedStopIndex] only moves forward (-1 = nothing passed yet / still at origin).
+ * 기사앱 StopRouteProgress 와 동일:
+ * - ARRIVE → 도착 + 다음 포커스
+ * - EXIT → 지나감 확정
  */
 data class StopTimelineProgress(
     val lastPassedStopIndex: Int,
+    val lastArrivedStopIndex: Int,
     /** Segment start index for in-between bus placement; -1 if bus sits on a stop node. */
     val busSegmentFromIndex: Int,
     /** 0f..1f along segment from → to; ignored when [busOnStopIndex] != null. */
     val busSegmentProgress: Float,
-    /** When non-null, bus icon is drawn on that stop row (start / at stop / arrived). */
+    /** When non-null, bus icon is drawn on that stop row. */
     val busOnStopIndex: Int?,
     val nodes: List<LiveStopNode>,
-    /** Whether GPS has entered the start-stop radius at least once (monotonic). */
-    val hasEnteredStart: Boolean,
 )
 
-/** Mutable tracker kept per vehicle + direction. */
 data class VehicleStopTracker(
     val lastPassedStopIndex: Int = -1,
-    val hasEnteredStart: Boolean = false,
+    val lastArrivedStopIndex: Int = -1,
 )
 
-/**
- * Arrive / exit radii for stop passage.
- * Hardcoded campus stop coords can be tens of meters off real GPS, so arrive is generous;
- * exit requires leaving that zone after having entered (enter-then-exit).
- */
-const val STOP_ARRIVE_RADIUS_METERS = 120.0
-const val STOP_EXIT_RADIUS_METERS = 140.0
-private const val SEGMENT_SNAP_METERS = 150.0
-/** Floating bus must move this far along the next segment before the left stop shows a check. */
+fun VehicleStopTracker.mergeAhead(other: VehicleStopTracker): VehicleStopTracker {
+    val passed = maxOf(lastPassedStopIndex, other.lastPassedStopIndex)
+    val arrived = maxOf(lastArrivedStopIndex, other.lastArrivedStopIndex, passed)
+    return VehicleStopTracker(
+        lastPassedStopIndex = passed,
+        lastArrivedStopIndex = arrived,
+    )
+}
+
+fun OperationStopProgressDto.toVehicleStopTracker(
+    waypoints: List<StopWaypoint>,
+): VehicleStopTracker {
+    val last = waypoints.lastIndex
+    if (last < 0) {
+        return VehicleStopTracker(
+            lastPassedStopIndex = lastPassedIndex,
+            lastArrivedStopIndex = maxOf(lastArrivedIndex, lastPassedIndex),
+        )
+    }
+    val passed = when {
+        lastPassedIndex in 0..last -> lastPassedIndex
+        !lastPassedStopId.isNullOrBlank() -> waypoints.indexOfFirst { it.id == lastPassedStopId }
+        else -> -1
+    }.coerceIn(-1, last)
+    val arrived = when {
+        lastArrivedIndex in 0..last -> lastArrivedIndex
+        !lastArrivedStopId.isNullOrBlank() -> waypoints.indexOfFirst { it.id == lastArrivedStopId }
+        else -> -1
+    }.coerceIn(-1, last)
+    return VehicleStopTracker(
+        lastPassedStopIndex = passed,
+        lastArrivedStopIndex = maxOf(arrived, passed),
+    )
+}
+
+fun seedTrackersFromProgress(
+    vehicles: List<LiveVehicle>,
+    waypoints: List<StopWaypoint>,
+    progressByOperation: Map<String, OperationStopProgressDto>,
+    current: Map<String, VehicleStopTracker>,
+): Map<String, VehicleStopTracker> {
+    if (progressByOperation.isEmpty()) return current
+    val next = current.toMutableMap()
+    for (vehicle in vehicles) {
+        val saved = progressByOperation[vehicle.id] ?: continue
+        next[vehicle.id] = (next[vehicle.id] ?: VehicleStopTracker())
+            .mergeAhead(saved.toVehicleStopTracker(waypoints))
+    }
+    return next
+}
+
+/** 기사앱과 동일 반경 */
+const val STOP_ARRIVE_RADIUS_METERS = 60.0
+const val STOP_EXIT_RADIUS_METERS = 80.0
 private const val CHECK_AFTER_SEGMENT_PROGRESS = 0.40f
 
-/** Approximate campus / route stop coordinates (local until Supabase stops are wired). */
-internal val stopCoordinatesByName: Map<String, Pair<Double, Double>> = mapOf(
-    "버스관리사무소" to (37.2245 to 127.1878),
-    "기흥역 5번 출구" to (37.2754 to 127.1159),
-    "상공회의소" to (37.2301 to 127.1889),
-    "이마트" to (37.2304 to 127.1892),
-    "진입로(럭스나인 앞)" to (37.2332 to 127.1894),
-    "진입로(역북동 주민센터)" to (37.2335 to 127.1895),
-    "경전철 명지대역" to (37.2381 to 127.1905),
-    // Far enough from 경전철(~250m+) so enter/exit radii can distinguish the terminus.
-    "명지대역 사거리 정류장" to (37.2400 to 127.1925),
-    "동부경찰서 중앙지구대" to (37.2342 to 127.2005),
-    "용인CGV" to (37.2348 to 127.2092),
-    "중앙공영주차장" to (37.2340 to 127.2060),
-    "명진당" to (37.2228 to 127.1875),
-    "제1공학관" to (37.2220 to 127.1870),
-    "제3공학관" to (37.2215 to 127.1868),
-    "함박관" to (37.2210 to 127.1862),
-    "창조관" to (37.2207 to 127.1858),
-)
+/**
+ * 노선 waypoint — DB `route_stops`+`stops` lat/lng 우선.
+ * catalog 비어 있을 때만 stops 테이블 좌표 맵으로 이름 매칭 (하드코딩 좌표 없음).
+ */
+fun stopWaypointsForRoute(
+    routeId: String,
+    directionIndex: Int = 0,
+    stopCoordinates: StopCoordinateMap = emptyMap(),
+): List<StopWaypoint> {
+    val fromCatalog = RouteStopCatalog.waypoints(routeId)
+    if (fromCatalog.isNotEmpty()) {
+        // DB loop is a single direction; ignore inbound index.
+        return fromCatalog
+    }
+    val config = routeStopConfig(routeId)
+    return stopWaypointsForDirection(config, directionIndex, stopCoordinates)
+}
 
 fun stopWaypointsForDirection(
     config: RouteStopConfig,
     directionIndex: Int,
+    stopCoordinates: StopCoordinateMap = emptyMap(),
 ): List<StopWaypoint> {
     val dirKey = if (directionIndex == 0) "out" else "in"
-    return config.stopNames(directionIndex).mapIndexed { index, name ->
-        val coords = stopCoordinatesByName[name] ?: fallbackCoords(index)
+    return config.stopNames(directionIndex).mapIndexedNotNull { index, name ->
+        val coords = StopCoordinateResolver.lookup(name, stopCoordinates) ?: return@mapIndexedNotNull null
         StopWaypoint(
             id = "${config.routeId}_${dirKey}_$index",
             name = name,
@@ -84,17 +130,6 @@ fun stopWaypointsForDirection(
     }
 }
 
-private fun fallbackCoords(index: Int): Pair<Double, Double> {
-    val base = stopCoordinatesByName["버스관리사무소"] ?: (37.2245 to 127.1878)
-    return base.first + index * 0.0015 to base.second + index * 0.0010
-}
-
-/**
- * Builds forward-only progress from GPS.
- *
- * Start stop is NOT marked departed just because GPS is far from the hardcoded origin.
- * Departure requires enter-then-exit (or clear motion toward the next stop after enter).
- */
 fun resolveStopTimelineProgress(
     waypoints: List<StopWaypoint>,
     latitude: Double?,
@@ -104,209 +139,119 @@ fun resolveStopTimelineProgress(
     if (waypoints.isEmpty()) {
         return StopTimelineProgress(
             lastPassedStopIndex = -1,
+            lastArrivedStopIndex = -1,
             busSegmentFromIndex = -1,
             busSegmentProgress = 0f,
             busOnStopIndex = null,
             nodes = emptyList(),
-            hasEnteredStart = tracker.hasEnteredStart,
         )
     }
 
     val last = waypoints.lastIndex
     if (latitude == null || longitude == null) {
+        val focus = when {
+            tracker.lastArrivedStopIndex >= 0 -> tracker.lastArrivedStopIndex
+            else -> (tracker.lastPassedStopIndex + 1).coerceIn(0, last)
+        }
         return buildProgress(
             waypoints = waypoints,
-            passed = -1,
-            busOnStop = 0,
+            passed = tracker.lastPassedStopIndex.coerceIn(-1, last),
+            arrived = tracker.lastArrivedStopIndex.coerceIn(-1, last),
+            busOnStop = focus,
             segmentFrom = -1,
             segmentProgress = 0f,
-            hasEnteredStart = tracker.hasEnteredStart,
         )
     }
 
     var passed = tracker.lastPassedStopIndex.coerceIn(-1, last)
-    var enteredStart = tracker.hasEnteredStart
-    val start = waypoints[0]
-    val d0 = distanceMeters(latitude, longitude, start.latitude, start.longitude)
+    var arrived = tracker.lastArrivedStopIndex.coerceIn(-1, last)
+    if (arrived < passed) arrived = passed
 
-    if (d0 <= STOP_ARRIVE_RADIUS_METERS) {
-        enteredStart = true
-    }
-
-    // Origin: stay CURRENT until enter-then-exit (or clear progress to next after enter).
-    if (passed < 0) {
-        val leftStart = enteredStart && d0 > STOP_EXIT_RADIUS_METERS
-        var clearlyTowardNext = false
-        if (enteredStart && last >= 1) {
-            val next = waypoints[1]
-            val d1 = distanceMeters(latitude, longitude, next.latitude, next.longitude)
-            val proj = projectOnSegment(
-                latitude, longitude,
-                start.latitude, start.longitude,
-                next.latitude, next.longitude,
-            )
-            clearlyTowardNext = (d1 + 30.0 < d0 && d0 > STOP_ARRIVE_RADIUS_METERS) ||
-                (proj.distanceMeters <= SEGMENT_SNAP_METERS && proj.t >= 0.25 && d0 > STOP_ARRIVE_RADIUS_METERS)
-        }
-        if (leftStart || clearlyTowardNext) {
-            passed = 0
-        } else {
-            // Still at (or treated as) origin — bus icon on first stop.
-            return buildProgress(
-                waypoints = waypoints,
-                passed = -1,
-                busOnStop = 0,
-                segmentFrom = -1,
-                segmentProgress = 0f,
-                hasEnteredStart = enteredStart,
-            )
+    // 1) 지나감 확정 (EXIT) — 한 칸
+    if (arrived > passed) {
+        val exitIdx = passed + 1
+        val distExit = distanceMeters(
+            latitude, longitude,
+            waypoints[exitIdx].latitude, waypoints[exitIdx].longitude,
+        )
+        if (distExit > STOP_EXIT_RADIUS_METERS) {
+            passed = exitIdx
         }
     }
 
-    val dest = waypoints[last]
-    val distDest = distanceMeters(latitude, longitude, dest.latitude, dest.longitude)
-
-    // Clear a stop only after leaving its exit radius toward the following stop.
-    // Penultimate↔terminus can be closer than EXIT radius — special-cased below.
-    var guard = 0
-    while (passed < last && guard < waypoints.size + 2) {
-        guard++
-        val candidate = passed + 1
-        val stop = waypoints[candidate]
-        val distStop = distanceMeters(latitude, longitude, stop.latitude, stop.longitude)
-
-        if (candidate == last) {
-            if (distStop <= STOP_ARRIVE_RADIUS_METERS) {
+    // 2) 도착 인식 (ARRIVE) — 한 칸, 다음 포커스
+    val focusIndex = min(arrived + 1, last)
+    if (focusIndex > arrived) {
+        val distFocus = distanceMeters(
+            latitude, longitude,
+            waypoints[focusIndex].latitude, waypoints[focusIndex].longitude,
+        )
+        if (distFocus <= STOP_ARRIVE_RADIUS_METERS) {
+            arrived = focusIndex
+            if (arrived >= last) {
                 passed = last
             }
-            break
         }
-
-        val following = waypoints[candidate + 1]
-        val followingIsDest = candidate + 1 == last
-        val distFollowing = distanceMeters(
-            latitude, longitude, following.latitude, following.longitude,
-        )
-        val proj = projectOnSegment(
-            latitude, longitude,
-            stop.latitude, stop.longitude,
-            following.latitude, following.longitude,
-        )
-
-        // Final approach: if GPS is at/near terminus, clear penultimate even when still
-        // inside its exit radius (common when last two stops are < EXIT apart).
-        if (followingIsDest && distDest <= STOP_ARRIVE_RADIUS_METERS) {
-            passed = candidate
-            continue
-        }
-        if (followingIsDest && distDest + 30.0 < distStop && distDest <= STOP_EXIT_RADIUS_METERS) {
-            passed = candidate
-            continue
-        }
-
-        // Still at / approaching this stop — do not clear it yet.
-        if (distStop <= STOP_EXIT_RADIUS_METERS) {
-            break
-        }
-
-        val clearlyPastTowardNext =
-            (proj.distanceMeters <= SEGMENT_SNAP_METERS && proj.t >= 0.25f) ||
-                (distFollowing + 50.0 < distStop)
-
-        if (clearlyPastTowardNext) {
-            passed = candidate
-            continue
-        }
-        break
     }
 
-    // Hard snap onto terminus once nearby and route progress is near the end.
-    if (passed < last && distDest <= STOP_ARRIVE_RADIUS_METERS && passed >= (last - 2).coerceAtLeast(0)) {
-        passed = last
-    }
-
-    passed = maxOf(passed, tracker.lastPassedStopIndex.coerceAtLeast(-1)).coerceIn(-1, last)
+    passed = maxOf(passed, tracker.lastPassedStopIndex).coerceIn(-1, last)
+    arrived = maxOf(arrived, tracker.lastArrivedStopIndex, passed).coerceIn(-1, last)
 
     return when {
-        passed < 0 -> buildProgress(
-            waypoints = waypoints,
-            passed = -1,
-            busOnStop = 0,
-            segmentFrom = -1,
-            segmentProgress = 0f,
-            hasEnteredStart = enteredStart,
-        )
-        passed >= last -> buildProgress(
+        passed >= last || arrived >= last -> buildProgress(
             waypoints = waypoints,
             passed = last,
+            arrived = last,
             busOnStop = last,
             segmentFrom = -1,
             segmentProgress = 1f,
-            hasEnteredStart = enteredStart,
+        )
+        arrived < 0 -> buildProgress(
+            waypoints = waypoints,
+            passed = -1,
+            arrived = -1,
+            busOnStop = 0,
+            segmentFrom = -1,
+            segmentProgress = 0f,
         )
         else -> {
-            val nextIdx = passed + 1
-            val next = waypoints[nextIdx]
-            val distNext = distanceMeters(latitude, longitude, next.latitude, next.longitude)
-            val approachingDest = nextIdx == last
-            if (distNext <= STOP_ARRIVE_RADIUS_METERS ||
-                (approachingDest && distDest <= STOP_ARRIVE_RADIUS_METERS)
-            ) {
-                val atDest = nextIdx == last
+            val dArrived = distanceMeters(
+                latitude, longitude,
+                waypoints[arrived].latitude, waypoints[arrived].longitude,
+            )
+            if (dArrived <= STOP_ARRIVE_RADIUS_METERS) {
                 buildProgress(
                     waypoints = waypoints,
-                    passed = if (atDest) last else passed,
-                    busOnStop = nextIdx,
-                    segmentFrom = passed,
-                    segmentProgress = 1f,
-                    hasEnteredStart = enteredStart,
+                    passed = passed,
+                    arrived = arrived,
+                    busOnStop = arrived,
+                    segmentFrom = if (passed >= 0) passed else -1,
+                    segmentProgress = if (passed >= 0) 1f else 0f,
                 )
             } else {
-                val from = waypoints[passed]
+                val nextIdx = min(arrived + 1, last)
+                val fromIdx = arrived
+                val from = waypoints[fromIdx]
+                val to = waypoints[nextIdx]
                 val proj = projectOnSegment(
                     latitude, longitude,
                     from.latitude, from.longitude,
-                    next.latitude, next.longitude,
+                    to.latitude, to.longitude,
                 )
-                val t = proj.t.coerceIn(0f, 1f)
-                // On the final segment, let the bus reach the terminus visually (no 0.92 cap).
-                val cappedT = if (approachingDest) {
-                    t.coerceAtLeast(0.08f).coerceAtMost(1f)
-                } else {
-                    t.coerceAtLeast(0.08f).coerceAtMost(0.92f)
-                }
-                // Near end of final segment → sit on destination flag.
-                if (approachingDest && cappedT >= 0.90f &&
-                    proj.distanceMeters <= SEGMENT_SNAP_METERS
-                ) {
-                    buildProgress(
-                        waypoints = waypoints,
-                        passed = last,
-                        busOnStop = last,
-                        segmentFrom = -1,
-                        segmentProgress = 1f,
-                        hasEnteredStart = enteredStart,
-                    )
-                } else {
-                    buildProgress(
-                        waypoints = waypoints,
-                        passed = passed,
-                        busOnStop = null,
-                        segmentFrom = passed,
-                        segmentProgress = cappedT,
-                        hasEnteredStart = enteredStart,
-                    )
-                }
+                val t = proj.t.coerceIn(0.08f, 0.92f)
+                buildProgress(
+                    waypoints = waypoints,
+                    passed = passed,
+                    arrived = arrived,
+                    busOnStop = null,
+                    segmentFrom = fromIdx,
+                    segmentProgress = t,
+                )
             }
         }
     }
 }
 
-/**
- * Check / "통과 완료" only after the bus has visually left that stop:
- * - stops strictly before the bus-on-stop index
- * - or the segment-from stop once floating progress clears [CHECK_AFTER_SEGMENT_PROGRESS]
- */
 private fun isStopVisuallyCleared(
     index: Int,
     passed: Int,
@@ -314,6 +259,7 @@ private fun isStopVisuallyCleared(
     segmentFrom: Int,
     segmentProgress: Float,
 ): Boolean {
+    if (index <= passed) return true
     if (busOnStop != null) {
         return index < busOnStop && index <= passed
     }
@@ -328,13 +274,13 @@ private fun isStopVisuallyCleared(
 private fun buildProgress(
     waypoints: List<StopWaypoint>,
     passed: Int,
+    arrived: Int,
     busOnStop: Int?,
     segmentFrom: Int,
     segmentProgress: Float,
-    hasEnteredStart: Boolean,
 ): StopTimelineProgress {
     val last = waypoints.lastIndex
-    val arrivedDestination = passed >= last
+    val arrivedDestination = passed >= last || arrived >= last
     val nodes = waypoints.mapIndexed { index, wp ->
         val cleared = isStopVisuallyCleared(
             index = index,
@@ -343,15 +289,13 @@ private fun buildProgress(
             segmentFrom = segmentFrom,
             segmentProgress = segmentProgress,
         )
-        val justLeftNotYetChecked = !cleared &&
-            busOnStop == null &&
-            segmentFrom == index &&
-            index <= passed
+        val isCurrent = busOnStop == index ||
+            (busOnStop == null && arrived == index && index > passed)
 
         val state = when {
             index == last && arrivedDestination -> StopPassState.Destination
             index == last -> StopPassState.Destination
-            busOnStop == index -> StopPassState.Current
+            isCurrent -> StopPassState.Current
             cleared && index == 0 -> StopPassState.Departed
             cleared -> StopPassState.Passed
             else -> StopPassState.Upcoming
@@ -361,7 +305,7 @@ private fun buildProgress(
             state == StopPassState.Departed -> "출발 완료"
             state == StopPassState.Passed -> "통과 완료"
             state == StopPassState.Current -> "현재 위치"
-            justLeftNotYetChecked -> "이동 중"
+            arrived == index && index > passed -> "현재 위치"
             state == StopPassState.Destination -> "도착 예정"
             else -> "도착 예정"
         }
@@ -376,11 +320,11 @@ private fun buildProgress(
     }
     return StopTimelineProgress(
         lastPassedStopIndex = passed,
+        lastArrivedStopIndex = arrived,
         busSegmentFromIndex = segmentFrom,
         busSegmentProgress = segmentProgress,
         busOnStopIndex = busOnStop,
         nodes = nodes,
-        hasEnteredStart = hasEnteredStart,
     )
 }
 

@@ -1,72 +1,49 @@
-/**
- * 네이버 Cloud Platform Maps — Web Dynamic Map
- * - 지도 SDK는 페이지당 1회만 로드
- * - 차량 이동은 Marker.setPosition 만 갱신 (지도 재호출 금지)
- */
+const CLIENT_ID = (import.meta.env.VITE_NAVER_MAP_CLIENT_ID || '').trim()
+const KEY_PARAM = (import.meta.env.VITE_NAVER_MAP_KEY_PARAM || 'ncpKeyId').trim()
 
-const SCRIPT_ID = 'naver-maps-sdk'
-
-export function getNaverMapClientId(): string {
-  return (import.meta.env.VITE_NAVER_MAP_CLIENT_ID as string | undefined)?.trim() ?? ''
-}
+let loadPromise: Promise<typeof naver.maps> | null = null
 
 export function isNaverMapConfigured(): boolean {
-  return Boolean(getNaverMapClientId())
+  return CLIENT_ID.length > 0 && !CLIENT_ID.includes('YOUR_')
 }
 
-let loadingPromise: Promise<void> | null = null
-
-export function loadNaverMaps(): Promise<void> {
+export function loadNaverMaps(): Promise<typeof naver.maps> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('window unavailable'))
   }
   if (window.naver?.maps) {
-    return Promise.resolve()
+    return Promise.resolve(window.naver.maps)
   }
-  if (loadingPromise) return loadingPromise
-
-  const clientId = getNaverMapClientId()
-  if (!clientId) {
+  if (!isNaverMapConfigured()) {
     return Promise.reject(new Error('VITE_NAVER_MAP_CLIENT_ID 미설정'))
   }
+  if (loadPromise) return loadPromise
 
-  loadingPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null
+  loadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-onda-naver-maps]')
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true })
-      existing.addEventListener('error', () => reject(new Error('네이버 지도 SDK 로드 실패')), { once: true })
-      if (window.naver?.maps) resolve()
+      existing.addEventListener('load', () => {
+        if (window.naver?.maps) resolve(window.naver.maps)
+        else reject(new Error('네이버 지도 로드 실패'))
+      })
+      existing.addEventListener('error', () => reject(new Error('네이버 지도 스크립트 오류')))
       return
     }
 
     const script = document.createElement('script')
-    script.id = SCRIPT_ID
+    script.dataset.ondaNaverMaps = '1'
     script.async = true
-    // ncpKeyId: 신형 NCP Maps 키 / ncpClientId: 구형 호환
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?${KEY_PARAM}=${encodeURIComponent(CLIENT_ID)}`
     script.onload = () => {
-      if (window.naver?.maps) resolve()
+      if (window.naver?.maps) resolve(window.naver.maps)
       else reject(new Error('네이버 지도 객체를 찾을 수 없습니다'))
     }
     script.onerror = () => {
-      loadingPromise = null
-      reject(new Error('네이버 지도 SDK 로드 실패 (키·도메인 허용 확인)'))
+      loadPromise = null
+      reject(new Error('네이버 지도 스크립트 로드 실패'))
     }
     document.head.appendChild(script)
   })
 
-  return loadingPromise
-}
-
-/** 비정상/지연 GPS는 마커를 움직이지 않음 */
-export function shouldFreezeMarker(status?: string): boolean {
-  if (!status) return false
-  const s = status.toUpperCase()
-  return (
-    s.includes('DELAY') ||
-    s.includes('미수신') ||
-    s.includes('끊') ||
-    s.includes('OFFLINE') ||
-    s.includes('ERROR')
-  )
+  return loadPromise
 }

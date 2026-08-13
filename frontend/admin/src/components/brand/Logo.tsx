@@ -5,8 +5,8 @@ type LogoProps = {
   className?: string
 }
 
-/** ON-DA 로고 — 투명 배경 PNG */
-export function Logo({ height = 40, className = '' }: LogoProps) {
+/** 투명 배경 ON-DA 로고 — 검정 칩/배경 없이 이미지만 표시 */
+export function Logo({ height = 48, className = '' }: LogoProps) {
   return (
     <img
       src={logoSrc}

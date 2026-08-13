@@ -62,6 +62,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
+import com.onda.mju.student.core.calendar.AcademicCalendar
 import com.onda.mju.student.ui.screen.notification.formatUnreadBadgeLabel
 import com.onda.mju.student.ui.screen.route.RouteStatus
 import com.onda.mju.student.ui.screen.route.RouteUiModel
@@ -96,6 +97,7 @@ fun StudentHomeScreen(
     unreadNotificationCount: Int = 0,
     /** Epoch millis when mock/live operation data was last received. */
     operationLastUpdatedAtMillis: Long = System.currentTimeMillis(),
+    scheduleKindLabel: String = AcademicCalendar.todayScheduleKindLabel(),
     routes: List<RouteUiModel> = sampleRouteList(),
     onNotificationClick: () -> Unit = {},
     onStatusTimetableClick: () -> Unit = {},
@@ -136,33 +138,40 @@ fun StudentHomeScreen(
                     onClick = onNotificationClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 4.dp, end = 4.dp),
+                        .padding(top = 2.dp, end = 6.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
+                        .ifEmpty { null }
+                    Box(
+                        modifier = Modifier.size(28.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Notifications,
                             contentDescription = "알림",
                             tint = OndaBlue,
-                            modifier = Modifier.size(26.dp),
+                            modifier = Modifier.size(24.dp),
                         )
-                        val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
-                            .ifEmpty { null }
                         if (badgeLabel != null) {
+                            val isMulti = badgeLabel.length > 1
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .offset(x = 6.dp, y = (-4).dp)
-                                    .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
-                                    .clip(CircleShape)
+                                    .offset(x = 1.dp, y = (-1).dp)
+                                    .height(15.dp)
+                                    .defaultMinSize(minWidth = 15.dp)
+                                    .border(1.25.dp, Color.White, RoundedCornerShape(999.dp))
+                                    .clip(RoundedCornerShape(999.dp))
                                     .background(UnreadBadgeRed)
-                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                                    .padding(horizontal = if (isMulti) 3.5.dp else 0.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     text = badgeLabel,
                                     color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 9.sp,
                                     maxLines = 1,
                                 )
                             }
@@ -179,6 +188,7 @@ fun StudentHomeScreen(
             ) {
                 OperationStatusCard(
                     lastUpdatedAtMillis = operationLastUpdatedAtMillis,
+                    scheduleKindLabel = scheduleKindLabel,
                     onTimetableClick = onStatusTimetableClick,
                 )
 
@@ -234,6 +244,7 @@ fun StudentHomeScreen(
 @Composable
 private fun OperationStatusCard(
     lastUpdatedAtMillis: Long,
+    scheduleKindLabel: String,
     onTimetableClick: () -> Unit,
 ) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -284,7 +295,7 @@ private fun OperationStatusCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "학기 중 평일 시간표가 적용됩니다",
+                        text = "${scheduleKindLabel} 시간표가 적용됩니다",
                         color = BodyGray,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium,

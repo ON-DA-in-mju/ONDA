@@ -57,24 +57,26 @@ private data class ManageItem(val id: String, val title: String, var favorite: B
 @Composable
 fun FavoriteManageScreen(
     modifier: Modifier = Modifier,
+    routeItems: List<Pair<String, String>> = emptyList(),
+    stopItems: List<Pair<String, String>> = emptyList(),
     onBackClick: () -> Unit = {},
     onSaveClick: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(0) }
-    var routes by remember {
+    var routes by remember(routeItems) {
         mutableStateOf(
-            listOf(
-                ManageItem("giheung", "기흥역 통학버스", true),
-                ManageItem("myeongji", "명지대역 셔틀", true),
-            ),
+            routeItems.map { ManageItem(it.first, it.second, favorite = true) }
+                .ifEmpty {
+                    listOf(
+                        ManageItem("giheung", "기흥역 통학버스", true),
+                        ManageItem("myeongji_station", "명지대역 셔틀", true),
+                    )
+                },
         )
     }
-    var stops by remember {
+    var stops by remember(stopItems) {
         mutableStateOf(
-            listOf(
-                ManageItem("stop1", "기흥역 5번 출구", true),
-                ManageItem("stop2", "버스관리사무소", true),
-            ),
+            stopItems.map { ManageItem(it.first, it.second, favorite = true) },
         )
     }
     val items = if (tab == 0) routes else stops

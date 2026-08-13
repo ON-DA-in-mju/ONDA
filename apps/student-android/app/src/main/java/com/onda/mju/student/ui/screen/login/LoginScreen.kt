@@ -32,6 +32,8 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -60,9 +63,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
 import com.onda.mju.student.data.auth.AuthResult
+import com.onda.mju.student.data.auth.AutoLoginPreferences
 import com.onda.mju.student.data.auth.SupabaseAuthRepository
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
 import kotlinx.coroutines.launch
+
+private val AutoLoginLabelColor = Color(0xFF111827)
 
 @Composable
 fun LoginScreen(
@@ -74,9 +80,13 @@ fun LoginScreen(
     onFindPasswordClick: () -> Unit = {},
     onShowMessage: (String) -> Unit = {},
 ) {
-    var studentId by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val autoLoginPrefs = remember { AutoLoginPreferences(context) }
+
+    var studentId by remember { mutableStateOf(autoLoginPrefs.savedStudentId) }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var autoLogin by remember { mutableStateOf(autoLoginPrefs.isEnabled) }
     var studentIdError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -118,8 +128,9 @@ fun LoginScreen(
 
         isLoading = true
         scope.launch {
-            when (authRepository.login(studentId, password)) {
+            when (val result = authRepository.login(studentId, password)) {
                 AuthResult.Success -> {
+                    autoLoginPrefs.rememberAfterLogin(studentId, autoLogin)
                     isLoading = false
                     onLoginSuccess()
                 }
@@ -129,6 +140,11 @@ fun LoginScreen(
                     studentIdError = null
                     passwordError = null
                     onShowMessage("학번 또는 비밀번호를 다시 확인해주세요.")
+                }
+
+                is AuthResult.Failure -> {
+                    isLoading = false
+                    onShowMessage(result.message)
                 }
             }
         }
@@ -260,7 +276,33 @@ fun LoginScreen(
             )
             LoginFieldError(passwordError)
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { autoLogin = !autoLogin }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = autoLogin,
+                    onCheckedChange = { autoLogin = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = LoginOndaBlue,
+                        uncheckedColor = LoginFieldBorder,
+                        checkmarkColor = Color.White,
+                    ),
+                )
+                Text(
+                    text = "자동 로그인",
+                    color = AutoLoginLabelColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = { attemptLogin() },

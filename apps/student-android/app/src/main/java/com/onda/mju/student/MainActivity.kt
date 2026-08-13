@@ -16,6 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.onda.mju.student.data.auth.AutoLoginPreferences
+import com.onda.mju.student.data.auth.SupabaseAuthRepository
 import com.onda.mju.student.data.permission.PermissionGrantState
 import com.onda.mju.student.ui.screen.login.FindIdScreen
 import com.onda.mju.student.ui.screen.login.FindPasswordScreen
@@ -53,6 +56,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun OndaStudentApp() {
+    val context = LocalContext.current
+    val authRepository = remember { SupabaseAuthRepository() }
+    val autoLoginPrefs = remember { AutoLoginPreferences(context) }
+
     var screen by remember { mutableStateOf(AppScreen.Splash) }
     var permissionGrantState by remember {
         mutableStateOf(
@@ -80,7 +87,17 @@ private fun OndaStudentApp() {
             AppScreen.Splash -> {
                 SplashScreen(
                     modifier = Modifier.fillMaxSize(),
-                    onSplashFinished = { screen = AppScreen.LoginStart },
+                    onSplashFinished = {
+                        scope.launch {
+                            val canAutoLogin = autoLoginPrefs.isEnabled &&
+                                authRepository.awaitActiveSession()
+                            screen = if (canAutoLogin) {
+                                AppScreen.Main
+                            } else {
+                                AppScreen.LoginStart
+                            }
+                        }
+                    },
                 )
             }
 
@@ -156,8 +173,13 @@ private fun OndaStudentApp() {
                 StudentMainShell(
                     modifier = Modifier.fillMaxSize(),
                     onLogout = {
-                        showMessage("로그아웃되었습니다.")
-                        screen = AppScreen.LoginStart
+                        scope.launch {
+                            authRepository.signOut()
+                            // 명시적 로그아웃 후에는 자동 로그인을 끄고, 학번만 남겨 둔다.
+                            autoLoginPrefs.isEnabled = false
+                            showMessage("로그아웃되었습니다.")
+                            screen = AppScreen.LoginStart
+                        }
                     },
                 )
             }

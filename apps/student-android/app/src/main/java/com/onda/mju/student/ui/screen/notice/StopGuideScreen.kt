@@ -53,12 +53,13 @@ private val CardBorder = Color(0xFFE8EDF2)
 @Composable
 fun StopGuideScreen(
     modifier: Modifier = Modifier,
+    routes: List<StopGuideRouteInfo> = emptyStopGuideRoutes(),
     onBackClick: () -> Unit = {},
     onRouteClick: (String) -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
-    val routes = remember { sampleStopGuideRoutes() }
-    val filtered = routes.filter {
+    val safeRoutes = routes.ifEmpty { emptyStopGuideRoutes() }
+    val filtered = safeRoutes.filter {
         query.isBlank() || it.title.contains(query) || it.description.contains(query)
     }
 

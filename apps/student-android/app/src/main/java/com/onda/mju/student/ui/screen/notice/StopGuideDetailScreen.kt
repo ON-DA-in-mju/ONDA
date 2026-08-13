@@ -66,13 +66,24 @@ private val PageBg = Color(0xFFF7F9FC)
 fun StopGuideDetailScreen(
     stopId: String,
     modifier: Modifier = Modifier,
+    stopsCatalog: List<StopGuideItem> = emptyStopGuideItems(),
     onBackClick: () -> Unit = {},
     onOpenMapClick: () -> Unit = {},
     onLiveClick: () -> Unit = {},
 ) {
-    val stop = remember(stopId) {
-        sampleStopGuideItems().firstOrNull { it.id == stopId }
-            ?: sampleStopGuideItems().first { it.id == "myeongji_cross" }
+    val stop = remember(stopId, stopsCatalog) {
+        stopsCatalog.firstOrNull { it.id == stopId }
+            ?: stopsCatalog.firstOrNull { it.name == stopId }
+            ?: StopGuideItem(
+                id = stopId,
+                routeId = "city",
+                name = stopId,
+                address = "$stopId 인근",
+                locationGuide = "$stopId 정류장에서 탑승할 수 있습니다.",
+                landmarks = listOf(stopId),
+                availableRoutes = emptyList(),
+                thumbRes = R.drawable.route_thumb_city,
+            )
     }
     var favorite by remember { mutableStateOf(false) }
 
