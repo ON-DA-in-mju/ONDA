@@ -251,18 +251,15 @@ export function ReportsPage() {
         학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
         {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
       </p>
-      <div className="grid grid-4">
+      <div className="grid grid-3 reports-kpis">
         {[
-          ['오늘 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '+8 전일 대비', 'blue'],
+          ['전체 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
           ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
-          ['처리 중', `${dbReports?.filter((r) => r.status === 'PROCESSING').length ?? 4}건`, 'PROCESSING', 'green'],
           ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
         ].map(([t, v, s, tone]) => (
-          <div key={t} className="card card-pad">
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800 }}>{v}</div>
+          <div key={t} className="card card-pad reports-kpi">
+            <div className="muted reports-kpi-label">{t}</div>
+            <div className="reports-kpi-value">{v}</div>
             <StatusBadge tone={tone as 'blue' | 'orange' | 'green' | 'gray'}>{s}</StatusBadge>
           </div>
         ))}
@@ -1785,101 +1782,105 @@ export function VehiclesPage() {
       </div>
 
       <div className="figma-split-vehicle">
-        <section className="figma-panel">
-          <div className="figma-panel-head">
-            <h3>정비 이력</h3>
-            <div className="toolbar vehicle-filter-toolbar">
-              <input
-                className="input vehicle-filter-control"
-                style={{ width: 220, height: 32 }}
-                placeholder="차량 번호 / 정비 항목 검색"
-                value={maintQuery}
-                onChange={(e) => setMaintQuery(e.target.value)}
-              />
-              <select
-                className="select vehicle-filter-control"
-                style={{ width: 110, height: 32 }}
-                value={maintStatus}
-                onChange={(e) => setMaintStatus(e.target.value)}
-              >
-                <option>전체 상태</option>
-                <option>완료</option>
-                <option>예정</option>
-                <option>점검중</option>
-              </select>
+        <div className="stack">
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>정비 이력</h3>
+              <div className="toolbar vehicle-filter-toolbar">
+                <input
+                  className="input vehicle-filter-control"
+                  style={{ width: 220, height: 32 }}
+                  placeholder="차량 번호 / 정비 항목 검색"
+                  value={maintQuery}
+                  onChange={(e) => setMaintQuery(e.target.value)}
+                />
+                <select
+                  className="select vehicle-filter-control"
+                  style={{ width: 110, height: 32 }}
+                  value={maintStatus}
+                  onChange={(e) => setMaintStatus(e.target.value)}
+                >
+                  <option>전체 상태</option>
+                  <option>완료</option>
+                  <option>예정</option>
+                  <option>점검중</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <table className="data-table dense">
-            <thead>
-              <tr>
-                <th>정비일</th>
-                <th>차량 번호</th>
-                <th>정비 항목</th>
-                <th>정비 유형</th>
-                <th>정비사</th>
-                <th>비용(원)</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMaintenances.length === 0 ? (
+            <table className="data-table dense">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
-                    검색 결과가 없습니다.
-                  </td>
+                  <th>정비일</th>
+                  <th>차량 번호</th>
+                  <th>정비 항목</th>
+                  <th>정비 유형</th>
+                  <th>정비사</th>
+                  <th>비용(원)</th>
+                  <th>상태</th>
                 </tr>
-              ) : (
-                filteredMaintenances.map((row) => (
-                <tr key={row.date + row.plate + row.item}>
-                  <td>{row.date}</td>
-                  <td>{row.plate}</td>
-                  <td>{row.item}</td>
-                  <td>{row.type}</td>
-                  <td>{row.mechanic}</td>
-                  <td>{row.cost}</td>
-                  <td>
-                    <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                  </td>
-                </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredMaintenances.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>
+                      검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMaintenances.map((row) => (
+                    <tr key={row.date + row.plate + row.item}>
+                      <td>{row.date}</td>
+                      <td>{row.plate}</td>
+                      <td>{row.item}</td>
+                      <td>{row.type}</td>
+                      <td>{row.mechanic}</td>
+                      <td>{row.cost}</td>
+                      <td>
+                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
 
-          <div className="card-head" style={{ marginTop: 16 }}>
-            <h3>예정 정비</h3>
-          </div>
-          <table className="data-table dense">
-            <thead>
-              <tr>
-                <th>일자</th>
-                <th>차량</th>
-                <th>항목</th>
-                <th>잔여</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ['07.24', '73버 1122', '브레이크 패드 점검', '2일 후'],
-                ['07.24', '74버 7788', '엔진오일 교환', '2일 후'],
-                ['07.24', '72버 5678', '타이어 위치 교환', '3일 후'],
-              ].map((row) => (
-                <tr key={row.join('-')}>
-                  <td>{row[0]}</td>
-                  <td>{row[1]}</td>
-                  <td>{row[2]}</td>
-                  <td>{row[3]}</td>
-                  <td>
-                    <button className="btn btn-outline btn-xs" type="button">
-                      상세
-                    </button>
-                  </td>
+          <section className="figma-panel">
+            <div className="figma-panel-head">
+              <h3>예정 정비</h3>
+            </div>
+            <table className="data-table dense">
+              <thead>
+                <tr>
+                  <th>일자</th>
+                  <th>차량</th>
+                  <th>항목</th>
+                  <th>잔여</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+              </thead>
+              <tbody>
+                {[
+                  ['07.24', '73버 1122', '브레이크 패드 점검', '2일 후'],
+                  ['07.24', '74버 7788', '엔진오일 교환', '2일 후'],
+                  ['07.24', '72버 5678', '타이어 위치 교환', '3일 후'],
+                ].map((row) => (
+                  <tr key={row.join('-')}>
+                    <td>{row[0]}</td>
+                    <td>{row[1]}</td>
+                    <td>{row[2]}</td>
+                    <td>{row[3]}</td>
+                    <td>
+                      <button className="btn btn-outline btn-xs" type="button">
+                        상세
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
 
         <div className="stack">
           <section className="figma-panel">

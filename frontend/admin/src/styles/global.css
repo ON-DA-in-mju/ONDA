@@ -452,12 +452,20 @@ table {
 .page-chip {
   width: 28px;
   height: 28px;
+  min-width: 28px;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
   color: #4b5563;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .page-chip.active {
@@ -481,8 +489,10 @@ table {
 
 .list-pagination-meta,
 .live-list-pagination-meta {
+  font-family: var(--font);
   font-size: 12px;
   color: var(--color-muted, #6b7280);
+  letter-spacing: -0.01em;
 }
 
 .list-pagination-pages,
@@ -496,10 +506,14 @@ table {
 
 .list-pagination-pages .page-chip,
 .live-list-pagination-pages .page-chip {
+  width: 28px;
+  height: 28px;
   min-width: 28px;
   background: #f3f4f6;
   border: none;
   cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .list-pagination-pages .page-chip:not(:disabled):hover,
