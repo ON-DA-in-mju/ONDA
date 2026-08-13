@@ -108,7 +108,7 @@ object MockHistoryDetail {
     private fun tripMeta(record: HistoryRecord): TripMeta {
         if (record.id.startsWith("runtime-")) {
             val opId = record.id.removePrefix("runtime-")
-            val op = MockTodayOperations.assignedOperations.find { it.id == opId }
+            val op = MockTodayOperations.findById(opId)
             if (op != null) {
                 return TripMeta(op.departTime, op.origin, op.destination)
             }

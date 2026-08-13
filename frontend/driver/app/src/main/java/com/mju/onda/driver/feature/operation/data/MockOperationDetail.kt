@@ -56,25 +56,30 @@ object MockOperationDetail {
     )
 
     fun forOperationId(operationId: String): OperationDetailInfo {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
         if (op != null) return fromAssigned(op)
-        if (operationId == giheungDetail.id) {
-            return fromAssigned(
-                AssignedOperation(
-                    id = giheungDetail.id,
-                    routeName = giheungDetail.routeName,
-                    vehicleName = giheungDetail.vehicleName,
-                    departTime = giheungDetail.departTime,
-                    origin = giheungDetail.origin,
-                    destination = giheungDetail.destination,
-                    round = giheungDetail.round,
-                    expectedEndTime = giheungDetail.expectedEndTime,
-                    status = OperationStatus.Scheduled,
-                ),
-            )
-        }
-        return giheungDetail
+        android.util.Log.w(
+            "OpDetail",
+            "forOperationId miss id=$operationId known=${
+                MockTodayOperations.assignedOperations.joinToString { "${it.id}/${it.dbId}:${it.routeName}" }
+            }",
+        )
+        return unknown(operationId)
     }
+
+    fun unknown(operationId: String): OperationDetailInfo = OperationDetailInfo(
+        id = operationId,
+        routeName = "",
+        vehicleName = "",
+        round = 1,
+        departTime = "",
+        expectedEndTime = "",
+        origin = "",
+        destination = "",
+        dateLabel = MockTodayOperations.DATE_LABEL,
+        status = OperationStatus.Scheduled,
+        statusLabel = MockTodayOperations.SCHEDULED_BADGE,
+    )
 
     private fun fromAssigned(op: AssignedOperation): OperationDetailInfo {
         val resolved = OperationRuntimeStateHolder.withRuntimeStatus(listOf(op)).first()

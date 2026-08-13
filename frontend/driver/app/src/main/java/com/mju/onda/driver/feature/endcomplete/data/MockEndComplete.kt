@@ -30,7 +30,7 @@ object MockEndComplete {
     const val LABEL_TOTAL = "총 운행 시간"
 
     fun forOperationId(operationId: String): EndCompleteSummary {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
             ?: MockTodayOperations.assignedOperations.first()
         val start = OperationRuntimeStateHolder.startedAtMillis(operationId)
             ?: OperationRuntimeStateHolder.ensureStartedAt(operationId)

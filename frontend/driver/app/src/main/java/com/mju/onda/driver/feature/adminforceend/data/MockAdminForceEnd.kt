@@ -31,7 +31,7 @@ object MockAdminForceEnd {
     const val NOTICE = "문의 사항이 있으시면\n관리자에게 연락해 주세요."
 
     fun forOperationId(operationId: String): AdminForceEndInfo {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
             ?: MockTodayOperations.assignedOperations.first()
         val start = OperationRuntimeStateHolder.startedAtMillis(operationId)
             ?: OperationRuntimeStateHolder.ensureStartedAt(operationId)

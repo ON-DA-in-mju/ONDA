@@ -22,8 +22,19 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class InOperationDetailStatusUiState(
-    val info: InOperationDetailStatusInfo = MockInOperationDetailStatus.forOperationId(
-        OperationRuntimeStateHolder.resolveFocusedOperationId(),
+    val info: InOperationDetailStatusInfo = InOperationDetailStatusInfo(
+        id = "",
+        routeName = "",
+        vehicleName = "",
+        statusLabel = "운행 중",
+        actualStartTime = "",
+        elapsedLabel = "",
+        expectedEndTime = "",
+        origin = "",
+        destination = "",
+        lastTransmission = "",
+        networkStatus = "",
+        serverStatus = "",
     ),
 )
 
@@ -45,8 +56,7 @@ class InOperationDetailStatusViewModel(
     private val _events = MutableSharedFlow<InOperationDetailStatusEvent>()
     val events: SharedFlow<InOperationDetailStatusEvent> = _events.asSharedFlow()
 
-    private var baseInfo: InOperationDetailStatusInfo =
-        MockInOperationDetailStatus.forOperationId(OperationRuntimeStateHolder.resolveFocusedOperationId())
+    private var baseInfo: InOperationDetailStatusInfo = _uiState.value.info
     private var refreshJob: Job? = null
 
     fun load(operationId: String) {
@@ -54,11 +64,25 @@ class InOperationDetailStatusViewModel(
         refreshLive()
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
+            if (baseInfo.routeName.isBlank()) {
+                delay(600)
+                val retry = MockInOperationDetailStatus.forOperationId(operationId)
+                if (retry.routeName.isNotBlank()) {
+                    baseInfo = retry
+                    refreshLive()
+                }
+            }
             launch {
                 LatestLocationHolder.latestFlow.collect { refreshLive() }
             }
             while (isActive) {
                 delay(1_000)
+                if (baseInfo.routeName.isBlank()) {
+                    val retry = MockInOperationDetailStatus.forOperationId(operationId)
+                    if (retry.routeName.isNotBlank()) {
+                        baseInfo = retry
+                    }
+                }
                 refreshLive()
             }
         }

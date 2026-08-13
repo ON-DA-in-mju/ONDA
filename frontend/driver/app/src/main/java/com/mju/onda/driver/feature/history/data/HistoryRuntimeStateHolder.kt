@@ -67,7 +67,7 @@ object HistoryRuntimeStateHolder {
         operationId: String,
         status: HistoryResultStatus,
     ): HistoryRecord? {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId } ?: return null
+        val op = MockTodayOperations.findById(operationId) ?: return null
         val start = OperationRuntimeStateHolder.startedAtMillis(operationId) ?: return null
         val end = OperationRuntimeStateHolder.endedAtMillis(operationId)
             ?: System.currentTimeMillis()

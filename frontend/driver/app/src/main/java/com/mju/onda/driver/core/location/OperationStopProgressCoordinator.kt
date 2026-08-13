@@ -87,16 +87,38 @@ object OperationStopProgressCoordinator {
 
     private suspend fun loadLocked(operationId: String) {
         val alreadyReady = synchronized(lock) {
-            attachedOperationId == operationId && stops.isNotEmpty()
+            attachedOperationId == operationId && stops.isNotEmpty() && routeName.isNotBlank()
         }
+        val op = MockTodayOperations.findById(operationId)
         if (alreadyReady) {
-            refreshLocked()
-            return
+            val familyOk = op == null ||
+                OperationalRouteResolver.baseRouteFamily(routeName) ==
+                    OperationalRouteResolver.baseRouteFamily(op.routeName)
+            if (familyOk) {
+                refreshLocked()
+                return
+            }
+            Log.w(TAG, "reload: attached route='$routeName' != assignment='${op?.routeName}' op=$operationId")
         }
 
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
         val detail = MockOperationDetail.forOperationId(operationId)
-        val assignedRoute = op?.routeName ?: detail.routeName
+        val assignedRoute = op?.routeName?.takeIf { it.isNotBlank() } ?: detail.routeName
+        Log.i(
+            TAG,
+            "load op=$operationId found=${op != null} route='$assignedRoute' dbId=${op?.dbId} id=${op?.id}",
+        )
+        if (assignedRoute.isBlank()) {
+            Log.w(TAG, "load aborted: blank route for op=$operationId — not falling back to 기흥역")
+            synchronized(lock) {
+                attachedOperationId = operationId
+                routeName = ""
+                vehicleName = op?.vehicleName.orEmpty()
+                stops = emptyList()
+                tracker = StopProgressTracker()
+            }
+            _uiState.value = StopRouteProgress.initial(routeName = "", vehicleName = "", stops = emptyList())
+            return
+        }
         val departTime = op?.departTime.orEmpty().ifBlank { detail.departTime }
         val resolvedRoute = OperationalRouteResolver.resolveOperationalRouteName(
             routeNameFromAssignment = assignedRoute,
@@ -107,10 +129,16 @@ object OperationStopProgressCoordinator {
         val catalogStops = RouteStopsCatalog.stopsForRouteName(resolvedRoute)
 
         synchronized(lock) {
+            val routeChanged = attachedOperationId != operationId || routeName != resolvedRoute
             attachedOperationId = operationId
             routeName = resolvedRoute
             vehicleName = resolvedVehicle
             stops = catalogStops
+            if (routeChanged) {
+                tracker = StopProgressTracker()
+                lastWrittenPassed = Int.MIN_VALUE
+                lastWrittenArrived = Int.MIN_VALUE
+            }
         }
 
         val saved = runCatching { OperationStopProgressApi.fetch(operationId) }.getOrNull()

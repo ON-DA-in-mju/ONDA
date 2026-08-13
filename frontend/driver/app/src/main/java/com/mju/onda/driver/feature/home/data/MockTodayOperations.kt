@@ -44,7 +44,15 @@ data class AssignedOperation(
 
     val status: OperationStatus,
 
-)
+    /** operations.id(uuid). [id] 는 external_id 일 수 있다. */
+    val dbId: String = "",
+
+) {
+    fun matchesId(operationId: String): Boolean {
+        if (operationId.isBlank()) return false
+        return id == operationId || (dbId.isNotBlank() && dbId == operationId)
+    }
+}
 
 
 
@@ -322,13 +330,25 @@ object MockTodayOperations {
 
     fun findById(operationId: String): AssignedOperation? =
 
-        assignedOperations.find { it.id == operationId }
+        assignedOperations.find { it.matchesId(operationId) }
 
 
 
     fun requireById(operationId: String): AssignedOperation =
 
-        findById(operationId) ?: assignedOperations.first()
+        findById(operationId)
+            ?: AssignedOperation(
+                id = operationId,
+                routeName = "",
+                vehicleName = "",
+                departTime = "",
+                origin = "",
+                destination = "",
+                round = 1,
+                expectedEndTime = "",
+                status = OperationStatus.Scheduled,
+                dbId = operationId,
+            )
 
 
 

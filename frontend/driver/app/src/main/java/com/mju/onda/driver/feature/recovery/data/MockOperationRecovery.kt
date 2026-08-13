@@ -43,7 +43,7 @@ object MockOperationRecovery {
         val tx = OperationDeviceStatus.transmissionSnapshot(context, operationId)
         val battery = OperationDeviceStatus.batterySnapshot(context)
         return OperationRecoveryInfo(
-            id = detail.id,
+            id = operationId.ifBlank { detail.id },
             routeName = detail.routeName,
             vehicleName = detail.vehicleName,
             actualStartTime = OperationTripClock.formatHm(start),

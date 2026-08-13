@@ -69,7 +69,8 @@ object TodayAssignmentsHolder {
                     .put("destination", op.destination)
                     .put("round", op.round)
                     .put("expectedEndTime", op.expectedEndTime)
-                    .put("status", op.status.name),
+                    .put("status", op.status.name)
+                    .put("dbId", op.dbId),
             )
         }
         prefs?.edit()
@@ -98,6 +99,7 @@ object TodayAssignmentsHolder {
                             status = runCatching {
                                 OperationStatus.valueOf(o.optString("status", "Scheduled"))
                             }.getOrDefault(OperationStatus.Scheduled),
+                            dbId = o.optString("dbId"),
                         ),
                     )
                 }

@@ -17,10 +17,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class OperationDetailUiState(
-    val info: OperationDetailInfo = MockOperationDetail.giheungDetail,
+    val info: OperationDetailInfo = MockOperationDetail.unknown(""),
     val showConfirmDialog: Boolean = false,
     /** 순차 시작 가능 배차만 운행 준비하기 활성 */
-    val prepareEnabled: Boolean = true,
+    val prepareEnabled: Boolean = false,
 )
 
 sealed interface OperationDetailEvent {
@@ -41,10 +41,22 @@ class OperationDetailViewModel : ViewModel() {
     val events: SharedFlow<OperationDetailEvent> = _events.asSharedFlow()
 
     fun load(operationId: String) {
-        val id = operationId.ifBlank { MockOperationDetail.giheungDetail.id }
+        val id = operationId.trim()
+        if (id.isBlank()) {
+            android.util.Log.w("OpDetail", "load skipped: blank operationId")
+            _uiState.value = OperationDetailUiState(
+                info = MockOperationDetail.unknown(id),
+                prepareEnabled = false,
+            )
+            return
+        }
+        val info = resolveInfo(id)
         _uiState.value = OperationDetailUiState(
-            info = resolveInfo(id),
-            prepareEnabled = OperationRuntimeStateHolder.canStartOperation(id),
+            info = info,
+            prepareEnabled = info.status != OperationStatus.Ended &&
+                info.status != OperationStatus.Unavailable &&
+                info.status != OperationStatus.InProgress &&
+                OperationRuntimeStateHolder.canStartOperation(id),
         )
     }
 
@@ -96,7 +108,8 @@ class OperationDetailViewModel : ViewModel() {
         fun resolveInfo(operationId: String): OperationDetailInfo {
             val base = MockOperationDetail.forOperationId(operationId)
             val (status, label) = when {
-                OperationRuntimeStateHolder.isEnded(operationId) ->
+                OperationRuntimeStateHolder.isEnded(operationId) ||
+                    base.status == OperationStatus.Ended ->
                     OperationStatus.Ended to MockTodayOperations.ENDED_BADGE
                 OperationRuntimeStateHolder.isInProgress(operationId) ->
                     OperationStatus.InProgress to MockTodayOperations.IN_PROGRESS_BADGE
