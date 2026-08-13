@@ -1788,16 +1788,16 @@ export function VehiclesPage() {
         <section className="figma-panel">
           <div className="figma-panel-head">
             <h3>정비 이력</h3>
-            <div className="toolbar">
+            <div className="toolbar vehicle-filter-toolbar">
               <input
-                className="input"
+                className="input vehicle-filter-control"
                 style={{ width: 220, height: 32 }}
                 placeholder="차량 번호 / 정비 항목 검색"
                 value={maintQuery}
                 onChange={(e) => setMaintQuery(e.target.value)}
               />
               <select
-                className="select"
+                className="select vehicle-filter-control"
                 style={{ width: 110, height: 32 }}
                 value={maintStatus}
                 onChange={(e) => setMaintStatus(e.target.value)}
