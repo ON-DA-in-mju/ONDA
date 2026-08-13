@@ -7,12 +7,39 @@ import io.github.jan.supabase.auth.exception.AuthErrorCode
 import io.github.jan.supabase.auth.exception.AuthRestException
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.exceptions.HttpRequestException
+import kotlinx.coroutines.delay
 
 /**
  * Supabase Auth login for student accounts.
  * Accepts a student ID or email; IDs are mapped to `@mju.ac.kr`.
  */
 class SupabaseAuthRepository {
+
+    fun hasActiveSession(): Boolean =
+        runCatching {
+            SupabaseClientProvider.client.auth.currentSessionOrNull() != null
+        }.getOrDefault(false)
+
+    /**
+     * Auth 플러그인이 로컬 세션을 복원할 시간을 잠시 준 뒤 세션 유무를 확인한다.
+     */
+    suspend fun awaitActiveSession(maxWaitMillis: Long = 1_500L): Boolean {
+        if (hasActiveSession()) return true
+        val step = 100L
+        var waited = 0L
+        while (waited < maxWaitMillis) {
+            delay(step)
+            waited += step
+            if (hasActiveSession()) return true
+        }
+        return false
+    }
+
+    suspend fun signOut() {
+        runCatching {
+            SupabaseClientProvider.client.auth.signOut()
+        }
+    }
 
     suspend fun login(studentIdOrEmail: String, password: String): AuthResult {
         if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_KEY.isBlank()) {

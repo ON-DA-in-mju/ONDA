@@ -70,6 +70,7 @@ fun StopLiveScreen(
     routeId: String? = null,
     vehicles: List<LiveVehicle> = emptyList(),
     stopCoordinates: StopCoordinateMap = emptyMap(),
+    routeCatalogRevision: Int = 0,
     onBackClick: () -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
 ) {
@@ -82,10 +83,10 @@ fun StopLiveScreen(
         }
     }
 
-    val directionKey = remember(stopId, routeId, stopCoordinates) {
+    val directionKey = remember(stopId, routeId, stopCoordinates, routeCatalogRevision) {
         resolveStopSelection(stopId, routeId, stopCoordinates)?.let { "${it.routeId}_${it.directionIndex}" } ?: stopId
     }
-    val stopSelection = remember(stopId, routeId, stopCoordinates) {
+    val stopSelection = remember(stopId, routeId, stopCoordinates, routeCatalogRevision) {
         resolveStopSelection(stopId, routeId, stopCoordinates)
     }
     var trackerByVehicle by remember(directionKey) {
@@ -97,7 +98,7 @@ fun StopLiveScreen(
             "${it.id}:${it.latitude}:${it.longitude}:${it.recordedAt}:${it.speed}"
         }
     }
-    val data = remember(stopId, routeId, vehicleSignature, nowMillis, trackerByVehicle, stopCoordinates) {
+    val data = remember(stopId, routeId, vehicleSignature, nowMillis, trackerByVehicle, stopCoordinates, routeCatalogRevision) {
         val built = buildStopLiveData(
             stopId = stopId,
             routeIdHint = routeId,
@@ -108,7 +109,7 @@ fun StopLiveScreen(
         )
         built.first
     }
-    LaunchedEffect(stopId, routeId, vehicleSignature, stopCoordinates) {
+    LaunchedEffect(stopId, routeId, vehicleSignature, stopCoordinates, routeCatalogRevision) {
         val built = buildStopLiveData(
             stopId = stopId,
             routeIdHint = routeId,

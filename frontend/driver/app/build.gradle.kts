@@ -12,7 +12,8 @@ android {
 
     defaultConfig {
         applicationId = "com.mju.onda.driver"
-        minSdk = 26
+        // Galaxy Tab A SM-T280 (Android 5.1.1 / API 22) 설치 지원. 기존 폰은 영향 없음.
+        minSdk = 22
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"

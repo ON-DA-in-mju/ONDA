@@ -11,6 +11,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -170,6 +171,7 @@ fun StudentMainShell(
     var routeDetails by remember { mutableStateOf<List<RouteDetailDto>>(emptyList()) }
     var allStops by remember { mutableStateOf<List<StopDto>>(emptyList()) }
     var stopCoordinates by remember { mutableStateOf<StopCoordinateMap>(emptyMap()) }
+    var routeCatalogRevision by remember { mutableIntStateOf(0) }
     var timetableRoutes by remember { mutableStateOf<List<TimetableRoute>>(emptyTimetableRoutes()) }
     var stopGuideRoutes by remember { mutableStateOf<List<StopGuideRouteInfo>>(emptyStopGuideRoutes()) }
     var stopGuideItems by remember { mutableStateOf<List<StopGuideItem>>(emptyList()) }
@@ -341,6 +343,7 @@ fun StudentMainShell(
                 val routeStopRows = routeStopsRepository.getAllRouteStops()
                 stopsByRouteName = routeStopRows.groupBy { it.routeName }
                 RouteStopCatalog.update(stopsByRouteName, date = AcademicCalendar.todayDateKey())
+                routeCatalogRevision = RouteStopCatalog.revision()
                 stopGuideItems = buildStopGuideItems(allStops, routeStopRows)
                 Log.d("ONDA_SUPABASE", "route_stops fetch success=true, count=${routeStopRows.size}")
             } catch (e: Exception) {
@@ -753,6 +756,7 @@ fun StudentMainShell(
                         liveData = liveData,
                         deviceStatuses = operationDeviceStatuses,
                         stopCoordinates = stopCoordinates,
+                        routeCatalogRevision = routeCatalogRevision,
                         onBackClick = { overlay = MainOverlay.None },
                         onStopClick = { stopId ->
                             overlay = MainOverlay.StopLive(
@@ -789,6 +793,7 @@ fun StudentMainShell(
                         routeId = routeId,
                         vehicles = liveVehicles,
                         stopCoordinates = stopCoordinates,
+                        routeCatalogRevision = routeCatalogRevision,
                         modifier = Modifier.fillMaxSize(),
                         onBackClick = {
                             overlay = current.returnRouteId?.let { MainOverlay.RouteLive(it) }

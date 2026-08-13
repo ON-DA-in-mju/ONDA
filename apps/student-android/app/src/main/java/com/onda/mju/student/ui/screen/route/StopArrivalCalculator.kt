@@ -47,34 +47,26 @@ fun resolveStopSelection(
         addAll(com.onda.mju.student.data.route.StudentRouteIds.orderedUiIds)
     }.distinct()
 
-    fun directionCount(config: RouteStopConfig): Int =
-        if (config.inboundStops.isEmpty()) 0 else 1
-
     for (routeId in routeCandidates) {
-        val config = routeStopConfig(routeId)
-        for (dir in 0..directionCount(config)) {
-            val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
-            val byId = waypoints.firstOrNull { it.id == stopId }
-            if (byId != null) {
-                return ResolvedStopSelection(routeId, dir, byId, waypoints)
-            }
+        val waypoints = stopWaypointsForRoute(routeId, directionIndex = 0, stopCoordinates)
+        if (waypoints.isEmpty()) continue
+        val byId = waypoints.firstOrNull { it.id == stopId }
+        if (byId != null) {
+            return ResolvedStopSelection(routeId, 0, byId, waypoints)
         }
     }
 
-    // DB stop UUID / raw name
     val stopName = favoriteOrGuideStopNames[stopId] ?: stopId
     for (routeId in routeCandidates) {
-        val config = routeStopConfig(routeId)
+        val waypoints = stopWaypointsForRoute(routeId, directionIndex = 0, stopCoordinates)
+        if (waypoints.isEmpty()) continue
         val infos = com.onda.mju.student.data.route.RouteStopCatalog.stopInfos(routeId)
         val matchedName = infos.firstOrNull { it.id == stopId }?.name ?: stopName
-        for (dir in 0..directionCount(config)) {
-            val waypoints = stopWaypointsForDirection(config, dir, stopCoordinates)
-            val byName = waypoints.firstOrNull {
-                it.name == matchedName || it.name == stopName
-            }
-            if (byName != null) {
-                return ResolvedStopSelection(routeId, dir, byName, waypoints)
-            }
+        val byName = waypoints.firstOrNull {
+            it.name == matchedName || it.name == stopName
+        }
+        if (byName != null) {
+            return ResolvedStopSelection(routeId, 0, byName, waypoints)
         }
     }
     return null
@@ -176,7 +168,7 @@ private fun buildVehicleArrival(
     )
     val nextTracker = VehicleStopTracker(
         lastPassedStopIndex = progress.lastPassedStopIndex,
-        hasEnteredFocus = progress.hasEnteredFocus,
+        lastArrivedStopIndex = progress.lastArrivedStopIndex,
     )
 
     val target = waypoints[targetIndex]
@@ -234,9 +226,10 @@ private fun hasPassedSelectedStop(
     progress: StopTimelineProgress,
     targetIndex: Int,
 ): Boolean {
+    // Already arrived at a later stop → this one is behind us.
+    if (progress.lastArrivedStopIndex > targetIndex) return true
     if (progress.busOnStopIndex == targetIndex) return false
     if (progress.lastPassedStopIndex < targetIndex) return false
-    // Cleared target and already moving on a later segment / stop.
     if (progress.busOnStopIndex != null && progress.busOnStopIndex > targetIndex) return true
     if (progress.busSegmentFromIndex > targetIndex) return true
     if (progress.busSegmentFromIndex == targetIndex &&

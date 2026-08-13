@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.onda.mju.student.data.route.RouteStopCatalog
 import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -75,17 +76,21 @@ fun RouteLiveScreen(
     liveData: RouteLiveData? = null,
     deviceStatuses: Map<String, OperationDeviceStatusDto> = emptyMap(),
     stopCoordinates: StopCoordinateMap = emptyMap(),
+    routeCatalogRevision: Int = 0,
     onBackClick: () -> Unit = {},
     onStopClick: (String) -> Unit = {},
     onVehicleClick: (String) -> Unit = {},
     onTimetableClick: () -> Unit = {},
 ) {
     val data = liveData ?: remember(routeId) { sampleRouteLive(routeId) }
-    val stopConfig = remember(data.routeId, stopCoordinates) { routeStopConfig(data.routeId) }
+    val catalogRevision = maxOf(routeCatalogRevision, RouteStopCatalog.revision())
+    val stopConfig = remember(data.routeId, stopCoordinates, catalogRevision) {
+        routeStopConfig(data.routeId)
+    }
     val directions = remember(stopConfig) { stopConfig.directions }
     var directionIndex by remember(routeId) { mutableIntStateOf(0) }
-    val waypoints = remember(stopConfig, directionIndex, stopCoordinates) {
-        stopWaypointsForDirection(stopConfig, directionIndex, stopCoordinates)
+    val waypoints = remember(data.routeId, directionIndex, stopCoordinates, catalogRevision) {
+        stopWaypointsForRoute(data.routeId, directionIndex, stopCoordinates)
     }
     var selectedVehicle by remember(routeId) {
         mutableStateOf(data.vehicles.firstOrNull()?.id.orEmpty())
@@ -143,12 +148,12 @@ fun RouteLiveScreen(
     LaunchedEffect(
         trackerKey,
         timelineProgress.lastPassedStopIndex,
-        timelineProgress.hasEnteredFocus,
+        timelineProgress.lastArrivedStopIndex,
         directionIndex,
     ) {
         val next = VehicleStopTracker(
             lastPassedStopIndex = timelineProgress.lastPassedStopIndex,
-            hasEnteredFocus = timelineProgress.hasEnteredFocus,
+            lastArrivedStopIndex = timelineProgress.lastArrivedStopIndex,
         )
         val prev = trackerByVehicle[trackerKey]
         if (prev != next) {
