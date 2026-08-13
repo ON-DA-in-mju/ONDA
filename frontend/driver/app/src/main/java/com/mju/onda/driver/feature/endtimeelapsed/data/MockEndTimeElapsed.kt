@@ -35,7 +35,7 @@ object MockEndTimeElapsed {
         operationId: String,
         lastTransmission: String = "방금 전",
     ): EndTimeElapsedInfo {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
             ?: MockTodayOperations.assignedOperations.first()
         val now = System.currentTimeMillis()
         val currentHm = OperationTripClock.formatHm(now)

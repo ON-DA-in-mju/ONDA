@@ -51,8 +51,9 @@ class InterruptedEndCompleteViewModel : ViewModel() {
                 ?.id
             ?: MockTodayOperations.assignedOperations.firstOrNull()?.id
             ?: return
-        val operation = MockTodayOperations.assignedOperations.find { it.id == operationId }
-            ?: MockTodayOperations.assignedOperations.first()
+        val operation = MockTodayOperations.findById(operationId)
+            ?: MockTodayOperations.assignedOperations.firstOrNull()
+            ?: return
         val reason = historyItem?.reason ?: "차량 고장"
 
         if (!recorded) {

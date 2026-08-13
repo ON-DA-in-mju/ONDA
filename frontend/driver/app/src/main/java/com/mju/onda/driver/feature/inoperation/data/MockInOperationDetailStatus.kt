@@ -47,7 +47,11 @@ object MockInOperationDetailStatus {
 
     fun forOperationId(operationId: String): InOperationDetailStatusInfo {
         val detail = MockOperationDetail.forOperationId(operationId)
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
+        android.util.Log.i(
+            "OpDetail",
+            "inOpStatus op=$operationId found=${op != null} route='${op?.routeName ?: detail.routeName}'",
+        )
         val start = OperationRuntimeStateHolder.ensureStartedAt(operationId)
             .takeIf { it > 0L }
             ?: System.currentTimeMillis()

@@ -89,11 +89,11 @@ object TodayAssignmentsApi {
             val buses = o.optJSONObject("buses")
             val originStop = o.optJSONObject("origin_stop")
             val destinationStop = o.optJSONObject("destination_stop")
-            val externalId = o.optString("external_id")
+            val externalId = o.optString("external_id").takeIf { it.isNotBlank() && it != "null" }
             val uuid = o.optString("id")
             out.add(
                 AssignedOperation(
-                    id = if (externalId.isNotBlank()) externalId else uuid,
+                    id = externalId ?: uuid,
                     routeName = routes?.optString("route_name").orEmpty(),
                     vehicleName = buses?.optString("bus_name").orEmpty(),
                     departTime = hhmm(schedules?.optString("departure_time")),
@@ -102,6 +102,7 @@ object TodayAssignmentsApi {
                     round = o.optInt("round", 1),
                     expectedEndTime = hhmm(o.optString("expected_end_time")),
                     status = mapStatus(o.optString("status", "SCHEDULED")),
+                    dbId = uuid,
                 ),
             )
         }

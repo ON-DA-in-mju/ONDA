@@ -28,7 +28,7 @@ object MockEndOperationConfirm {
     const val DIALOG_DISMISS = "아니오"
 
     fun forOperationId(operationId: String): EndOperationConfirmInfo {
-        val op = MockTodayOperations.assignedOperations.find { it.id == operationId }
+        val op = MockTodayOperations.findById(operationId)
             ?: MockTodayOperations.assignedOperations.first()
         val start = OperationRuntimeStateHolder.ensureStartedAt(operationId)
             .takeIf { it > 0L }

@@ -23,6 +23,7 @@ import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 object UserScopedState {
     fun bind(userId: String) {
         UserScopedPrefs.bind(userId)
+        TodayAssignmentsHolder.bindUser()
         OperationRuntimeStateHolder.bindUser()
         HistoryRuntimeStateHolder.bindUser()
         LocalAlarmStore.bindUser()
@@ -36,7 +37,6 @@ object UserScopedState {
         AccountInfoStateHolder.bindUser(userId)
         AlarmSettingsStateHolder.bindUser()
         LocationConsentPrefs.bindUser()
-        TodayAssignmentsHolder.bindUser()
         SafeStopDecisionPoller.start()
     }
 

@@ -84,7 +84,11 @@ object OperationRuntimeStateHolder {
 
     fun startOperation(operationId: String = resolveFocusedOperationId()) {
         if (operationId.isBlank()) return
-        endedIds.remove(operationId)
+        if (!canStartOperation(operationId) && !isInProgress(operationId)) {
+            android.util.Log.w("OpRuntime", "start blocked (ended or not next) op=$operationId")
+            return
+        }
+        aliasIds(operationId).forEach { endedIds.remove(it) }
         endedAtById.remove(operationId)
         inProgressIds += operationId
         if (operationId !in startedAtById) {
@@ -196,9 +200,14 @@ object OperationRuntimeStateHolder {
         com.mju.onda.driver.core.location.OperationLocationTracker.stop()
     }
 
-    fun isInProgress(operationId: String): Boolean = operationId in inProgressIds
+    fun isInProgress(operationId: String): Boolean =
+        aliasIds(operationId).any { it in inProgressIds }
 
-    fun isEnded(operationId: String): Boolean = operationId in endedIds
+    fun isEnded(operationId: String): Boolean {
+        if (aliasIds(operationId).any { it in endedIds }) return true
+        val op = MockTodayOperations.findById(operationId) ?: return false
+        return op.status == OperationStatus.Ended
+    }
 
     fun hasActiveOperation(): Boolean = inProgressIds.isNotEmpty()
 
@@ -210,7 +219,7 @@ object OperationRuntimeStateHolder {
      * 홈이 비었는데 로그아웃만 막히는 상황을 방지한다.
      */
     fun reconcileWithFetchedAssignments(operations: List<AssignedOperation>) {
-        val ids = operations.map { it.id }.toSet()
+        val ids = operations.flatMap { aliasIds(it) }.toSet()
         var changed = false
         val stale = inProgressIds.filter { it !in ids }
         if (stale.isNotEmpty()) {
@@ -218,12 +227,14 @@ object OperationRuntimeStateHolder {
             changed = true
         }
         operations.forEach { op ->
-            if (
-                (op.status == OperationStatus.Ended || op.status == OperationStatus.Unavailable) &&
-                inProgressIds.remove(op.id)
-            ) {
-                endedIds += op.id
-                changed = true
+            val aliases = aliasIds(op)
+            if (op.status == OperationStatus.Ended || op.status == OperationStatus.Unavailable) {
+                if (inProgressIds.removeAll(aliases)) {
+                    changed = true
+                }
+                if (endedIds.addAll(aliases)) {
+                    changed = true
+                }
             }
         }
         if (changed) {
@@ -279,15 +290,17 @@ object OperationRuntimeStateHolder {
      */
     fun canStartOperation(operationId: String): Boolean {
         if (isEnded(operationId)) return false
+        if (isInProgress(operationId)) return false
         val ordered = MockTodayOperations.assignedOperations
-        val target = ordered.find { it.id == operationId } ?: return false
+        val target = ordered.find { it.matchesId(operationId) } ?: return false
         if (target.status == OperationStatus.Unavailable) return false
+        if (target.status == OperationStatus.Ended) return false
         if (hasActiveOperation()) return false
-        val index = ordered.indexOfFirst { it.id == operationId }
+        val index = ordered.indexOfFirst { it.matchesId(operationId) }
         if (index < 0) return false
         // 앞선 운행이 종료됐거나 운행 불가면 다음 배차 시작 가능
         return ordered.take(index).all {
-            isEnded(it.id) || it.status == OperationStatus.Unavailable
+            isEnded(it.id) || it.status == OperationStatus.Unavailable || it.status == OperationStatus.Ended
         }
     }
 
@@ -296,7 +309,7 @@ object OperationRuntimeStateHolder {
         return operations.map { op ->
             when {
                 isInProgress(op.id) -> op.copy(status = OperationStatus.InProgress)
-                isEnded(op.id) -> op.copy(status = OperationStatus.Ended)
+                isEnded(op.id) || op.status == OperationStatus.Ended -> op.copy(status = OperationStatus.Ended)
                 op.status == OperationStatus.Unavailable -> op
                 else -> op.copy(status = AssignmentStatusResolver.resolve(op))
             }
@@ -317,6 +330,17 @@ object OperationRuntimeStateHolder {
         persist()
         com.mju.onda.driver.core.location.OperationLocationTracker.stop()
         TodayAssignmentsHolder.clearForNewDay()
+    }
+
+    private fun aliasIds(operationId: String): Set<String> {
+        if (operationId.isBlank()) return emptySet()
+        val op = MockTodayOperations.findById(operationId)
+        return if (op != null) aliasIds(op) else setOf(operationId)
+    }
+
+    private fun aliasIds(op: AssignedOperation): Set<String> = buildSet {
+        add(op.id)
+        if (op.dbId.isNotBlank()) add(op.dbId)
     }
 
     private fun persist() {

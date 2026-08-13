@@ -52,16 +52,16 @@ object Routes {
     const val INTERRUPTED_END_PROCESSING = "interrupted_end_processing"
     const val INTERRUPTED_END_COMPLETE = "interrupted_end_complete"
 
-    fun operationDetail(operationId: String): String = "operation_detail/$operationId"
+    fun operationDetail(operationId: String): String = "operation_detail/${Uri.encode(operationId)}"
     fun inOperationDetailStatus(operationId: String): String =
-        "in_operation_detail_status/$operationId"
-    fun stopRouteProgress(operationId: String): String = "stop_route_progress/$operationId"
-    fun endOperationConfirm(operationId: String): String = "end_operation_confirm/$operationId"
+        "in_operation_detail_status/${Uri.encode(operationId)}"
+    fun stopRouteProgress(operationId: String): String = "stop_route_progress/${Uri.encode(operationId)}"
+    fun endOperationConfirm(operationId: String): String = "end_operation_confirm/${Uri.encode(operationId)}"
     fun endOperationProcessing(operationId: String): String =
-        "end_operation_processing/$operationId"
-    fun endOperationComplete(operationId: String): String = "end_operation_complete/$operationId"
-    fun endTimeElapsed(operationId: String): String = "end_time_elapsed/$operationId"
-    fun adminForceEnd(operationId: String): String = "admin_force_end/$operationId"
+        "end_operation_processing/${Uri.encode(operationId)}"
+    fun endOperationComplete(operationId: String): String = "end_operation_complete/${Uri.encode(operationId)}"
+    fun endTimeElapsed(operationId: String): String = "end_time_elapsed/${Uri.encode(operationId)}"
+    fun adminForceEnd(operationId: String): String = "admin_force_end/${Uri.encode(operationId)}"
     fun operationHistoryDetail(recordId: String): String = "operation_history_detail/$recordId"
     fun stopRequestDetail(reason: String): String =
         "stop_request_detail/${Uri.encode(reason)}"

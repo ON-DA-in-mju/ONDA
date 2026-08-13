@@ -45,9 +45,9 @@ class StopRequestDetailViewModel : ViewModel() {
 
     fun load(selectedReason: String) {
         val operationId = OperationRuntimeStateHolder.activeOperationId()
-        val operation = MockTodayOperations.assignedOperations
-            .find { it.id == operationId }
-            ?: MockTodayOperations.assignedOperations.first()
+        val operation = operationId?.let { MockTodayOperations.findById(it) }
+            ?: MockTodayOperations.assignedOperations.firstOrNull()
+            ?: return
         _uiState.update {
             it.copy(
                 routeName = operation.routeName,
