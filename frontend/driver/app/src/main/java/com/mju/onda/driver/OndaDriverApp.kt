@@ -17,6 +17,7 @@ class OndaDriverApp : Application() {
         super.onCreate()
 
         com.mju.onda.driver.core.supabase.SupabaseClient.init(this)
+        com.mju.onda.driver.core.DeviceSessionId.init(this)
 
         OperationLocationTracker.init(this)
 

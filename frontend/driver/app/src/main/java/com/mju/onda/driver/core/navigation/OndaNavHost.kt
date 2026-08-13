@@ -38,9 +38,12 @@ import com.mju.onda.driver.feature.adminforceend.data.AdminForceEndPoller
 import com.mju.onda.driver.feature.adminforceend.ui.AdminForceEndScreen
 import com.mju.onda.driver.feature.alarm.ui.OperationAlarmListScreen
 import com.mju.onda.driver.feature.assignment.ui.AssignmentChangeScreen
+import com.mju.onda.driver.feature.auth.data.SessionKickPoller
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 import com.mju.onda.driver.feature.backgroundguide.ui.BackgroundGuideScreen
 import com.mju.onda.driver.feature.batterywarning.ui.BatteryWarningScreen
+import com.mju.onda.driver.feature.auth.ui.FindIdScreen
+import com.mju.onda.driver.feature.auth.ui.FindPasswordScreen
 import com.mju.onda.driver.feature.auth.ui.LoginScreen
 import com.mju.onda.driver.feature.cancel.ui.OperationCancelScreen
 import com.mju.onda.driver.feature.consent.ui.LocationConsentScreen
@@ -110,6 +113,19 @@ private fun NavHostController.navigateToSettings() {
     }
 }
 
+private fun NavHostController.navigateToHistory() {
+    navigate(Routes.OPERATION_HISTORY) {
+        launchSingleTop = true
+    }
+}
+
+private val optionalOperationIdArgs = listOf(
+    navArgument("operationId") {
+        type = NavType.StringType
+        defaultValue = ""
+    },
+)
+
 private fun NavHostController.navigateToLoginAfterLogout() {
     navigate(Routes.LOGIN) {
         popUpTo(graph.id) { inclusive = true }
@@ -133,6 +149,17 @@ fun OndaNavHost() {
 
     var forceEndOpId by remember { mutableStateOf<String?>(null) }
     var forceEndSeconds by remember { mutableIntStateOf(5) }
+
+    LaunchedEffect(Unit) {
+        SessionKickPoller.kicked.collect {
+            Toast.makeText(
+                context,
+                "다른 기기에서 로그인되어 로그아웃되었습니다.",
+                Toast.LENGTH_LONG,
+            ).show()
+            navController.navigateToLoginAfterLogout()
+        }
+    }
 
     LaunchedEffect(Unit) {
         AdminForceEndPoller.pending.collect { pending ->
@@ -237,6 +264,24 @@ fun OndaNavHost() {
                         }
                     }
                 },
+                onOpenFindId = {
+                    navController.navigate(Routes.FIND_ID)
+                },
+                onOpenFindPassword = {
+                    navController.navigate(Routes.FIND_PASSWORD)
+                },
+            )
+        }
+
+        composable(Routes.FIND_ID) {
+            FindIdScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.FIND_PASSWORD) {
+            FindPasswordScreen(
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -879,23 +924,30 @@ fun OndaNavHost() {
         composable(Routes.OPERATION_ALARMS) {
             OperationAlarmListScreen(
                 onBack = { navController.popBackStack() },
-                onOpenAssignmentChange = {
-                    navController.navigate(Routes.ASSIGNMENT_CHANGE)
+                onOpenAssignmentChange = { alarmId ->
+                    navController.navigate(Routes.assignmentChange(alarmId))
                 },
-                onOpenDepartureTimeChange = {
-                    navController.navigate(Routes.DEPARTURE_TIME_CHANGE)
+                onOpenVehicleChange = { alarmId ->
+                    navController.navigate(Routes.vehicleChange(alarmId))
                 },
-                onOpenOperationCancel = {
-                    navController.navigate(Routes.OPERATION_CANCEL)
+                onOpenDepartureTimeChange = { alarmId ->
+                    navController.navigate(Routes.departureTimeChange(alarmId))
                 },
+                onOpenOperationCancel = { alarmId ->
+                    navController.navigate(Routes.operationCancel(alarmId))
+                },
+                onOpenHistory = { navController.navigateToHistory() },
                 onOpenSettings = { navController.navigateToSettings() },
             )
         }
 
-        composable(Routes.ASSIGNMENT_CHANGE) {
+        composable(
+            route = Routes.ASSIGNMENT_CHANGE,
+            arguments = optionalOperationIdArgs,
+        ) {
             AssignmentChangeScreen(
-                onConfirm = {
-                    navController.navigate(Routes.VEHICLE_CHANGE)
+                onConfirm = { operationId ->
+                    navController.navigate(Routes.vehicleChange(operationId))
                 },
                 onGoHome = {
                     navController.popBackStack(Routes.TODAY_OPERATION, inclusive = false)
@@ -906,10 +958,15 @@ fun OndaNavHost() {
                 onOpenAlarms = {
                     navController.popBackStack(Routes.OPERATION_ALARMS, inclusive = false)
                 },
+                onOpenHistory = { navController.navigateToHistory() },
+                onOpenSettings = { navController.navigateToSettings() },
             )
         }
 
-        composable(Routes.VEHICLE_CHANGE) {
+        composable(
+            route = Routes.VEHICLE_CHANGE,
+            arguments = optionalOperationIdArgs,
+        ) {
             VehicleChangeScreen(
                 onConfirm = {
                     navController.popBackStack(Routes.TODAY_OPERATION, inclusive = false)
@@ -918,17 +975,21 @@ fun OndaNavHost() {
                     navController.popBackStack()
                 },
                 onOpenAlarms = {
-                    // 종 버튼 → 운행 알림 목록
                     if (!navController.popBackStack(Routes.OPERATION_ALARMS, inclusive = false)) {
                         navController.navigate(Routes.OPERATION_ALARMS) {
                             launchSingleTop = true
                         }
                     }
                 },
+                onOpenHistory = { navController.navigateToHistory() },
+                onOpenSettings = { navController.navigateToSettings() },
             )
         }
 
-        composable(Routes.DEPARTURE_TIME_CHANGE) {
+        composable(
+            route = Routes.DEPARTURE_TIME_CHANGE,
+            arguments = optionalOperationIdArgs,
+        ) {
             DepartureTimeChangeScreen(
                 onConfirm = {
                     navController.popBackStack(Routes.TODAY_OPERATION, inclusive = false)
@@ -943,10 +1004,15 @@ fun OndaNavHost() {
                         }
                     }
                 },
+                onOpenHistory = { navController.navigateToHistory() },
+                onOpenSettings = { navController.navigateToSettings() },
             )
         }
 
-        composable(Routes.OPERATION_CANCEL) {
+        composable(
+            route = Routes.OPERATION_CANCEL,
+            arguments = optionalOperationIdArgs,
+        ) {
             OperationCancelScreen(
                 onConfirm = {
                     navController.popBackStack(Routes.TODAY_OPERATION, inclusive = false)
@@ -961,6 +1027,8 @@ fun OndaNavHost() {
                         }
                     }
                 },
+                onOpenHistory = { navController.navigateToHistory() },
+                onOpenSettings = { navController.navigateToSettings() },
             )
         }
     }

@@ -1,6 +1,5 @@
 package com.mju.onda.driver.feature.departure.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -63,10 +61,11 @@ fun DepartureTimeChangeScreen(
     onConfirm: () -> Unit,
     onBack: () -> Unit,
     onOpenAlarms: () -> Unit,
+    onOpenHistory: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: DepartureTimeChangeViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -74,12 +73,8 @@ fun DepartureTimeChangeScreen(
                 DepartureTimeChangeEvent.ConfirmAndGoHome -> onConfirm()
                 DepartureTimeChangeEvent.NavigateBack -> onBack()
                 DepartureTimeChangeEvent.OpenAlarms -> onOpenAlarms()
-                DepartureTimeChangeEvent.OpenHistory -> {
-                    Toast.makeText(context, "운행 이력 화면은 다음 단계에서 연결합니다.", Toast.LENGTH_SHORT).show()
-                }
-                DepartureTimeChangeEvent.OpenSettings -> {
-                    Toast.makeText(context, "설정 화면은 다음 단계에서 연결합니다.", Toast.LENGTH_SHORT).show()
-                }
+                DepartureTimeChangeEvent.OpenHistory -> onOpenHistory()
+                DepartureTimeChangeEvent.OpenSettings -> onOpenSettings()
             }
         }
     }

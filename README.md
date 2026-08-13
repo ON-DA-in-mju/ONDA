@@ -7,12 +7,11 @@
 ## 폴더 구조
 
 ```
-Bus_alpha/
+Bus/
 ├── frontend/
 │   ├── admin/              # 관리자 웹 (Vite + React)
-│   └── driver/             # 기사 앱 (Android / Kotlin)
-├── apps/
-│   └── student-android/    # 학생 앱 (Android / Kotlin)
+│   ├── driver/             # 기사 앱 (Android / Kotlin)
+│   └── student/            # 학생 앱 (Android / Kotlin)
 ├── docs/
 └── README.md
 ```
@@ -38,9 +37,9 @@ cd frontend/driver
 
 ## 학생 앱
 
-Android Studio에서 **`apps/student-android`** 폴더를 Open 하세요.
+Android Studio에서 **`frontend/student`** 폴더를 Open 하세요.
 
 ```bash
-cd apps/student-android
+cd frontend/student
 ./gradlew :app:assembleDebug
 ```

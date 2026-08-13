@@ -51,7 +51,6 @@ class SafeStopHistoryViewModel : ViewModel() {
     }
 
     fun load() {
-        SafeStopHistoryHolder.ensureSeedIfEmpty()
         refreshState()
         viewModelScope.launch {
             syncFromServer()

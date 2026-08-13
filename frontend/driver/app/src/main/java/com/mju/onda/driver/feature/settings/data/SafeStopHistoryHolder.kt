@@ -2,8 +2,6 @@ package com.mju.onda.driver.feature.settings.data
 
 import android.content.SharedPreferences
 import com.mju.onda.driver.core.UserScopedPrefs
-import com.mju.onda.driver.feature.auth.data.SessionStateHolder
-import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -25,7 +23,7 @@ enum class SafeStopOutcome {
 
 object MockSafeStopHistory {
     const val SCREEN_TITLE = "안전 정차 이력"
-    const val EMPTY_TITLE = "아직 안전 정차 요청이 없습니다."
+    const val EMPTY_TITLE = "아직 안전 정차 이력이 없습니다."
     const val EMPTY_SUBTITLE = "운행 중 안전 정차 요청을 보내면\n이곳에 이력이 표시됩니다."
     const val REFRESH_LABEL = "새로고침"
     const val NEW_REQUEST_LABEL = "중단 요청하기"
@@ -77,7 +75,7 @@ object SafeStopHistoryHolder {
         if (!raw.isNullOrBlank()) {
             runCatching { decode(raw) }.getOrNull()?.let { items += it }
         }
-        normalizePastSeed()
+        dropFakeSeed()
     }
 
     fun unbindUser() {
@@ -227,52 +225,14 @@ object SafeStopHistoryHolder {
         selectedId = null
         prefs?.edit()
             ?.remove(KEY_ITEMS)
-            ?.putBoolean(KEY_SEEDED, false)
             ?.apply()
     }
 
-    /**
-     * 비어 있을 때만 어제 날짜 시드(조치 완료 · 계속 운행)를 넣는다.
-     * 이미 시드했거나 오늘 이력이 있으면 생략.
-     */
-    fun ensureSeedIfEmpty() {
-        if (items.isNotEmpty()) {
-            normalizePastSeed()
-            return
-        }
-        if (prefs?.getBoolean(KEY_SEEDED, false) == true) return
-        items += pastSeedItem()
-        prefs?.edit()?.putBoolean(KEY_SEEDED, true)?.apply()
-        persist()
-    }
-
-    /** 구버전 시드(확인 대기 등)를 과거 조치 완료 건으로 맞춤 */
-    private fun normalizePastSeed() {
-        val index = items.indexOfFirst { it.id == "seed-1" }
-        if (index < 0) return
-        val desired = pastSeedItem()
-        if (items[index] != desired) {
-            items[index] = desired
-            persist()
-        }
-        if (prefs?.getBoolean(KEY_SEEDED, false) != true) {
-            prefs?.edit()?.putBoolean(KEY_SEEDED, true)?.apply()
-        }
-    }
-
-    private fun pastSeedItem(): SafeStopHistoryItem {
-        val op = MockTodayOperations.assignedOperations.firstOrNull()
-        val isDriver02 = SessionStateHolder.currentUserId == "user02"
-        return SafeStopHistoryItem(
-            id = "seed-1",
-            reason = "차량 고장",
-            requestedAt = if (isDriver02) "08:55" else "09:18",
-            routeName = op?.routeName ?: "기흥역 통학버스",
-            vehicleName = op?.vehicleName ?: "2호차",
-            dateLabel = MockSafeStopHistory.PAST_DATE_LABEL,
-            reviewStatus = SafeStopReviewStatus.ActionCompleted,
-            outcome = SafeStopOutcome.ContinueOperation,
-        )
+    /** 예전 데모용 가짜 이력(차량 고장)은 더 이상 넣지 않는다. */
+    private fun dropFakeSeed() {
+        val removed = items.removeAll { it.id == "seed-1" }
+        if (removed) persist()
+        prefs?.edit()?.remove(KEY_SEEDED)?.apply()
     }
 
     private fun persist() {

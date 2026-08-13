@@ -52,9 +52,9 @@ object MockInOperationDetailStatus {
             "OpDetail",
             "inOpStatus op=$operationId found=${op != null} route='${op?.routeName ?: detail.routeName}'",
         )
-        val start = OperationRuntimeStateHolder.ensureStartedAt(operationId)
-            .takeIf { it > 0L }
-            ?: System.currentTimeMillis()
+        val start = OperationRuntimeStateHolder.startedAtMillis(operationId)
+        ?: OperationRuntimeStateHolder.ensureStartedAt(operationId).takeIf { it > 0L }
+        ?: 0L
         return InOperationDetailStatusInfo(
             id = op?.id ?: detail.id,
             routeName = op?.routeName ?: detail.routeName,

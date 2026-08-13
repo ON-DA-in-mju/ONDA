@@ -6,7 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 로컬 API에서 받은 오늘 배정(또는 fallback mock)을 현재 계정에 보관한다.
+ * 로컬 API에서 받은 오늘 배정을 현재 계정에 보관한다.
  * MockTodayOperations.assignedOperations가 여기를 우선 참조한다.
  */
 object TodayAssignmentsHolder {
@@ -40,7 +40,7 @@ object TodayAssignmentsHolder {
         prefs?.edit()?.clear()?.apply()
     }
 
-    /** 날짜 변경 시 캐시만 비워 서버/ mock 을 다시 받게 한다. */
+    /** 날짜 변경 시 캐시만 비워 서버에서 다시 받게 한다. */
     fun clearForNewDay() {
         cached = null
         prefs?.edit()?.remove(KEY_JSON)?.putString(
@@ -64,13 +64,16 @@ object TodayAssignmentsHolder {
                     .put("id", op.id)
                     .put("routeName", op.routeName)
                     .put("vehicleName", op.vehicleName)
+                    .put("plateNumber", op.plateNumber)
                     .put("departTime", op.departTime)
                     .put("origin", op.origin)
                     .put("destination", op.destination)
                     .put("round", op.round)
                     .put("expectedEndTime", op.expectedEndTime)
                     .put("status", op.status.name)
-                    .put("dbId", op.dbId),
+                    .put("dbId", op.dbId)
+                    .put("startedAtMillis", op.startedAtMillis)
+                    .put("endedAtMillis", op.endedAtMillis),
             )
         }
         prefs?.edit()
@@ -91,6 +94,7 @@ object TodayAssignmentsHolder {
                             id = o.getString("id"),
                             routeName = o.optString("routeName"),
                             vehicleName = o.optString("vehicleName"),
+                            plateNumber = o.optString("plateNumber"),
                             departTime = o.optString("departTime"),
                             origin = o.optString("origin"),
                             destination = o.optString("destination"),
@@ -100,6 +104,8 @@ object TodayAssignmentsHolder {
                                 OperationStatus.valueOf(o.optString("status", "Scheduled"))
                             }.getOrDefault(OperationStatus.Scheduled),
                             dbId = o.optString("dbId"),
+                            startedAtMillis = o.optLong("startedAtMillis", 0L),
+                            endedAtMillis = o.optLong("endedAtMillis", 0L),
                         ),
                     )
                 }

@@ -5,15 +5,17 @@ import android.net.Uri
 object Routes {
     const val SPLASH = "splash"
     const val LOGIN = "login"
+    const val FIND_ID = "find_id"
+    const val FIND_PASSWORD = "find_password"
     const val LOCATION_CONSENT = "location_consent"
     const val PERMISSION_GUIDE = "permission_guide"
     const val PERMISSION_COMPLETE = "permission_complete"
     const val TODAY_OPERATION = "today_operation"
     const val OPERATION_ALARMS = "operation_alarms"
-    const val ASSIGNMENT_CHANGE = "assignment_change"
-    const val VEHICLE_CHANGE = "vehicle_change"
-    const val DEPARTURE_TIME_CHANGE = "departure_time_change"
-    const val OPERATION_CANCEL = "operation_cancel"
+    const val ASSIGNMENT_CHANGE = "assignment_change?operationId={operationId}"
+    const val VEHICLE_CHANGE = "vehicle_change?operationId={operationId}"
+    const val DEPARTURE_TIME_CHANGE = "departure_time_change?operationId={operationId}"
+    const val OPERATION_CANCEL = "operation_cancel?operationId={operationId}"
     const val OPERATION_DETAIL = "operation_detail/{operationId}"
     const val PRE_OPERATION_CHECK = "pre_operation_check"
     const val PRE_CHECK_COMPLETE = "pre_check_complete"
@@ -52,7 +54,16 @@ object Routes {
     const val INTERRUPTED_END_PROCESSING = "interrupted_end_processing"
     const val INTERRUPTED_END_COMPLETE = "interrupted_end_complete"
 
-    fun operationDetail(operationId: String): String = "operation_detail/${Uri.encode(operationId)}"
+    fun assignmentChange(operationId: String): String =
+        "assignment_change?operationId=${Uri.encode(operationId)}"
+    fun vehicleChange(operationId: String): String =
+        "vehicle_change?operationId=${Uri.encode(operationId)}"
+    fun departureTimeChange(operationId: String): String =
+        "departure_time_change?operationId=${Uri.encode(operationId)}"
+    fun operationCancel(operationId: String): String =
+        "operation_cancel?operationId=${Uri.encode(operationId)}"
+    fun operationDetail(operationId: String): String =
+        "operation_detail/${Uri.encode(operationId)}"
     fun inOperationDetailStatus(operationId: String): String =
         "in_operation_detail_status/${Uri.encode(operationId)}"
     fun stopRouteProgress(operationId: String): String = "stop_route_progress/${Uri.encode(operationId)}"

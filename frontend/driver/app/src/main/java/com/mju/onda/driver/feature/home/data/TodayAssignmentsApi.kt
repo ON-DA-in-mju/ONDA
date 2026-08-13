@@ -1,6 +1,7 @@
 package com.mju.onda.driver.feature.home.data
 
 import android.util.Log
+import com.mju.onda.driver.core.OperationTripClock
 import com.mju.onda.driver.core.supabase.SupabaseClient
 import java.time.LocalDate
 import java.time.ZoneId
@@ -50,9 +51,11 @@ object TodayAssignmentsApi {
                 "status",
                 "round",
                 "expected_end_time",
+                "started_at",
+                "ended_at",
                 "origin_stop:origin_stop_id(stop_name)",
                 "destination_stop:destination_stop_id(stop_name)",
-                "buses:bus_id(bus_name)",
+                "buses:bus_id(bus_name,vehicle_number)",
                 "schedules:schedule_id(departure_time,routes:route_id(route_name))",
             ).joinToString(",")
 
@@ -96,6 +99,8 @@ object TodayAssignmentsApi {
                     id = externalId ?: uuid,
                     routeName = routes?.optString("route_name").orEmpty(),
                     vehicleName = buses?.optString("bus_name").orEmpty(),
+                    plateNumber = buses?.optString("vehicle_number").orEmpty()
+                        .takeIf { it != "null" }.orEmpty(),
                     departTime = hhmm(schedules?.optString("departure_time")),
                     origin = originStop?.optString("stop_name").orEmpty(),
                     destination = destinationStop?.optString("stop_name").orEmpty(),
@@ -103,6 +108,12 @@ object TodayAssignmentsApi {
                     expectedEndTime = hhmm(o.optString("expected_end_time")),
                     status = mapStatus(o.optString("status", "SCHEDULED")),
                     dbId = uuid,
+                    startedAtMillis = OperationTripClock.parseInstantMillis(
+                        o.optString("started_at"),
+                    ) ?: 0L,
+                    endedAtMillis = OperationTripClock.parseInstantMillis(
+                        o.optString("ended_at"),
+                    ) ?: 0L,
                 ),
             )
         }
@@ -130,15 +141,17 @@ object TodayAssignmentsApi {
                 OperationStatus.Ended -> "COMPLETED"
                 else -> "SCHEDULED"
             }
+            val uuid = resolveOperationUuid(operationId)
             val patch = JSONObject().put("status", dbStatus)
             if (status == OperationStatus.InProgress) {
-                patch.put("started_at", java.time.Instant.now().toString())
+                val existingStart = existingStartedAtMillis(uuid, operationId)
+                if (existingStart == null) {
+                    patch.put("started_at", java.time.Instant.now().toString())
+                }
             }
             if (status == OperationStatus.Ended) {
                 patch.put("ended_at", java.time.Instant.now().toString())
             }
-
-            val uuid = resolveOperationUuid(operationId)
             val filters = buildList {
                 if (!uuid.isNullOrBlank()) {
                     add("id=eq.${java.net.URLEncoder.encode(uuid, "UTF-8")}")
@@ -184,6 +197,25 @@ object TodayAssignmentsApi {
             }
             false
         }
+
+    /** 이미 시작된 운행의 started_at 을 덮어쓰지 않기 위해 조회 */
+    private fun existingStartedAtMillis(uuid: String?, operationId: String): Long? {
+        val filter = when {
+            !uuid.isNullOrBlank() -> "id=eq.${java.net.URLEncoder.encode(uuid, "UTF-8")}"
+            uuidRegex.matches(operationId) ->
+                "id=eq.${java.net.URLEncoder.encode(operationId, "UTF-8")}"
+            else -> "external_id=eq.${java.net.URLEncoder.encode(operationId, "UTF-8")}"
+        }
+        val result = SupabaseClient.request(
+            method = "GET",
+            path = "/rest/v1/operations?select=started_at&$filter&limit=1",
+            authed = true,
+        )
+        if (result.code !in 200..299) return null
+        val arr = runCatching { JSONArray(result.body) }.getOrNull() ?: return null
+        if (arr.length() == 0) return null
+        return OperationTripClock.parseInstantMillis(arr.getJSONObject(0).optString("started_at"))
+    }
 
     /** app 배정 id(external_id) → operations.id(uuid) */
     private fun resolveOperationUuid(operationId: String): String? {

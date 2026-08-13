@@ -2,7 +2,6 @@ package com.mju.onda.driver.core
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.mju.onda.driver.data.mock.MockUsers
 
 /**
  * 로그인 계정(userId)별로 SharedPreferences 파일을 분리한다.
@@ -29,6 +28,9 @@ object UserScopedPrefs {
         "onda_location_consent",
         "onda_today_assignments",
     )
+
+    /** 데모/시드 로그인 ID. 로컬 prefs 일괄 삭제용. */
+    private val knownLoginIds = listOf("user01", "user02", "user03", "user04", "user05")
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -60,7 +62,7 @@ object UserScopedPrefs {
 
     fun clearAllKnownUsers(extraIds: Collection<String> = emptyList()) {
         val ids = buildSet {
-            addAll(MockUsers.drivers.map { it.id })
+            addAll(knownLoginIds)
             addAll(extraIds)
             currentUserId?.let { add(it) }
         }

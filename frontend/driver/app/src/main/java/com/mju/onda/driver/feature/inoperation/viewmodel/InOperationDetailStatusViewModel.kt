@@ -89,9 +89,8 @@ class InOperationDetailStatusViewModel(
     }
 
     private fun refreshLive() {
-        val start = OperationRuntimeStateHolder.ensureStartedAt(baseInfo.id)
-            .takeIf { it > 0L }
-            ?: System.currentTimeMillis()
+        val start = OperationRuntimeStateHolder.startedAtMillis(baseInfo.id)
+            ?: OperationRuntimeStateHolder.ensureStartedAt(baseInfo.id)
         val snap = OperationDeviceStatus.transmissionSnapshot(
             getApplication(),
             baseInfo.id,

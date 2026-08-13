@@ -1,8 +1,10 @@
 package com.mju.onda.driver.feature.auth.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +67,8 @@ import com.mju.onda.driver.feature.auth.viewmodel.LoginViewModel
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onOpenFindId: () -> Unit = {},
+    onOpenFindPassword: () -> Unit = {},
     viewModel: LoginViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -73,6 +79,8 @@ fun LoginScreen(
         viewModel.events.collect { event ->
             when (event) {
                 LoginEvent.NavigateToLocationConsent -> onLoginSuccess()
+                LoginEvent.OpenFindId -> onOpenFindId()
+                LoginEvent.OpenFindPassword -> onOpenFindPassword()
                 LoginEvent.ShowHelpMessage -> {
                     Toast.makeText(
                         context,
@@ -226,6 +234,42 @@ fun LoginScreen(
             )
             Spacer(modifier = Modifier.height(20.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = AppStrings.LOGIN_FIND_ID,
+                    color = OndaColors.Primary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickable(enabled = !uiState.isLoading) {
+                            viewModel.onFindIdClick()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .width(1.dp)
+                        .height(14.dp)
+                        .background(Color(0xFFCBD5E1)),
+                )
+                Text(
+                    text = AppStrings.LOGIN_FIND_PASSWORD,
+                    color = OndaColors.Primary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickable(enabled = !uiState.isLoading) {
+                            viewModel.onFindPasswordClick()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
                     .clickable(enabled = !uiState.isLoading) {

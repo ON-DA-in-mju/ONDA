@@ -45,20 +45,37 @@ object MockHistoryDetail {
 
     const val HOME_CD = "오늘의 운행 홈"
 
+    fun blank(): HistoryDetailInfo = HistoryDetailInfo(
+        id = "",
+        routeName = "",
+        vehicleName = "",
+        status = HistoryResultStatus.Completed,
+        dateDisplay = "",
+        scheduledDepart = "-",
+        actualStart = "--:--",
+        actualEnd = "--:--",
+        totalDuration = "00:00",
+        origin = "-",
+        destination = "-",
+        locationTxStatus = LOCATION_OK,
+        finalStatusLabel = "",
+    )
+
     fun forRecordId(recordId: String): HistoryDetailInfo {
-        val record = findRecord(recordId) ?: defaultRecord()
+        val record = findRecord(recordId) ?: return blank()
         return fromRecord(record)
     }
 
     fun findRecord(recordId: String): HistoryRecord? =
         HistoryRuntimeStateHolder.runtimeRecords().find { it.id == recordId }
-            ?: MockOperationHistory.allSeedRecords.find { it.id == recordId }
 
     fun fromRecord(record: HistoryRecord): HistoryDetailInfo {
         val meta = tripMeta(record)
         val runtimeId = record.id.removePrefix("runtime-").takeIf { record.id.startsWith("runtime-") }
-        val startMillis = runtimeId?.let { OperationRuntimeStateHolder.startedAtMillis(it) }
-        val endMillis = runtimeId?.let { OperationRuntimeStateHolder.endedAtMillis(it) }
+        val startMillis = record.startedAtMillis.takeIf { it > 0L }
+            ?: runtimeId?.let { OperationRuntimeStateHolder.startedAtMillis(it) }
+        val endMillis = record.endedAtMillis.takeIf { it > 0L }
+            ?: runtimeId?.let { OperationRuntimeStateHolder.endedAtMillis(it) }
         val actualEnd = when {
             startMillis != null && endMillis != null -> OperationTripClock.formatHm(endMillis)
             else -> record.timeRange.substringAfter("~", "").trim().ifBlank { record.actualDepart }
@@ -66,7 +83,7 @@ object MockHistoryDetail {
         val totalDuration = when {
             startMillis != null && endMillis != null ->
                 OperationTripClock.formatDurationHm(startMillis, endMillis)
-            else -> durationClock(record.durationLabel)
+            else -> OperationTripClock.formatDurationHmFromLabel(record.durationLabel)
         }
         return HistoryDetailInfo(
             id = record.id,
@@ -94,11 +111,6 @@ object MockHistoryDetail {
         return "${date.year}.$mm.$dd (${MockOperationHistory.weekdayLabel(date)})"
     }
 
-    private fun durationClock(durationLabel: String): String {
-        val mins = durationLabel.removeSuffix("분").trim().toIntOrNull() ?: 0
-        return "00:${mins.toString().padStart(2, '0')}"
-    }
-
     private data class TripMeta(
         val scheduledDepart: String,
         val origin: String,
@@ -106,6 +118,13 @@ object MockHistoryDetail {
     )
 
     private fun tripMeta(record: HistoryRecord): TripMeta {
+        if (record.origin != "-" || record.destination != "-" || record.scheduledDepart != "-") {
+            return TripMeta(
+                scheduledDepart = record.scheduledDepart.ifBlank { "-" },
+                origin = record.origin.ifBlank { "-" },
+                destination = record.destination.ifBlank { "-" },
+            )
+        }
         if (record.id.startsWith("runtime-")) {
             val opId = record.id.removePrefix("runtime-")
             val op = MockTodayOperations.findById(opId)
@@ -113,11 +132,6 @@ object MockHistoryDetail {
                 return TripMeta(op.departTime, op.origin, op.destination)
             }
         }
-        // DB 기반 상세에서는 origin/destination/scheduledDepart를 우선 placeholder로 표시한다.
-        // 목록 화면(완료 운행 표시) 우선 완성 후, 필요 시 추가 컬럼/조인을 통해 고도화할 수 있다.
         return TripMeta("-", "-", "-")
     }
-
-    private fun defaultRecord(): HistoryRecord =
-        MockOperationHistory.allSeedRecords.first()
 }

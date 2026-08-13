@@ -36,6 +36,8 @@ object LiveHeartbeatReporter {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loopJob: Job? = null
 
+    fun isRunning(): Boolean = loopJob?.isActive == true
+
     fun start(operationId: String) {
         loopJob?.cancel()
         synchronized(hadFixByOpId) { hadFixByOpId.remove(operationId) }

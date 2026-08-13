@@ -7,6 +7,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
+sealed class AuthResult {
+    data class Success(val driver: MockDriver) : AuthResult()
+    data class Failure(val message: String) : AuthResult()
+}
+
 /**
  * Supabase Auth 로그인. ID는 `user01` 또는 `user01@mju.ac.kr` 형식.
  */

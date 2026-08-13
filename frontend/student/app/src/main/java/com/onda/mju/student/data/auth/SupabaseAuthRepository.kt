@@ -44,7 +44,7 @@ class SupabaseAuthRepository {
     suspend fun login(studentIdOrEmail: String, password: String): AuthResult {
         if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_KEY.isBlank()) {
             return AuthResult.Failure(
-                "Supabase 설정이 없습니다. apps/student-android/local.properties 에 SUPABASE_URL, SUPABASE_KEY 를 넣고 다시 빌드하세요.",
+                "Supabase 설정이 없습니다. frontend/student/local.properties 에 SUPABASE_URL, SUPABASE_KEY 를 넣고 다시 빌드하세요.",
             )
         }
 

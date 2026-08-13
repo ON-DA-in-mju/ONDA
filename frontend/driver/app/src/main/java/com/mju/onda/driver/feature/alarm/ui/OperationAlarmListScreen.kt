@@ -89,8 +89,10 @@ private data class NoticeDialogUi(
 fun OperationAlarmListScreen(
     onBack: () -> Unit,
     onOpenAssignmentChange: (String) -> Unit = {},
+    onOpenVehicleChange: (String) -> Unit = {},
     onOpenDepartureTimeChange: (String) -> Unit = {},
     onOpenOperationCancel: (String) -> Unit = {},
+    onOpenHistory: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     viewModel: OperationAlarmViewModel = viewModel(),
 ) {
@@ -116,6 +118,9 @@ fun OperationAlarmListScreen(
                 is OperationAlarmEvent.OpenAssignmentChange -> {
                     onOpenAssignmentChange(event.alarmId)
                 }
+                is OperationAlarmEvent.OpenVehicleChange -> {
+                    onOpenVehicleChange(event.alarmId)
+                }
                 is OperationAlarmEvent.OpenDepartureTimeChange -> {
                     onOpenDepartureTimeChange(event.alarmId)
                 }
@@ -138,9 +143,7 @@ fun OperationAlarmListScreen(
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
-                OperationAlarmEvent.OpenHistory -> {
-                    Toast.makeText(context, "운행 이력 화면은 다음 단계에서 연결합니다.", Toast.LENGTH_SHORT).show()
-                }
+                OperationAlarmEvent.OpenHistory -> onOpenHistory()
                 OperationAlarmEvent.OpenSettings -> onOpenSettings()
             }
         }

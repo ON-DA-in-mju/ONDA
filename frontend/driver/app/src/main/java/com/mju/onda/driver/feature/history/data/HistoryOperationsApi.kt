@@ -5,10 +5,7 @@ import com.mju.onda.driver.core.OndaDates
 import com.mju.onda.driver.core.OperationTripClock
 import com.mju.onda.driver.core.supabase.SupabaseClient
 import java.net.URLEncoder
-import java.time.Instant
 import java.time.LocalDate
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -40,8 +37,10 @@ object HistoryOperationsApi {
                 "status",
                 "started_at",
                 "ended_at",
+                "origin_stop:origin_stop_id(stop_name)",
+                "destination_stop:destination_stop_id(stop_name)",
                 "buses:bus_id(bus_name,vehicle_number)",
-                "schedules:schedule_id(routes:route_id(route_name))",
+                "schedules:schedule_id(departure_time,routes:route_id(route_name))",
             ).joinToString(",")
 
             // nullslast 는 소문자여야 함 (nullsLast → PGRST100으로 목록이 항상 비게 됨)
@@ -76,8 +75,10 @@ object HistoryOperationsApi {
                 "status",
                 "started_at",
                 "ended_at",
+                "origin_stop:origin_stop_id(stop_name)",
+                "destination_stop:destination_stop_id(stop_name)",
                 "buses:bus_id(bus_name,vehicle_number)",
-                "schedules:schedule_id(routes:route_id(route_name))",
+                "schedules:schedule_id(departure_time,routes:route_id(route_name))",
             ).joinToString(",")
 
             val path =
@@ -118,8 +119,8 @@ object HistoryOperationsApi {
         if (startedAtRaw.isBlank() || endedAtRaw.isBlank()) return null
 
         val date = runCatching { LocalDate.parse(operationDateRaw) }.getOrNull() ?: return null
-        val startedAtMillis = parseInstantMillis(startedAtRaw) ?: return null
-        val endedAtMillis = parseInstantMillis(endedAtRaw) ?: return null
+        val startedAtMillis = OperationTripClock.parseInstantMillis(startedAtRaw) ?: return null
+        val endedAtMillis = OperationTripClock.parseInstantMillis(endedAtRaw) ?: return null
         if (endedAtMillis < startedAtMillis) return null
 
         val status = when (statusRaw) {
@@ -135,6 +136,9 @@ object HistoryOperationsApi {
         val schedules = row.optJSONObject("schedules")
         val routes = schedules?.optJSONObject("routes")
         val routeName = routes?.optString("route_name").orEmpty()
+        val scheduledDepart = hhmm(schedules?.optString("departure_time"))
+        val origin = row.optJSONObject("origin_stop")?.optString("stop_name").orEmpty()
+        val destination = row.optJSONObject("destination_stop")?.optString("stop_name").orEmpty()
 
         val actualDepart = OperationTripClock.formatHm(startedAtMillis)
         val durationLabel = OperationTripClock.formatElapsedMinutes(startedAtMillis, endedAtMillis)
@@ -146,25 +150,21 @@ object HistoryOperationsApi {
             dateLabel = OndaDates.historyListDateLabel(date),
             routeName = routeName.ifBlank { "-" },
             vehicleName = vehicleName.ifBlank { "-" },
-            plateNumber = plateNumber,
+            plateNumber = plateNumber.ifBlank { "-" },
             actualDepart = actualDepart,
             durationLabel = durationLabel,
             timeRange = timeRange,
             status = status,
+            origin = origin.ifBlank { "-" },
+            destination = destination.ifBlank { "-" },
+            scheduledDepart = scheduledDepart.ifBlank { "-" },
+            startedAtMillis = startedAtMillis,
+            endedAtMillis = endedAtMillis,
         )
     }
 
-    private fun parseInstantMillis(raw: String): Long? {
-        val trimmed = raw.trim()
-        if (trimmed.isBlank()) return null
-        runCatching { Instant.parse(trimmed).toEpochMilli() }.getOrNull()?.let { return it }
-        runCatching { OffsetDateTime.parse(trimmed).toInstant().toEpochMilli() }.getOrNull()?.let { return it }
-        val normalized = trimmed.replace(' ', 'T')
-        runCatching { Instant.parse(normalized).toEpochMilli() }.getOrNull()?.let { return it }
-        runCatching {
-            OffsetDateTime.parse(normalized, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant().toEpochMilli()
-        }.getOrNull()?.let { return it }
-        Log.w(TAG, "unparseable timestamp: $trimmed")
-        return null
+    private fun hhmm(raw: String?): String {
+        if (raw.isNullOrBlank() || raw == "null") return ""
+        return raw.take(5)
     }
 }

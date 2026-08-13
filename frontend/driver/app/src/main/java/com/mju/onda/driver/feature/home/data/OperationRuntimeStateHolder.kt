@@ -84,15 +84,22 @@ object OperationRuntimeStateHolder {
 
     fun startOperation(operationId: String = resolveFocusedOperationId()) {
         if (operationId.isBlank()) return
-        if (!canStartOperation(operationId) && !isInProgress(operationId)) {
+        // 다른 기기에서 이미 시작된 운행은 시계를 리셋하지 않고 이어받는다.
+        if (isInProgress(operationId) || dbStatus(operationId) == OperationStatus.InProgress) {
+            hydrateFromAssignment(operationId)
+            persist()
+            com.mju.onda.driver.core.location.OperationLocationTracker.startForOperation(operationId)
+            return
+        }
+        if (!canStartOperation(operationId)) {
             android.util.Log.w("OpRuntime", "start blocked (ended or not next) op=$operationId")
             return
         }
         aliasIds(operationId).forEach { endedIds.remove(it) }
-        endedAtById.remove(operationId)
-        inProgressIds += operationId
-        if (operationId !in startedAtById) {
-            startedAtById[operationId] = System.currentTimeMillis()
+        aliasIds(operationId).forEach { endedAtById.remove(it) }
+        inProgressIds += aliasIds(operationId)
+        if (startedAtMillis(operationId) == null) {
+            rememberStartedAt(operationId, System.currentTimeMillis())
         }
         persist()
         com.mju.onda.driver.core.location.OperationLocationTracker.startForOperation(operationId)
@@ -209,7 +216,9 @@ object OperationRuntimeStateHolder {
         return op.status == OperationStatus.Ended
     }
 
-    fun hasActiveOperation(): Boolean = inProgressIds.isNotEmpty()
+    fun hasActiveOperation(): Boolean =
+        inProgressIds.isNotEmpty() ||
+            MockTodayOperations.assignedOperations.any { it.status == OperationStatus.InProgress }
 
     fun activeOperationId(): String? = inProgressIds.firstOrNull()
 
@@ -228,25 +237,43 @@ object OperationRuntimeStateHolder {
         }
         operations.forEach { op ->
             val aliases = aliasIds(op)
-            if (op.status == OperationStatus.Ended || op.status == OperationStatus.Unavailable) {
-                if (inProgressIds.removeAll(aliases)) {
-                    changed = true
+            when (op.status) {
+                OperationStatus.Ended, OperationStatus.Unavailable -> {
+                    if (inProgressIds.removeAll(aliases)) changed = true
+                    if (endedIds.addAll(aliases)) changed = true
+                    if (op.endedAtMillis > 0L) {
+                        aliases.forEach { id ->
+                            if (endedAtById[id] != op.endedAtMillis) {
+                                endedAtById[id] = op.endedAtMillis
+                                changed = true
+                            }
+                        }
+                    }
+                    if (op.startedAtMillis > 0L) {
+                        if (applyStartedAt(aliases, op.startedAtMillis)) changed = true
+                    }
                 }
-                if (endedIds.addAll(aliases)) {
-                    changed = true
+                OperationStatus.InProgress -> {
+                    if (inProgressIds.addAll(aliases)) changed = true
+                    if (op.startedAtMillis > 0L) {
+                        if (applyStartedAt(aliases, op.startedAtMillis)) changed = true
+                    }
                 }
+                else -> Unit
             }
         }
         if (changed) {
-            if (!hasActiveOperation()) {
-                com.mju.onda.driver.core.location.OperationLocationTracker.stop()
-            }
             persist()
             android.util.Log.i(
                 "OpRuntime",
-                "reconcile: removed stale in-progress, active=${hasActiveOperation()} ops=${operations.size}",
+                "reconcile: synced in-progress from DB, active=${hasActiveOperation()} ops=${operations.size}",
             )
         }
+        val activeId = activeOperationId()
+        if (activeId != null) {
+            com.mju.onda.driver.core.location.OperationStopProgressCoordinator.attach(activeId)
+        }
+        com.mju.onda.driver.core.location.OperationLocationTracker.syncWithRuntime()
     }
 
     /** 배차 화면과 불일치하는 운행중 플래그만 강제 해제 (로그아웃 탈출용) */
@@ -263,26 +290,25 @@ object OperationRuntimeStateHolder {
         reconcileWithFetchedAssignments(MockTodayOperations.assignedOperations)
     }
 
-    fun startedAtMillis(operationId: String): Long? =
-        startedAtById[operationId]?.takeIf { it > 0L }
+    fun startedAtMillis(operationId: String): Long? {
+        aliasIds(operationId).forEach { id ->
+            startedAtById[id]?.takeIf { it > 0L }?.let { return it }
+        }
+        return MockTodayOperations.findById(operationId)?.startedAtMillis?.takeIf { it > 0L }
+    }
 
-    fun endedAtMillis(operationId: String): Long? =
-        endedAtById[operationId]?.takeIf { it > 0L }
+    fun endedAtMillis(operationId: String): Long? {
+        aliasIds(operationId).forEach { id ->
+            endedAtById[id]?.takeIf { it > 0L }?.let { return it }
+        }
+        return MockTodayOperations.findById(operationId)?.endedAtMillis?.takeIf { it > 0L }
+    }
 
     /**
-     * 진행 중인데 시작 시각이 없으면(구버전 상태) 지금 시각으로 보정.
-     * 없으면 0.
+     * 로컬·DB에 저장된 실제 시작 시각. 다른 기기에서 이어받은 운행은
+     * 지금 시각으로 보정하지 않는다 (0분이 되는 원인).
      */
-    fun ensureStartedAt(operationId: String): Long {
-        startedAtById[operationId]?.takeIf { it > 0L }?.let { return it }
-        if (isInProgress(operationId) || pendingStartId == operationId) {
-            val now = System.currentTimeMillis()
-            startedAtById[operationId] = now
-            persist()
-            return now
-        }
-        return 0L
-    }
+    fun ensureStartedAt(operationId: String): Long = startedAtMillis(operationId) ?: 0L
 
     /**
      * 배차 순서상 앞선 운행이 모두 종료된 경우에만 시작 가능.
@@ -295,6 +321,7 @@ object OperationRuntimeStateHolder {
         val target = ordered.find { it.matchesId(operationId) } ?: return false
         if (target.status == OperationStatus.Unavailable) return false
         if (target.status == OperationStatus.Ended) return false
+        if (target.status == OperationStatus.InProgress) return false
         if (hasActiveOperation()) return false
         val index = ordered.indexOfFirst { it.matchesId(operationId) }
         if (index < 0) return false
@@ -308,7 +335,8 @@ object OperationRuntimeStateHolder {
         resetIfNewDay()
         return operations.map { op ->
             when {
-                isInProgress(op.id) -> op.copy(status = OperationStatus.InProgress)
+                isInProgress(op.id) || op.status == OperationStatus.InProgress ->
+                    op.copy(status = OperationStatus.InProgress)
                 isEnded(op.id) || op.status == OperationStatus.Ended -> op.copy(status = OperationStatus.Ended)
                 op.status == OperationStatus.Unavailable -> op
                 else -> op.copy(status = AssignmentStatusResolver.resolve(op))
@@ -330,6 +358,37 @@ object OperationRuntimeStateHolder {
         persist()
         com.mju.onda.driver.core.location.OperationLocationTracker.stop()
         TodayAssignmentsHolder.clearForNewDay()
+    }
+
+    private fun dbStatus(operationId: String): OperationStatus? =
+        MockTodayOperations.findById(operationId)?.status
+
+    private fun hydrateFromAssignment(operationId: String) {
+        val op = MockTodayOperations.findById(operationId)
+        val aliases = aliasIds(operationId)
+        inProgressIds += aliases
+        aliases.forEach { endedIds.remove(it) }
+        val dbStart = op?.startedAtMillis?.takeIf { it > 0L }
+        if (dbStart != null) applyStartedAt(aliases, dbStart)
+        val dbEnd = op?.endedAtMillis?.takeIf { it > 0L }
+        if (dbEnd != null) aliases.forEach { endedAtById[it] = dbEnd }
+    }
+
+    private fun rememberStartedAt(operationId: String, millis: Long) {
+        aliasIds(operationId).forEach { startedAtById[it] = millis }
+    }
+
+    /** DB 시작 시각이 더 이르면 로컬(다른 기기에서 찍힌 now)을 덮어쓴다. */
+    private fun applyStartedAt(aliases: Set<String>, dbStart: Long): Boolean {
+        var changed = false
+        aliases.forEach { id ->
+            val existing = startedAtById[id]
+            if (existing == null || existing <= 0L || existing > dbStart) {
+                startedAtById[id] = dbStart
+                changed = true
+            }
+        }
+        return changed
     }
 
     private fun aliasIds(operationId: String): Set<String> {

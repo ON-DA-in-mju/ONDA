@@ -2,6 +2,7 @@ package com.mju.onda.driver.feature.alarm.data
 
 import com.mju.onda.driver.feature.home.data.AssignedOperation
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
+import com.mju.onda.driver.feature.home.data.OperationNoticeMapper
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.OperationStatus
 import java.time.Duration
@@ -108,36 +109,92 @@ object AlarmGenerator {
         previous: List<AssignedOperation>,
         current: List<AssignedOperation>,
     ) {
-        val prevIds = previous.map { it.id }.toSet()
+        OperationNoticeMapper.rememberPrevious(previous)
+        val prevById = previous.associateBy { it.id }
         val now = LocalTime.now()
+        val timeLabel = now.format(hmFormatter)
+
         for (op in current) {
-            if (op.id in prevIds) continue
-            val alarmId = "assign-${op.id}"
-            if (LocalAlarmStore.getAll().any { it.id == alarmId }) continue
-
-            val label = buildString {
-                if (op.routeName.isNotBlank()) append(op.routeName)
-                if (op.vehicleName.isNotBlank()) {
-                    if (isNotEmpty()) append(" ")
-                    append(op.vehicleName)
-                }
-                if (op.departTime.isNotBlank()) {
-                    if (isNotEmpty()) append(" ")
-                    append(op.departTime)
-                }
-            }.ifBlank { "새 운행" }
-
-            LocalAlarmStore.addAlarm(
-                OperationAlarm(
-                    id = alarmId,
+            val prev = prevById[op.id]
+            if (prev == null) {
+                addOnce(
+                    alarmId = "assign-${op.id}",
                     title = "배정 알림",
-                    body = "새로운 운행이 배정되었습니다: $label",
-                    timeLabel = now.format(hmFormatter),
+                    body = "새로운 운행이 배정되었습니다: ${assignmentLabel(op)}",
+                    timeLabel = timeLabel,
                     category = AlarmCategory.AssignmentChange,
-                    isUnread = true,
-                ),
-            )
+                )
+                continue
+            }
+            if (prev.vehicleName != op.vehicleName &&
+                (prev.vehicleName.isNotBlank() || op.vehicleName.isNotBlank())
+            ) {
+                addOnce(
+                    alarmId = "vehicle-${op.id}",
+                    title = "차량 변경",
+                    body = "${assignmentLabel(op)} 차량이 변경되었습니다.",
+                    timeLabel = timeLabel,
+                    category = AlarmCategory.AssignmentChange,
+                )
+            }
+            if (prev.departTime != op.departTime &&
+                (prev.departTime.isNotBlank() || op.departTime.isNotBlank())
+            ) {
+                addOnce(
+                    alarmId = "depart-${op.id}",
+                    title = "출발 시간 변경",
+                    body = "${assignmentLabel(op)} 출발 시간이 ${op.departTime}으로 변경되었습니다.",
+                    timeLabel = timeLabel,
+                    category = AlarmCategory.DepartureTimeChange,
+                )
+            }
+            if (prev.routeName != op.routeName ||
+                prev.origin != op.origin ||
+                prev.destination != op.destination ||
+                prev.round != op.round
+            ) {
+                addOnce(
+                    alarmId = "assign-${op.id}",
+                    title = "배정 변경",
+                    body = "운행 정보가 변경되었습니다: ${assignmentLabel(op)}",
+                    timeLabel = timeLabel,
+                    category = AlarmCategory.AssignmentChange,
+                )
+            }
         }
+    }
+
+    private fun assignmentLabel(op: AssignedOperation): String =
+        buildString {
+            if (op.routeName.isNotBlank()) append(op.routeName)
+            if (op.vehicleName.isNotBlank()) {
+                if (isNotEmpty()) append(" ")
+                append(op.vehicleName)
+            }
+            if (op.departTime.isNotBlank()) {
+                if (isNotEmpty()) append(" ")
+                append(op.departTime)
+            }
+        }.ifBlank { "새 운행" }
+
+    private fun addOnce(
+        alarmId: String,
+        title: String,
+        body: String,
+        timeLabel: String,
+        category: AlarmCategory,
+    ) {
+        if (LocalAlarmStore.getAll().any { it.id == alarmId }) return
+        LocalAlarmStore.addAlarm(
+            OperationAlarm(
+                id = alarmId,
+                title = title,
+                body = body,
+                timeLabel = timeLabel,
+                category = category,
+                isUnread = true,
+            ),
+        )
     }
 
     fun resetSession() {

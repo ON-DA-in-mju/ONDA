@@ -91,47 +91,29 @@ object OperationLocationTracker {
 
 
     /** 운행 시작 시 호출 */
-
     fun startForOperation(operationId: String) {
-
         val ctx = appContext ?: return
-
-        if (!hasLocationPermission(ctx)) {
-
-            isTracking = false
-
-            activeOperationId = null
-
-            return
-
-        }
-
         activeOperationId = operationId
+        OperationStopProgressCoordinator.attach(operationId)
+        DeviceStatusReporter.start(operationId)
+        if (!LiveHeartbeatReporter.isRunning()) {
+            LiveHeartbeatReporter.start(operationId)
+        }
+        if (!hasLocationPermission(ctx)) {
+            isTracking = false
+            return
+        }
 
         val intent = Intent(ctx, OperationLocationService::class.java).apply {
-
             action = OperationLocationService.ACTION_START
-
             putExtra(OperationLocationService.EXTRA_OPERATION_ID, operationId)
-
         }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
             ContextCompat.startForegroundService(ctx, intent)
-
         } else {
-
             ctx.startService(intent)
-
         }
-
         isTracking = true
-
-        LiveHeartbeatReporter.start(operationId)
-
-        DeviceStatusReporter.start(operationId)
-
     }
 
 
@@ -177,19 +159,13 @@ object OperationLocationTracker {
     /** 앱 재실행·계정 바인딩 후 운행 중이면 재개, 아니면 중단 */
 
     fun syncWithRuntime() {
-
         val activeId = OperationRuntimeStateHolder.activeOperationId()
-
         if (activeId != null) {
-
+            OperationStopProgressCoordinator.attach(activeId)
             startForOperation(activeId)
-
         } else {
-
             stop()
-
         }
-
     }
 
 }

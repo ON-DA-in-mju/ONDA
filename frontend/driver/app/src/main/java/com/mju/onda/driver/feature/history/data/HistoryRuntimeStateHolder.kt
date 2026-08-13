@@ -78,11 +78,16 @@ object HistoryRuntimeStateHolder {
             dateLabel = OndaDates.historyListDateLabel(date),
             routeName = op.routeName,
             vehicleName = op.vehicleName,
-            plateNumber = MockOperationHistory.plateForCurrentUser(),
+            plateNumber = op.plateNumber.trim().ifBlank { "-" },
             actualDepart = OperationTripClock.formatHm(start),
             durationLabel = OperationTripClock.formatElapsedMinutes(start, end),
             timeRange = OperationTripClock.formatTimeRange(start, end),
             status = status,
+            origin = op.origin.ifBlank { "-" },
+            destination = op.destination.ifBlank { "-" },
+            scheduledDepart = op.departTime.ifBlank { "-" },
+            startedAtMillis = start,
+            endedAtMillis = end,
         )
     }
 

@@ -36,6 +36,7 @@ sealed interface OperationAlarmEvent {
         val urgent: Boolean,
     ) : OperationAlarmEvent
     data class OpenAssignmentChange(val alarmId: String) : OperationAlarmEvent
+    data class OpenVehicleChange(val alarmId: String) : OperationAlarmEvent
     data class OpenDepartureTimeChange(val alarmId: String) : OperationAlarmEvent
     data class OpenOperationCancel(val alarmId: String) : OperationAlarmEvent
     data object OpenHistory : OperationAlarmEvent
@@ -83,8 +84,10 @@ class OperationAlarmViewModel : ViewModel() {
         refresh()
         val alarm = MockOperationAlarms.seedItems.find { it.id == alarmId }
         viewModelScope.launch {
-            when (alarm?.category) {
-                AlarmCategory.Notice ->
+            when {
+                alarmId.startsWith("vehicle-") ->
+                    _events.emit(OperationAlarmEvent.OpenVehicleChange(alarmId))
+                alarm?.category == AlarmCategory.Notice ->
                     _events.emit(
                         OperationAlarmEvent.OpenNoticeDetail(
                             typeLabel = alarm.title,
@@ -94,11 +97,11 @@ class OperationAlarmViewModel : ViewModel() {
                             urgent = DriverNoticesApi.isUrgentType(alarm.noticeType.orEmpty()),
                         ),
                     )
-                AlarmCategory.AssignmentChange ->
+                alarm?.category == AlarmCategory.AssignmentChange ->
                     _events.emit(OperationAlarmEvent.OpenAssignmentChange(alarmId))
-                AlarmCategory.DepartureTimeChange ->
+                alarm?.category == AlarmCategory.DepartureTimeChange ->
                     _events.emit(OperationAlarmEvent.OpenDepartureTimeChange(alarmId))
-                AlarmCategory.OperationCancel ->
+                alarm?.category == AlarmCategory.OperationCancel ->
                     _events.emit(OperationAlarmEvent.OpenOperationCancel(alarmId))
                 else ->
                     _events.emit(OperationAlarmEvent.OpenDetail(alarmId))

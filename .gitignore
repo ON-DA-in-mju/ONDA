@@ -29,14 +29,14 @@ frontend/driver/captures/
 frontend/driver/.kotlin/
 
 # Android (student app)
-apps/student-android/.gradle/
-apps/student-android/build/
-apps/student-android/app/build/
-apps/student-android/local.properties
-apps/student-android/*.iml
-apps/student-android/.cxx/
-apps/student-android/captures/
-apps/student-android/.kotlin/
+frontend/student/.gradle/
+frontend/student/build/
+frontend/student/app/build/
+frontend/student/local.properties
+frontend/student/*.iml
+frontend/student/.cxx/
+frontend/student/captures/
+frontend/student/.kotlin/
 *.apk
 *.aab
 *.ap_

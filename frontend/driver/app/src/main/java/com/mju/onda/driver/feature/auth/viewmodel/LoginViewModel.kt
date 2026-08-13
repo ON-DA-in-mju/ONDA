@@ -15,6 +15,8 @@ import com.mju.onda.driver.feature.auth.data.AuthResult
 
 import com.mju.onda.driver.feature.auth.data.AuthRepository
 
+import com.mju.onda.driver.feature.auth.data.DriverActiveSessionApi
+
 import com.mju.onda.driver.feature.auth.data.SessionStateHolder
 
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -60,6 +62,10 @@ sealed interface LoginEvent {
     data object NavigateToLocationConsent : LoginEvent
 
     data object ShowHelpMessage : LoginEvent
+
+    data object OpenFindId : LoginEvent
+
+    data object OpenFindPassword : LoginEvent
 
 }
 
@@ -129,6 +135,30 @@ class LoginViewModel(
 
 
 
+    fun onFindIdClick() {
+
+        viewModelScope.launch {
+
+            _events.emit(LoginEvent.OpenFindId)
+
+        }
+
+    }
+
+
+
+    fun onFindPasswordClick() {
+
+        viewModelScope.launch {
+
+            _events.emit(LoginEvent.OpenFindPassword)
+
+        }
+
+    }
+
+
+
     fun login() {
 
         val current = _uiState.value
@@ -146,7 +176,7 @@ class LoginViewModel(
             when (val result = authRepository.login(current.id, current.password)) {
 
                 is AuthResult.Success -> {
-
+                    runCatching { DriverActiveSessionApi.claimExclusive() }
                     SessionStateHolder.markLoggedIn(
 
                         userId = result.driver.id,

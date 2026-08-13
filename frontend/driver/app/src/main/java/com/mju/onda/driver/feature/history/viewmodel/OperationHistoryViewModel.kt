@@ -6,6 +6,7 @@ import com.mju.onda.driver.feature.history.data.HistoryDateRange
 import com.mju.onda.driver.feature.history.data.HistoryPeriodFilter
 import com.mju.onda.driver.feature.history.data.HistoryRecord
 import com.mju.onda.driver.feature.history.data.HistoryOperationsApi
+import com.mju.onda.driver.feature.history.data.HistoryRuntimeStateHolder
 import com.mju.onda.driver.feature.history.data.MockOperationHistory
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -65,7 +66,7 @@ class OperationHistoryViewModel : ViewModel() {
             ?: return
 
         viewModelScope.launch {
-            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            val records = loadRecords(range)
             _uiState.update {
                 it.copy(
                     records = records,
@@ -87,7 +88,7 @@ class OperationHistoryViewModel : ViewModel() {
         _uiState.update { it.copy(filter = filter, showPeriodPicker = false) }
         val range = resolveRangeFor(filter, _uiState.value.customRange) ?: return
         viewModelScope.launch {
-            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            val records = loadRecords(range)
             _uiState.update {
                 it.copy(
                     records = records,
@@ -136,7 +137,7 @@ class OperationHistoryViewModel : ViewModel() {
             date == start -> {
                 _uiState.update { it.copy(draftEnd = date) }
             }
-            // 최대 7일 초과
+            // 최대 조회 기간 초과
             ChronoUnit.DAYS.between(start, date) + 1 > MockOperationHistory.MAX_CUSTOM_DAYS -> {
                 viewModelScope.launch {
                     _events.emit(OperationHistoryEvent.MaxRangeExceeded)
@@ -163,7 +164,7 @@ class OperationHistoryViewModel : ViewModel() {
         val range = HistoryDateRange(start, end)
         _uiState.update { it.copy(filter = HistoryPeriodFilter.Custom, customRange = range, showPeriodPicker = false) }
         viewModelScope.launch {
-            val records = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+            val records = loadRecords(range)
             _uiState.update {
                 it.copy(
                     records = records,
@@ -192,5 +193,19 @@ class OperationHistoryViewModel : ViewModel() {
             HistoryPeriodFilter.Last7Days -> HistoryDateRange(today.minusDays(6), today)
             HistoryPeriodFilter.Custom -> customRange
         }
+    }
+
+    private suspend fun loadRecords(range: HistoryDateRange): List<HistoryRecord> {
+        val apiRecords = HistoryOperationsApi.fetchCompletedHistoryForRange(range.start, range.end)
+        val runtime = HistoryRuntimeStateHolder.runtimeRecords().filter { record ->
+            !record.date.isBefore(range.start) && !record.date.isAfter(range.end)
+        }
+        val byId = linkedMapOf<String, HistoryRecord>()
+        runtime.forEach { byId[it.id.removePrefix("runtime-")] = it }
+        apiRecords.forEach { byId[it.id] = it }
+        return byId.values.sortedWith(
+            compareByDescending<HistoryRecord> { it.date }
+                .thenByDescending { it.actualDepart },
+        )
     }
 }

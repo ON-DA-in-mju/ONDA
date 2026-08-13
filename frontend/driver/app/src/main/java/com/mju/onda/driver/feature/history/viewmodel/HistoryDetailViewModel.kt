@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class HistoryDetailUiState(
-    val detail: HistoryDetailInfo = MockHistoryDetail.forRecordId("h1"),
+    val detail: HistoryDetailInfo = MockHistoryDetail.blank(),
 )
 
 sealed interface HistoryDetailEvent {
@@ -29,7 +29,7 @@ class HistoryDetailViewModel(
 ) : ViewModel() {
 
     private val recordId: String =
-        savedStateHandle.get<String>("recordId") ?: "h1"
+        savedStateHandle.get<String>("recordId").orEmpty()
 
     private val _uiState = MutableStateFlow(
         HistoryDetailUiState(detail = MockHistoryDetail.forRecordId(recordId)),
@@ -40,7 +40,6 @@ class HistoryDetailViewModel(
     val events: SharedFlow<HistoryDetailEvent> = _events.asSharedFlow()
 
     init {
-        // DB 기반 이력이면 origin/destination/scheduledDepart 등은 우선 임시값(placeholder)으로 렌더링한다.
         viewModelScope.launch {
             val record: HistoryRecord? = HistoryOperationsApi.fetchHistoryDetailById(recordId)
             if (record != null) {

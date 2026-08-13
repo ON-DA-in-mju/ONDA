@@ -40,21 +40,6 @@ object MockOperationDetail {
     const val LABEL_VEHICLE = "배정 차량"
     const val LABEL_STATUS = "운행 상태"
 
-    /** DRI-01-02A — 09:05 기흥역 통학버스 */
-    val giheungDetail = OperationDetailInfo(
-        id = "op-0905",
-        routeName = "기흥역 통학버스",
-        vehicleName = "2호차",
-        round = 1,
-        departTime = "09:05",
-        expectedEndTime = "09:25",
-        origin = "채플관 앞",
-        destination = "기흥역 5번 출구",
-        dateLabel = MockTodayOperations.DATE_LABEL,
-        status = OperationStatus.Waiting,
-        statusLabel = MockTodayOperations.WAITING_BADGE,
-    )
-
     fun forOperationId(operationId: String): OperationDetailInfo {
         val op = MockTodayOperations.findById(operationId)
         if (op != null) return fromAssigned(op)

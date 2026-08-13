@@ -1,6 +1,5 @@
 package com.mju.onda.driver.feature.assignment.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,28 +57,25 @@ import com.mju.onda.driver.feature.assignment.viewmodel.AssignmentChangeViewMode
 
 @Composable
 fun AssignmentChangeScreen(
-    onConfirm: () -> Unit,
+    onConfirm: (String) -> Unit,
     onGoHome: () -> Unit,
     onBack: () -> Unit,
     onOpenAlarms: () -> Unit,
+    onOpenHistory: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: AssignmentChangeViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                AssignmentChangeEvent.NavigateToVehicleChange -> onConfirm()
+                is AssignmentChangeEvent.NavigateToVehicleChange -> onConfirm(event.operationId)
                 AssignmentChangeEvent.NavigateToHome -> onGoHome()
                 AssignmentChangeEvent.NavigateBack -> onBack()
                 AssignmentChangeEvent.OpenAlarms -> onOpenAlarms()
-                AssignmentChangeEvent.OpenHistory -> {
-                    Toast.makeText(context, "운행 이력 화면은 다음 단계에서 연결합니다.", Toast.LENGTH_SHORT).show()
-                }
-                AssignmentChangeEvent.OpenSettings -> {
-                    Toast.makeText(context, "설정 화면은 다음 단계에서 연결합니다.", Toast.LENGTH_SHORT).show()
-                }
+                AssignmentChangeEvent.OpenHistory -> onOpenHistory()
+                AssignmentChangeEvent.OpenSettings -> onOpenSettings()
             }
         }
     }
