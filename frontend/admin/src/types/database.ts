@@ -257,6 +257,27 @@ type Tables = {
     Update: Partial<Omit<Tables['operation_device_status']['Insert'], 'operation_id'>>
     Relationships: []
   }
+  /** 운행당 최신 정류장 진행 — 화면 나갔다 와도 복원 */
+  operation_stop_progress: {
+    Row: {
+      operation_id: string
+      last_arrived_stop_id: string | null
+      last_passed_stop_id: string | null
+      last_arrived_index: number
+      last_passed_index: number
+      updated_at: string
+    }
+    Insert: {
+      operation_id: string
+      last_arrived_stop_id?: string | null
+      last_passed_stop_id?: string | null
+      last_arrived_index?: number
+      last_passed_index?: number
+      updated_at?: string
+    }
+    Update: Partial<Omit<Tables['operation_stop_progress']['Insert'], 'operation_id'>>
+    Relationships: []
+  }
   notices: {
     Row: {
       id: string

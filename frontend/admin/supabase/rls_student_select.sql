@@ -77,13 +77,29 @@ create policy vehicle_locations_student_select on public.vehicle_locations
   for select to authenticated
   using (public.is_student());
 
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'operation_stop_progress'
+  ) then
+    execute 'alter table public.operation_stop_progress enable row level security';
+    execute 'drop policy if exists osp_student_select on public.operation_stop_progress';
+    execute $p$
+      create policy osp_student_select on public.operation_stop_progress
+        for select to authenticated
+        using (public.is_student())
+    $p$;
+  end if;
+end $$;
+
 -- =============================================================================
 -- 3) 확인용 (SQL Editor에서 결과 확인)
 -- =============================================================================
 select schemaname, tablename, policyname, cmd, roles
 from pg_policies
 where schemaname = 'public'
-  and tablename in ('operations', 'schedules', 'routes', 'buses', 'vehicle_locations')
+  and tablename in ('operations', 'schedules', 'routes', 'buses', 'vehicle_locations', 'operation_stop_progress')
   and policyname like '%student%'
 order by tablename, policyname;
 

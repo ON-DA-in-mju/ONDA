@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.onda.mju.student.data.route.RouteStopCatalog
 import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
+import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import java.time.ZoneId
@@ -75,6 +76,7 @@ fun RouteLiveScreen(
     modifier: Modifier = Modifier,
     liveData: RouteLiveData? = null,
     deviceStatuses: Map<String, OperationDeviceStatusDto> = emptyMap(),
+    stopProgress: Map<String, OperationStopProgressDto> = emptyMap(),
     stopCoordinates: StopCoordinateMap = emptyMap(),
     routeCatalogRevision: Int = 0,
     onBackClick: () -> Unit = {},
@@ -121,7 +123,7 @@ fun RouteLiveScreen(
     val selectedLiveVehicle = data.vehicles.firstOrNull { it.id == selectedVehicle }
     val selectedDeviceStatus = selectedLiveVehicle?.let { deviceStatuses[it.id] }
 
-    // Per-vehicle tracker (passed index + start enter flag), reset on route/direction change.
+    // Per-vehicle tracker. DB 진행을 바닥값으로 두고 GPS로만 전진한다.
     var trackerByVehicle by remember(routeId, directionIndex) {
         mutableStateOf<Map<String, VehicleStopTracker>>(emptyMap())
     }
@@ -129,7 +131,10 @@ fun RouteLiveScreen(
     val effectiveLat = selectedLiveVehicle?.latitude
     val effectiveLng = selectedLiveVehicle?.longitude
     val trackerKey = selectedLiveVehicle?.id ?: "none"
-    val tracker = trackerByVehicle[trackerKey] ?: VehicleStopTracker()
+    val dbTracker = remember(waypoints, trackerKey, stopProgress[trackerKey]) {
+        stopProgress[trackerKey]?.toVehicleStopTracker(waypoints) ?: VehicleStopTracker()
+    }
+    val tracker = (trackerByVehicle[trackerKey] ?: VehicleStopTracker()).mergeAhead(dbTracker)
 
     val timelineProgress = remember(
         waypoints,
@@ -144,6 +149,13 @@ fun RouteLiveScreen(
             longitude = effectiveLng,
             tracker = tracker,
         )
+    }
+    LaunchedEffect(trackerKey, dbTracker) {
+        val prev = trackerByVehicle[trackerKey] ?: VehicleStopTracker()
+        val merged = prev.mergeAhead(dbTracker)
+        if (prev != merged) {
+            trackerByVehicle = trackerByVehicle + (trackerKey to merged)
+        }
     }
     LaunchedEffect(
         trackerKey,

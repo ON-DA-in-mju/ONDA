@@ -40,6 +40,7 @@ object LiveHeartbeatReporter {
         loopJob?.cancel()
         synchronized(hadFixByOpId) { hadFixByOpId.remove(operationId) }
         synchronized(lastGpsErrorByOpId) { lastGpsErrorByOpId.remove(operationId) }
+        OperationStopProgressCoordinator.attach(operationId)
         loopJob = scope.launch {
             postOnce(operationId, status = "in_progress")
             while (isActive) {
@@ -68,6 +69,7 @@ object LiveHeartbeatReporter {
     fun stopAndMarkEnded(operationId: String?) {
         loopJob?.cancel()
         loopJob = null
+        OperationStopProgressCoordinator.clear()
         val id = operationId ?: return
         synchronized(hadFixByOpId) { hadFixByOpId.remove(id) }
         synchronized(lastGpsErrorByOpId) { lastGpsErrorByOpId.remove(id) }

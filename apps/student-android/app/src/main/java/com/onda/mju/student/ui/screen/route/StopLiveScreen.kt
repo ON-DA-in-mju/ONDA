@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
 import kotlinx.coroutines.delay
 
 private val OndaBlue = Color(0xFF0041F1)
@@ -69,6 +70,7 @@ fun StopLiveScreen(
     modifier: Modifier = Modifier,
     routeId: String? = null,
     vehicles: List<LiveVehicle> = emptyList(),
+    stopProgress: Map<String, OperationStopProgressDto> = emptyMap(),
     stopCoordinates: StopCoordinateMap = emptyMap(),
     routeCatalogRevision: Int = 0,
     onBackClick: () -> Unit = {},
@@ -91,6 +93,19 @@ fun StopLiveScreen(
     }
     var trackerByVehicle by remember(directionKey) {
         mutableStateOf<Map<String, VehicleStopTracker>>(emptyMap())
+    }
+    val seededTrackers = remember(directionKey, vehicles, stopProgress, stopSelection, stopCoordinates, routeCatalogRevision) {
+        seedTrackersFromProgress(
+            vehicles = vehicles,
+            waypoints = stopSelection?.waypoints.orEmpty(),
+            progressByOperation = stopProgress,
+            current = trackerByVehicle,
+        )
+    }
+    LaunchedEffect(seededTrackers) {
+        if (seededTrackers != trackerByVehicle) {
+            trackerByVehicle = seededTrackers
+        }
     }
 
     val vehicleSignature = remember(vehicles) {

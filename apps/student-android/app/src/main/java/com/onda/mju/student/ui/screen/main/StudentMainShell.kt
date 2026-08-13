@@ -27,11 +27,13 @@ import com.onda.mju.student.data.mapper.buildTimetableRoutes
 import com.onda.mju.student.data.mapper.toRouteUiModels
 import com.onda.mju.student.data.remote.dto.OperationDeviceStatusDto
 import com.onda.mju.student.data.remote.dto.OperationDto
+import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
 import com.onda.mju.student.data.remote.dto.RouteDetailDto
 import com.onda.mju.student.data.remote.dto.StopDto
 import com.onda.mju.student.data.remote.dto.VehicleLocationDto
 import com.onda.mju.student.data.remote.repository.OperationDeviceStatusRepository
 import com.onda.mju.student.data.remote.repository.OperationRepository
+import com.onda.mju.student.data.remote.repository.OperationStopProgressRepository
 import com.onda.mju.student.data.remote.repository.RouteRepository
 import com.onda.mju.student.data.remote.repository.RouteStopsRepository
 import com.onda.mju.student.data.remote.repository.ScheduleRepository
@@ -167,6 +169,7 @@ fun StudentMainShell(
     val scheduleRepository = remember { ScheduleRepository() }
     val vehicleLocationRepository = remember { VehicleLocationRepository() }
     val operationDeviceStatusRepository = remember { OperationDeviceStatusRepository() }
+    val operationStopProgressRepository = remember { OperationStopProgressRepository() }
     var routes by remember { mutableStateOf<List<RouteUiModel>>(sampleRouteList()) }
     var routeDetails by remember { mutableStateOf<List<RouteDetailDto>>(emptyList()) }
     var allStops by remember { mutableStateOf<List<StopDto>>(emptyList()) }
@@ -182,11 +185,15 @@ fun StudentMainShell(
     val operationDeviceStatuses = remember {
         mutableStateMapOf<String, OperationDeviceStatusDto>()
     }
+    val operationStopProgress = remember {
+        mutableStateMapOf<String, OperationStopProgressDto>()
+    }
 
     // Temporary: verify Supabase operations read path + realtime status updates.
     LaunchedEffect(Unit) {
         val locationJobs = mutableMapOf<String, Job>()
         val deviceStatusJobs = mutableMapOf<String, Job>()
+        val stopProgressJobs = mutableMapOf<String, Job>()
 
         suspend fun startLocationSubscription(operationId: String) {
             if (locationJobs.containsKey(operationId)) return
@@ -279,6 +286,51 @@ fun StudentMainShell(
             Log.d("ONDA_SUPABASE", "device status removed operationId=$operationId")
         }
 
+        suspend fun startStopProgressSubscription(operationId: String) {
+            if (stopProgressJobs.containsKey(operationId)) return
+
+            Log.d("ONDA_SUPABASE", "start realtime jobs operationId=$operationId (stop_progress)")
+            val initialProgress = operationStopProgressRepository.getProgress(operationId)
+            if (initialProgress != null) {
+                Log.d(
+                    "ONDA_SUPABASE",
+                    "stop progress initial operationId=${initialProgress.operationId}, " +
+                        "arrived=${initialProgress.lastArrivedIndex}, passed=${initialProgress.lastPassedIndex}",
+                )
+                operationStopProgress[operationId] = initialProgress
+            } else {
+                Log.d("ONDA_SUPABASE", "stop progress initial operationId=$operationId, progress=null")
+            }
+
+            stopProgressJobs[operationId] = launch {
+                try {
+                    operationStopProgressRepository.observeProgress(operationId).collect { progress ->
+                        Log.d(
+                            "ONDA_SUPABASE",
+                            "stop progress realtime operationId=${progress.operationId}, " +
+                                "arrived=${progress.lastArrivedIndex}, passed=${progress.lastPassedIndex}",
+                        )
+                        operationStopProgress[operationId] = progress
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(
+                        "ONDA_SUPABASE",
+                        "stop progress observe failed operationId=$operationId " +
+                            "(check supabase_realtime publication includes public.operation_stop_progress): ${e.message}",
+                        e,
+                    )
+                }
+            }
+        }
+
+        fun stopStopProgressSubscription(operationId: String) {
+            Log.d("ONDA_SUPABASE", "stop realtime jobs operationId=$operationId (stop_progress)")
+            stopProgressJobs.remove(operationId)?.cancel()
+            operationStopProgress.remove(operationId)
+        }
+
         /**
          * Authoritative sync: subscribe exactly to current IN_PROGRESS operations.
          * Stops jobs for ended ops and starts jobs for newly started ops.
@@ -286,7 +338,7 @@ fun StudentMainShell(
         suspend fun reconcileInProgressSubscriptions(latest: List<OperationDto>) {
             val activeOps = latest.filter { it.status == "IN_PROGRESS" }
             val activeIds = activeOps.map { it.id }.toSet()
-            val previousIds = (locationJobs.keys + deviceStatusJobs.keys).toSet()
+            val previousIds = (locationJobs.keys + deviceStatusJobs.keys + stopProgressJobs.keys).toSet()
 
             val removedIds = previousIds - activeIds
             val addedIds = activeIds - previousIds
@@ -301,6 +353,7 @@ fun StudentMainShell(
                 )
                 stopLocationSubscription(operationId)
                 stopDeviceStatusSubscription(operationId)
+                stopStopProgressSubscription(operationId)
             }
 
             addedIds.forEach { operationId ->
@@ -311,6 +364,7 @@ fun StudentMainShell(
                 )
                 startLocationSubscription(operationId)
                 startDeviceStatusSubscription(operationId)
+                startStopProgressSubscription(operationId)
             }
 
             Log.d(
@@ -755,6 +809,7 @@ fun StudentMainShell(
                         modifier = Modifier.fillMaxSize(),
                         liveData = liveData,
                         deviceStatuses = operationDeviceStatuses,
+                        stopProgress = operationStopProgress,
                         stopCoordinates = stopCoordinates,
                         routeCatalogRevision = routeCatalogRevision,
                         onBackClick = { overlay = MainOverlay.None },
@@ -792,6 +847,7 @@ fun StudentMainShell(
                         stopId = current.stopId,
                         routeId = routeId,
                         vehicles = liveVehicles,
+                        stopProgress = operationStopProgress,
                         stopCoordinates = stopCoordinates,
                         routeCatalogRevision = routeCatalogRevision,
                         modifier = Modifier.fillMaxSize(),

@@ -1,5 +1,6 @@
 package com.onda.mju.student.ui.screen.route
 
+import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
 import com.onda.mju.student.data.route.RouteStopCatalog
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -37,6 +38,57 @@ data class VehicleStopTracker(
     val lastPassedStopIndex: Int = -1,
     val lastArrivedStopIndex: Int = -1,
 )
+
+fun VehicleStopTracker.mergeAhead(other: VehicleStopTracker): VehicleStopTracker {
+    val passed = maxOf(lastPassedStopIndex, other.lastPassedStopIndex)
+    val arrived = maxOf(lastArrivedStopIndex, other.lastArrivedStopIndex, passed)
+    return VehicleStopTracker(
+        lastPassedStopIndex = passed,
+        lastArrivedStopIndex = arrived,
+    )
+}
+
+fun OperationStopProgressDto.toVehicleStopTracker(
+    waypoints: List<StopWaypoint>,
+): VehicleStopTracker {
+    val last = waypoints.lastIndex
+    if (last < 0) {
+        return VehicleStopTracker(
+            lastPassedStopIndex = lastPassedIndex,
+            lastArrivedStopIndex = maxOf(lastArrivedIndex, lastPassedIndex),
+        )
+    }
+    val passed = when {
+        lastPassedIndex in 0..last -> lastPassedIndex
+        !lastPassedStopId.isNullOrBlank() -> waypoints.indexOfFirst { it.id == lastPassedStopId }
+        else -> -1
+    }.coerceIn(-1, last)
+    val arrived = when {
+        lastArrivedIndex in 0..last -> lastArrivedIndex
+        !lastArrivedStopId.isNullOrBlank() -> waypoints.indexOfFirst { it.id == lastArrivedStopId }
+        else -> -1
+    }.coerceIn(-1, last)
+    return VehicleStopTracker(
+        lastPassedStopIndex = passed,
+        lastArrivedStopIndex = maxOf(arrived, passed),
+    )
+}
+
+fun seedTrackersFromProgress(
+    vehicles: List<LiveVehicle>,
+    waypoints: List<StopWaypoint>,
+    progressByOperation: Map<String, OperationStopProgressDto>,
+    current: Map<String, VehicleStopTracker>,
+): Map<String, VehicleStopTracker> {
+    if (progressByOperation.isEmpty()) return current
+    val next = current.toMutableMap()
+    for (vehicle in vehicles) {
+        val saved = progressByOperation[vehicle.id] ?: continue
+        next[vehicle.id] = (next[vehicle.id] ?: VehicleStopTracker())
+            .mergeAhead(saved.toVehicleStopTracker(waypoints))
+    }
+    return next
+}
 
 /** 기사앱과 동일 반경 */
 const val STOP_ARRIVE_RADIUS_METERS = 60.0

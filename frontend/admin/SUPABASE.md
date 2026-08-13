@@ -31,6 +31,7 @@ VITE_NAVER_MAP_CLIENT_ID=YOUR_NAVER_MAP_KEY
 | `routes` / `stops` / `route_stops` / `schedules` | 노선·정류장·시간표 |
 | `buses` / `operations` / `vehicle_locations` | 차량·운행·GPS 좌표 |
 | `operation_device_status` | 운행 중 기기 heartbeat (`gps_ok`, `gps_enabled`, `updated_at`) — GPS vs 네트워크 구분 |
+| `operation_stop_progress` | 운행 중 정류장 진행 (`last_arrived_*`, `last_passed_*`) — 화면 복원 |
 | `notifications` / `operation_logs` | 알림·운행 로그 |
 | `vehicles` / `maintenances` / `system_logs` | 정비·시스템 (부가) |
 
@@ -53,6 +54,7 @@ VITE_NAVER_MAP_CLIENT_ID=YOUR_NAVER_MAP_KEY
 | `buses` | SELECT | (기존 정책) | (기존 정책) |
 | `vehicle_locations` | SELECT | SELECT(본인 운행) + INSERT(본인) | (기존 정책) |
 | `operation_device_status` | SELECT | SELECT/INSERT/UPDATE(본인 운행) | ALL |
+| `operation_stop_progress` | SELECT | SELECT/INSERT/UPDATE(본인 운행) | ALL |
 | `notices` | SELECT(대상·게시중·기간) | SELECT(대상·게시중·기간) | ALL |
 
 헬퍼: `public.is_student()` / `public.is_driver()` / `public.is_admin()` / `public.current_user_role()` (SECURITY DEFINER)
@@ -83,6 +85,21 @@ SQL Editor에서 **`supabase/migrate_operation_device_status.sql`** 실행
 
 Realtime 구독: `operation_device_status` + `vehicle_locations`
 
+## 정류장 진행 (`operation_stop_progress`)
+SQL Editor에서 **`supabase/migrate_operation_stop_progress.sql`** 실행  
+(테이블 + RLS + Realtime publication 포함). `operations` 배차 원장은 그대로 두고, 운행당 진행 스냅샷만 분리한다.
+
+| 컬럼 | 의미 |
+|------|------|
+| `operation_id` | PK, `operations.id` |
+| `last_arrived_stop_id` | 마지막 도착 정류장 (`stops.id`, 아직이면 null) |
+| `last_passed_stop_id` | 지나감 확정 정류장 (`stops.id`, 아직이면 null) |
+| `last_arrived_index` | 노선 순서 도착 인덱스 (`-1` = 미도착) |
+| `last_passed_index` | 노선 순서 지나감 인덱스 (`-1` = 아직 없음) |
+| `updated_at` | 진행 갱신 시각 |
+
+기사 앱이 운행 중 GPS로 인덱스를 전진시키며 upsert. 학생/기사 앱은 화면을 다시 열 때 이 행을 읽어 복원한다. 인덱스는 순환 노선에서 같은 정류장이 두 번 나와도 위치를 구분하기 위해 둔다.
+
 ## 공지 notices 확장
 SQL Editor에서 **`supabase/migrate_notices_fields.sql`** 실행.
 
@@ -104,12 +121,13 @@ SQL Editor에서 실행 (RLS/데이터 변경 없음):
 | `supabase/realtime_vehicle_locations.sql` | `vehicle_locations` | GPS INSERT 구독 |
 | `supabase/realtime_operations.sql` | `operations` | 운행 시작/종료 UPDATE 구독 |
 | `supabase/realtime_operation_device_status.sql` | `operation_device_status` | GPS/네트워크 heartbeat 구독 |
+| `supabase/migrate_operation_stop_progress.sql` | `operation_stop_progress` | 정류장 진행 스냅샷 (테이블+RLS+Realtime) |
 
 확인:
 ```sql
 select * from pg_publication_tables
 where pubname = 'supabase_realtime'
-  and tablename in ('vehicle_locations', 'operations', 'operation_device_status');
+  and tablename in ('vehicle_locations', 'operations', 'operation_device_status', 'operation_stop_progress');
 ```
 
 ## 노선·시간표 시드 (2026 mju_pier_ 공지)
