@@ -9,22 +9,23 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import type { AdminRole } from '../types/database'
+import type { UserRole } from '../types/database'
 
-export type { AdminRole }
+/** 관리자 웹에서 쓰는 역할 — DB `user_role` 과 동일 */
+export type AdminRole = UserRole
 
 export type AuthUser = {
   id: string
   name: string
   email: string
-  role: AdminRole
+  role: UserRole
 }
 
 export type SignupPayload = {
   name: string
   email: string
   password: string
-  role: AdminRole
+  role: UserRole
   phone?: string
 }
 
@@ -47,7 +48,13 @@ const DEMO_USER: AuthUser = {
   role: 'ADMIN',
 }
 
-async function fetchProfile(userId: string, fallbackEmail: string): Promise<AuthUser> {
+function normalizeRole(role: unknown): UserRole {
+  const r = String(role ?? '').toUpperCase()
+  if (r === 'DRIVER' || r === 'STUDENT' || r === 'ADMIN') return r
+  return 'ADMIN'
+}
+
+async function fetchUserProfile(userId: string, fallbackEmail: string): Promise<AuthUser> {
   const { data, error } = await supabase
     .from('users')
     .select('id, email, name, role')
@@ -67,7 +74,7 @@ async function fetchProfile(userId: string, fallbackEmail: string): Promise<Auth
     id: data.id,
     email: data.email ?? fallbackEmail,
     name: data.name,
-    role: (data.role as AdminRole) || 'ADMIN',
+    role: normalizeRole(data.role),
   }
 }
 
@@ -92,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return
 
       if (data.session?.user) {
-        const profile = await fetchProfile(data.session.user.id, data.session.user.email ?? '')
+        const profile = await fetchUserProfile(data.session.user.id, data.session.user.email ?? '')
         if (mounted) setUser(profile)
       } else {
         setUser(null)
@@ -102,14 +109,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void boot()
 
-    if (!isSupabaseConfigured) return () => {
-      mounted = false
+    if (!isSupabaseConfigured) {
+      return () => {
+        mounted = false
+      }
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session: Session | null) => {
       if (!mounted) return
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id, session.user.email ?? '')
+        const profile = await fetchUserProfile(session.user.id, session.user.email ?? '')
         if (mounted) setUser(profile)
       } else {
         setUser(null)
@@ -144,7 +153,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data.user) {
-      const profile = await fetchProfile(data.user.id, data.user.email ?? email.trim())
+      const profile = await fetchUserProfile(data.user.id, data.user.email ?? email.trim())
+      if (profile.role !== 'ADMIN' && profile.role !== 'DRIVER') {
+        await supabase.auth.signOut()
+        setUser(null)
+        return { ok: false, message: '관리자/기사 계정만 로그인할 수 있습니다.' }
+      }
       setUser(profile)
     }
     return { ok: true }
@@ -155,12 +169,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: '비밀번호는 8자 이상이어야 합니다.' }
     }
 
+    const role = normalizeRole(payload.role)
+    if (role === 'STUDENT') {
+      return { ok: false, message: '관리자 웹에서는 STUDENT 역할로 가입할 수 없습니다.' }
+    }
+
     if (!isSupabaseConfigured) {
       const next: AuthUser = {
         id: `admin-${Date.now()}`,
         name: payload.name,
         email: payload.email,
-        role: payload.role,
+        role,
       }
       setUser(next)
       sessionStorage.setItem('onda-admin-user', JSON.stringify(next))
@@ -173,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: {
         data: {
           name: payload.name,
-          role: payload.role,
+          role,
           phone: payload.phone ?? null,
         },
       },
@@ -184,9 +203,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data.user) {
-      // 이메일 확인이 켜져 있으면 session 이 없을 수 있음
       if (data.session) {
-        const profile = await fetchProfile(data.user.id, payload.email.trim())
+        const profile = await fetchUserProfile(data.user.id, payload.email.trim())
         setUser(profile)
       } else {
         return {

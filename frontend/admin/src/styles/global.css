@@ -24,10 +24,10 @@
   --radius-lg: 14px;
   --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.06);
   --shadow-auth: 0 12px 40px rgba(37, 99, 235, 0.08);
-  --font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --section-title-size: 17px;
+  --font:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --section-title-size: 15px;
   --section-title-weight: 700;
-  --section-title-icon: 18px;
 }
 
 *,
@@ -117,21 +117,12 @@ table {
 
 .card-head h3 {
   margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  font-family: var(--font);
   font-size: var(--section-title-size);
   font-weight: var(--section-title-weight);
-  line-height: 1.3;
   letter-spacing: -0.01em;
-  color: #111827;
-}
-
-.card-head h3 svg {
-  width: var(--section-title-icon);
-  height: var(--section-title-icon);
-  color: #266ef4;
-  flex-shrink: 0;
+  color: var(--color-text);
+  line-height: 1.3;
 }
 
 .grid {
@@ -302,11 +293,17 @@ table {
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex-shrink: 0;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .badge-blue {
@@ -455,15 +452,211 @@ table {
 .page-chip {
   width: 28px;
   height: 28px;
+  min-width: 28px;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
   color: #4b5563;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .page-chip.active {
   background: var(--color-primary);
   color: #fff;
+}
+
+.page-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.list-pagination,
+.live-list-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.list-pagination-meta,
+.live-list-pagination-meta {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--color-muted, #6b7280);
+  letter-spacing: -0.01em;
+}
+
+.list-pagination-pages,
+.live-list-pagination-pages {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.list-pagination-pages .page-chip,
+.live-list-pagination-pages .page-chip {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  background: #f3f4f6;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.list-pagination-pages .page-chip:not(:disabled):hover,
+.live-list-pagination-pages .page-chip:not(:disabled):hover {
+  background: #e5e7eb;
+}
+
+.list-pagination-pages .page-chip.active,
+.live-list-pagination-pages .page-chip.active {
+  background: var(--color-primary, #266ef4);
+  color: #fff;
+}
+
+.list-pagination-pages .page-chip.active:hover,
+.live-list-pagination-pages .page-chip.active:hover {
+  background: var(--color-primary, #266ef4);
+}
+
+.live-list-gps-alert {
+  margin-top: 22px;
+  margin-bottom: 0;
+}
+
+.live-list-gps-alert-slot {
+  margin-top: 52px;
+  min-height: 40px;
+}
+
+.live-list-gps-alert-slot:empty {
+  visibility: hidden;
+}
+
+.live-vehicle-row-pad td {
+  border-bottom-color: transparent;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row {
+  cursor: pointer;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row:hover {
+  background: #f8fafc;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row.is-gps-error {
+  background: #fff5f5;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row.is-gps-error:hover {
+  background: #ffecec;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row.is-selected {
+  background: #eff6ff;
+}
+
+.live-vehicle-table tbody tr.live-vehicle-row.is-selected:hover {
+  background: #e0edff;
+}
+
+/* 실시간 차량 목록 — 고정 열 비율로 가로 스크롤 방지 */
+.live-vehicle-table th,
+.live-vehicle-table td {
+  padding: 8px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-vehicle-table th:nth-child(1),
+.live-vehicle-table td:nth-child(1) {
+  width: 7%;
+}
+
+.live-vehicle-table th:nth-child(2),
+.live-vehicle-table td:nth-child(2) {
+  width: 12%;
+}
+
+.live-vehicle-table th:nth-child(3),
+.live-vehicle-table td:nth-child(3) {
+  width: 13%;
+}
+
+.live-vehicle-table th:nth-child(4),
+.live-vehicle-table td:nth-child(4) {
+  width: 18%;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.live-route-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.live-route-name-base {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-route-name-suffix {
+  font-size: 11px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-vehicle-table th:nth-child(5),
+.live-vehicle-table td:nth-child(5) {
+  width: 17%;
+}
+
+.live-vehicle-table th:nth-child(6),
+.live-vehicle-table td:nth-child(6) {
+  width: 12%;
+}
+
+.live-vehicle-table th:nth-child(7),
+.live-vehicle-table td:nth-child(7) {
+  width: 10%;
+}
+
+.live-vehicle-table th:nth-child(8),
+.live-vehicle-table td:nth-child(8) {
+  width: 11%;
+}
+
+.live-vehicle-table td.col-status {
+  overflow: hidden;
+}
+
+.live-vehicle-table td.col-status .badge {
+  min-width: 0;
+  max-width: 100%;
+  width: fit-content;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
