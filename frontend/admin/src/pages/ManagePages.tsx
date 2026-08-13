@@ -2489,11 +2489,11 @@ export function SystemPage() {
         <div className="card-head">
           <h3>기록조회</h3>
         </div>
-        <div className="toolbar" style={{ flexWrap: 'wrap' }}>
+        <div className="toolbar system-log-filter-toolbar" style={{ flexWrap: 'wrap' }}>
           <div className="field" style={{ minWidth: 120 }}>
             <label>기록 유형</label>
             <select
-              className="select"
+              className="select system-log-filter-control"
               value={draftTypeFilter}
               onChange={(e) => setDraftTypeFilter(e.target.value)}
             >
@@ -2507,7 +2507,7 @@ export function SystemPage() {
           <div className="field" style={{ minWidth: 120 }}>
             <label>사용자</label>
             <select
-              className="select"
+              className="select system-log-filter-control"
               value={draftActorFilter}
               onChange={(e) => setDraftActorFilter(e.target.value)}
             >
@@ -2522,7 +2522,7 @@ export function SystemPage() {
           <div className="field" style={{ minWidth: 220 }}>
             <label>기간</label>
             <input
-              className="input"
+              className="input system-log-filter-control"
               value={draftPeriod}
               onChange={(e) => setDraftPeriod(e.target.value)}
               placeholder="YYYY.MM.DD ~ YYYY.MM.DD"
@@ -2531,7 +2531,7 @@ export function SystemPage() {
           <div className="field" style={{ flex: 1, minWidth: 180 }}>
             <label>키워드 검색</label>
             <input
-              className="input"
+              className="input system-log-filter-control"
               placeholder="검색어를 입력하세요."
               value={draftKeyword}
               onChange={(e) => setDraftKeyword(e.target.value)}
@@ -2541,7 +2541,7 @@ export function SystemPage() {
             />
           </div>
           <button
-            className="btn btn-outline"
+            className="btn btn-outline system-log-filter-btn"
             type="button"
             style={{ alignSelf: 'end' }}
             onClick={resetSystemLogFilters}
@@ -2549,7 +2549,7 @@ export function SystemPage() {
             초기화
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary system-log-filter-btn"
             type="button"
             style={{ alignSelf: 'end' }}
             onClick={applySystemLogFilters}
@@ -2559,34 +2559,36 @@ export function SystemPage() {
         </div>
       </section>
 
-      <div className="card-head">
-        <h3>
-          기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
-        </h3>
-        <button className="btn btn-outline" type="button">
-          엑셀 다운로드
-        </button>
-      </div>
+      <section className="card card-pad system-log-summary">
+        <div className="card-head">
+          <h3>
+            기록 요약 <span className="muted">({appliedPeriod.trim() || '전체 기간'})</span>
+          </h3>
+          <button className="btn btn-outline" type="button">
+            엑셀 다운로드
+          </button>
+        </div>
 
-      <div className="grid grid-5">
-        {[
-          ['전체 기록 수', '2,458건', '일 평균 351건'],
-          ['운영 기록', '1,362건', '55.4%'],
-          ['사용자 활동', '736건', '29.9%'],
-          ['시스템 변경', '248건', '10.1%'],
-          ['오류 / 경고', '112건', '4.6%'],
-        ].map(([t, v, s]) => (
-          <div key={t} className="card card-pad">
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t}
+        <div className="grid grid-5">
+          {[
+            ['전체 기록 수', '2,458건', '일 평균 351건'],
+            ['운영 기록', '1,362건', '55.4%'],
+            ['사용자 활동', '736건', '29.9%'],
+            ['시스템 변경', '248건', '10.1%'],
+            ['오류 / 경고', '112건', '4.6%'],
+          ].map(([t, v, s]) => (
+            <div key={t} className="system-log-summary-tile">
+              <div className="muted" style={{ fontSize: 12 }}>
+                {t}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
+              <div className="muted" style={{ fontSize: 11 }}>
+                {s}
+              </div>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{v}</div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              {s}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </section>
 
       <div className="split-14">
         <section className="card card-pad">

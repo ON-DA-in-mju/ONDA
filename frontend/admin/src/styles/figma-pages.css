@@ -1287,6 +1287,41 @@
   line-height: 1.2;
 }
 
+/* 시스템 기록 조회 필터 */
+.system-log-filter-toolbar .field label {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: -0.01em;
+}
+
+.system-log-filter-toolbar .system-log-filter-control {
+  height: 36px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #374151;
+  line-height: 1.2;
+}
+
+.system-log-filter-toolbar .system-log-filter-btn {
+  height: 36px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0 14px;
+}
+
+.system-log-summary-tile {
+  background: #f8fafc;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
 .donut-sm {
   width: 88px;
   height: 88px;
