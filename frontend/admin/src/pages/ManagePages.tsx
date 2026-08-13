@@ -1755,11 +1755,15 @@ export function VehiclesPage() {
 
   return (
     <div className="page">
-      <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
-        <select className="select" style={{ width: 120, height: 32 }}>
+      <div className="toolbar vehicle-filter-toolbar" style={{ justifyContent: 'flex-end' }}>
+        <select className="select vehicle-filter-control" style={{ width: 120, height: 32 }}>
           <option>전체 차량</option>
         </select>
-        <input className="input" style={{ width: 220, height: 32 }} defaultValue="2026.07.01 ~ 2026.07.31" />
+        <input
+          className="input vehicle-filter-control"
+          style={{ width: 220, height: 32 }}
+          defaultValue="2026.07.01 ~ 2026.07.31"
+        />
         <button className="btn btn-primary btn-xs" type="button" style={{ height: 32 }}>
           정비 등록
         </button>

@@ -1277,6 +1277,16 @@
   gap: 10px;
 }
 
+/* 차량·정비 관리 상단 필터: 높이 32px 대비 글자 크기·자간 정리 */
+.vehicle-filter-toolbar .vehicle-filter-control {
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #374151;
+  line-height: 1.2;
+}
+
 .donut-sm {
   width: 88px;
   height: 88px;
