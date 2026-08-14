@@ -10,6 +10,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { kpiCards as mockKpiCards } from '../data/mock'
 import {
+  countStudentReports,
+  subscribeStudentReports,
+} from '../lib/api'
+import {
   fetchLiveVehicles,
   fetchRecentOperationFeed,
   type LiveSnapshot,
@@ -123,6 +127,10 @@ export function DashboardPage() {
   const [snapshot, setSnapshot] = useState<LiveSnapshot>(emptySnap)
   const [yesterdayTotal, setYesterdayTotal] = useState<number | null>(null)
   const [recentOpsFeed, setRecentOpsFeed] = useState<RecentOpFeedItem[]>([])
+  const [studentReportStats, setStudentReportStats] = useState<{
+    total: number
+    pending: number
+  } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -192,6 +200,31 @@ export function DashboardPage() {
     }
   }, [])
 
+  // 전체 학생 제보 건수 — DB + Realtime (+ 폴링 백업)
+  useEffect(() => {
+    let alive = true
+    const refresh = createExclusivePoll(async () => {
+      const stats = await countStudentReports()
+      if (!alive || !stats) return
+      setStudentReportStats((prev) => {
+        if (prev && prev.total === stats.total && prev.pending === stats.pending) return prev
+        return stats
+      })
+    })
+    void refresh()
+    const unsub = subscribeStudentReports(() => {
+      void refresh()
+    })
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 20_000)
+    return () => {
+      alive = false
+      unsub()
+      window.clearInterval(timer)
+    }
+  }, [])
+
   const vehicles = snapshot.vehicles
 
   const gpsAlertRows = useMemo(() => buildGpsAlertRows(vehicles), [vehicles])
@@ -233,13 +266,22 @@ export function DashboardPage() {
         delta: gpsIssues > 0 ? '확인 필요' : '이상 없음',
         color: '#eb4047',
       },
+      {
+        title: '전체 학생 제보',
+        value: studentReportStats?.total ?? (isSupabaseConfigured ? 0 : mockKpiCards[4]?.value ?? 0),
+        unit: '건',
+        delta: studentReportStats
+          ? `처리 대기 ${studentReportStats.pending}건`
+          : isSupabaseConfigured
+            ? '불러오는 중…'
+            : 'mock',
+        color: '#7964f2',
+      },
     ]
 
-    // 학생 제보 · 긴급 공지는 기존 mock 유지
-    const keepTitles = new Set(['처리 중 학생 제보', '긴급 공지'])
-    const staticCards = mockKpiCards.filter((c) => keepTitles.has(c.title))
-    return [...liveCards, ...staticCards]
-  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount])
+    const urgentCard = mockKpiCards.find((c) => c.title === '긴급 공지')
+    return urgentCard ? [...liveCards, urgentCard] : liveCards
+  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, studentReportStats])
 
   return (
     <div className="page">
@@ -322,9 +364,9 @@ export function DashboardPage() {
           <div className="donut-wrap">
             <div className="donut">
               <div className="donut-hole">
-                총 12건
+                총 {studentReportStats?.total ?? '—'}건
                 <br />
-                처리 대기
+                전체 제보
               </div>
             </div>
           </div>
@@ -336,7 +378,9 @@ export function DashboardPage() {
             ))}
           </div>
           <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-            가장 많은 제보 유형은 승하차 관련입니다.
+            {studentReportStats
+              ? `처리 대기 ${studentReportStats.pending}건 · Realtime 반영`
+              : '학생 앱 제보와 동일한 reports DB를 사용합니다.'}
           </p>
         </section>
       </div>

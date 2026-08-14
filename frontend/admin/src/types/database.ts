@@ -325,6 +325,8 @@ type Tables = {
       status: ReportStatus
       /** STUDENT = 학생 제보, DRIVER = 기사 문의 */
       source: ReportSource
+      /** REPORT = 상황 제보, POST = 학생 소통 글 (관리자 목록에서 제외) */
+      board_type: 'REPORT' | 'POST'
       /** 문의 유형 (account, assignment, gps …) */
       category: string | null
       created_at: string | null
@@ -337,6 +339,7 @@ type Tables = {
       content: string
       status?: ReportStatus
       source?: ReportSource
+      board_type?: 'REPORT' | 'POST'
       category?: string | null
       created_at?: string | null
       updated_at?: string | null

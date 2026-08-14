@@ -141,7 +141,9 @@ export function AdminLayout() {
       ? '운행 상태 상세'
       : location.pathname.startsWith('/schedules/detail')
         ? '운행 일정 상세'
-        : 'ON-DA 관리자')
+        : location.pathname.startsWith('/reports/detail')
+          ? '제보 상세'
+          : 'ON-DA 관리자')
 
   return (
     <div className="admin-shell">

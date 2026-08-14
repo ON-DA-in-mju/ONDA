@@ -3,7 +3,7 @@ export const kpiCards = [
   { title: '현재 운행 중 차량', value: 28, unit: '대', delta: '+3대 (전일 대비)', color: '#3fb46a' },
   { title: '운행 배정 차량', value: 42, unit: '대', delta: '+2대 (전일 대비)', color: '#fdac38' },
   { title: 'GPS·통신 이상', value: 5, unit: '건', delta: '+2건 (전일 대비)', color: '#eb4047' },
-  { title: '처리 중 학생 제보', value: 12, unit: '건', delta: '+4건 (전일 대비)', color: '#7964f2' },
+  { title: '전체 학생 제보', value: 12, unit: '건', delta: 'DB 연동 전', color: '#7964f2' },
   { title: '긴급 공지', value: 1, unit: '건', delta: '게시 중', color: '#ec181b' },
 ]
 

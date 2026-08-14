@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
   AlignCenter,
@@ -21,11 +21,14 @@ import {
 import { maintenances, notices, reports, routes, systemLogs as mockSystemLogs, users } from '../data/mock'
 import {
   createNotice,
+  deleteReport,
   endNotice,
   fetchNotices,
+  fetchReportById,
   fetchReports,
   fetchRoutes,
   fetchUsers,
+  subscribeStudentReports,
   updateNotice,
   type NoticeRow,
   type ReportRow,
@@ -36,7 +39,7 @@ import type { NoticeAudience, NoticeStatus, NoticeType } from '../types/database
 import { noticeAudienceLabel, normalizeNoticeAudience } from '../lib/noticeAudience'
 import { fetchLoginHistory, toLastLoginDisplay, type LoginHistoryEntry } from '../lib/loginHistoryApi'
 import { fetchGpsReceiveLogs, GPS_LOGS_MAX, type GpsReceiveLog } from '../lib/gpsLogsApi'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { fetchSystemLogs, type SystemLogRow } from '../lib/systemLogsApi'
 import { useAuth } from '../state/AuthContext'
 import { StatusBadge } from '../components/ui/Form'
@@ -71,6 +74,10 @@ function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;')
 }
 
+const NOTICE_ATTACH_CLASS = 'onda-notice-attach'
+const NOTICE_ATTACH_BLOCK_RE =
+  /<div\s+[^>]*class\s*=\s*["'][^"']*onda-notice-attach[^"']*["'][^>]*>[\s\S]*?<\/div>/gi
+
 function plainTextToEditorHtml(text: string): string {
   if (!text.trim()) return ''
   return text
@@ -79,10 +86,52 @@ function plainTextToEditorHtml(text: string): string {
     .join('')
 }
 
+/** DB content(본문 + attach HTML) → 에디터 HTML */
+function noticeContentToEditorHtml(content: string): string {
+  const attachBlocks = content.match(NOTICE_ATTACH_BLOCK_RE) ?? []
+  const body = content.replace(NOTICE_ATTACH_BLOCK_RE, '').replace(/\n+$/, '')
+  return `${plainTextToEditorHtml(body)}${attachBlocks.join('')}`
+}
+
 function htmlToPlainText(html: string): string {
   const el = document.createElement('div')
   el.innerHTML = html
   return el.innerText.replace(/\u00a0/g, ' ')
+}
+
+/** 에디터 HTML → DB content (본문 plain + 첨부 블록 유지) */
+function serializeNoticeContent(html: string): string {
+  const el = document.createElement('div')
+  el.innerHTML = html
+
+  const attaches: Array<{ href: string; name: string }> = []
+  el.querySelectorAll(`.${NOTICE_ATTACH_CLASS} a[href]`).forEach((a) => {
+    const href = a.getAttribute('href')?.trim()
+    const name = (a.textContent || '').trim() || '첨부파일'
+    if (href) attaches.push({ href, name })
+  })
+  el.querySelectorAll(`.${NOTICE_ATTACH_CLASS}`).forEach((node) => node.remove())
+
+  el.querySelectorAll('a[href*="notice-attachments"]').forEach((a) => {
+    const href = a.getAttribute('href')?.trim()
+    const name = (a.textContent || '').trim() || '첨부파일'
+    if (href && !attaches.some((x) => x.href === href)) {
+      attaches.push({ href, name })
+    }
+    a.replaceWith(document.createTextNode(''))
+  })
+
+  const plain = el.innerText
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  const attachHtml = attaches
+    .map(
+      (a) =>
+        `<div class="${NOTICE_ATTACH_CLASS}"><a href="${escapeHtml(a.href)}">${escapeHtml(a.name)}</a></div>`,
+    )
+    .join('')
+  return attachHtml ? `${plain}\n${attachHtml}` : plain
 }
 
 const NOTICE_TYPE_KO: Record<NoticeType, string> = {
@@ -211,19 +260,29 @@ const emptyEditorCmds: EditorCmdState = {
   full: false,
 }
 
-/** ADM-05 커뮤니티 제보 관리 */
+/** ADM-05 커뮤니티 제보 관리 — 목록 */
 export function ReportsPage() {
-  const [selected, setSelected] = useState(0)
+  const navigate = useNavigate()
   const [listPage, setListPage] = useState(1)
   const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
 
   useEffect(() => {
-    void fetchReports().then((data) => {
-      if (data) setDbReports(data)
-    })
+    let alive = true
+    const refresh = () => {
+      void fetchReports().then((data) => {
+        if (alive && data) setDbReports(data)
+      })
+    }
+    refresh()
+    const unsub = subscribeStudentReports(refresh)
+    const timer = window.setInterval(refresh, 20_000)
+    return () => {
+      alive = false
+      unsub()
+      window.clearInterval(timer)
+    }
   }, [])
 
-  const usingDb = Boolean(dbReports && dbReports.length >= 0 && isSupabaseConfigured && dbReports !== null)
   const reportTotal = dbReports?.length ?? reports.length
   const reportPageCount = Math.max(1, Math.ceil(reportTotal / REPORTS_PAGE_SIZE))
   const safeListPage = Math.min(listPage, reportPageCount)
@@ -242,18 +301,19 @@ export function ReportsPage() {
     if (listPage > reportPageCount) setListPage(reportPageCount)
   }, [listPage, reportPageCount])
 
-  const item = usingDb && dbReports?.[selected] ? dbReports[selected] : null
-  const mockItem = reports[Math.min(selected, reports.length - 1)] ?? reports[0]
-
   return (
     <div className="page">
       <p className="page-subtitle">
         학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
-        {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
+        {isSupabaseConfigured
+          ? dbReports
+            ? ` · 전체 학생 제보 ${dbReports.length}건 (Realtime)`
+            : ' · DB 로딩/권한 확인'
+          : ' · mock'}
       </p>
       <div className="grid grid-3 reports-kpis">
         {[
-          ['전체 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
+          ['전체 학생 제보', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
           ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
           ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
         ].map(([t, v, s, tone]) => (
@@ -265,119 +325,378 @@ export function ReportsPage() {
         ))}
       </div>
 
-      <div className="split-13">
-        <section className="card card-pad">
-          <div className="card-head">
-            <h3>제보 목록</h3>
-          </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{dbReports ? '제목' : '유형'}</th>
-                <th>{dbReports ? '상태' : '대상'}</th>
-                <th>시간</th>
-                {!dbReports ? <th>좋아요</th> : null}
-                {!dbReports ? <th>상태</th> : null}
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {pagedDbReports
-                ? pagedDbReports.map((row, idx) => {
-                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
-                    return (
-                      <tr key={row.id} style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}>
-                        <td style={{ fontWeight: 700 }}>{row.title}</td>
-                        <td>
-                          <StatusBadge
-                            tone={
-                              row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'
-                            }
-                          >
-                            {reportStatusKo[row.status] ?? row.status}
-                          </StatusBadge>
-                        </td>
-                        <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
-                        <td>
-                          <button
-                            className="btn btn-outline"
-                            type="button"
-                            style={{ height: 28 }}
-                            onClick={() => setSelected(absoluteIdx)}
-                          >
-                            상세
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                : (pagedMockReports ?? []).map((row, idx) => {
-                    const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
-                    return (
-                      <tr
-                        key={row.type + row.time}
-                        style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
+      <section className="card card-pad">
+        <div className="card-head">
+          <h3>제보 목록</h3>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>{dbReports ? '제목' : '유형'}</th>
+              <th>{dbReports ? '상태' : '대상'}</th>
+              <th>시간</th>
+              {!dbReports ? <th>좋아요</th> : null}
+              {!dbReports ? <th>상태</th> : null}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {pagedDbReports
+              ? pagedDbReports.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ fontWeight: 700 }}>{row.title}</td>
+                    <td>
+                      <StatusBadge
+                        tone={
+                          row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'
+                        }
                       >
-                        <td>{row.type}</td>
-                        <td>{row.target}</td>
-                        <td>{row.time}</td>
-                        <td>{row.likes}</td>
-                        <td>
-                          <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-outline"
-                            type="button"
-                            style={{ height: 28 }}
-                            onClick={() => setSelected(absoluteIdx)}
-                          >
-                            상세
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-            </tbody>
-          </table>
-          <ListPagination
-            total={reportTotal}
-            page={safeListPage}
-            pageSize={REPORTS_PAGE_SIZE}
-            onPageChange={setListPage}
-            ariaLabel="제보 목록 페이지"
-          />
-        </section>
+                        {reportStatusKo[row.status] ?? row.status}
+                      </StatusBadge>
+                    </td>
+                    <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
+                    <td>
+                      <button
+                        className="btn btn-outline"
+                        type="button"
+                        style={{ height: 28 }}
+                        onClick={() => navigate(`/reports/detail/${row.id}`)}
+                      >
+                        상세
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              : (pagedMockReports ?? []).map((row, idx) => {
+                  const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
+                  return (
+                    <tr key={row.type + row.time}>
+                      <td>{row.type}</td>
+                      <td>{row.target}</td>
+                      <td>{row.time}</td>
+                      <td>{row.likes}</td>
+                      <td>
+                        <StatusBadge tone={row.tone}>{row.status}</StatusBadge>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-outline"
+                          type="button"
+                          style={{ height: 28 }}
+                          onClick={() => navigate(`/reports/detail/mock-${absoluteIdx}`)}
+                        >
+                          상세
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+          </tbody>
+        </table>
+        <ListPagination
+          total={reportTotal}
+          page={safeListPage}
+          pageSize={REPORTS_PAGE_SIZE}
+          onPageChange={setListPage}
+          ariaLabel="제보 목록 페이지"
+        />
+      </section>
+    </div>
+  )
+}
 
-        <section className="card card-pad">
-          <div className="card-head">
-            <h3>제보 상세</h3>
-            {item ? (
-              <StatusBadge tone={item.status === 'PENDING' ? 'orange' : item.status === 'PROCESSING' ? 'blue' : 'green'}>
-                {reportStatusKo[item.status] ?? item.status}
-              </StatusBadge>
-            ) : (
-              <StatusBadge tone={mockItem.tone}>{mockItem.status}</StatusBadge>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-            <div>
-              <strong>{item?.title ?? mockItem.type}</strong>
-              <div className="muted">
-                {item
-                  ? `${item.created_at ? new Date(item.created_at).toLocaleString('ko-KR') : '-'} · ${item.user_id.slice(0, 8)}`
-                  : `${mockItem.time} · student_1024`}
+/** 제보 상세 — 학생 앱 상세와 유사한 구조 · 유지/삭제 */
+export function ReportDetailPage() {
+  const navigate = useNavigate()
+  const { reportId = '' } = useParams()
+  const [row, setRow] = useState<ReportRow | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const mockIndex = reportId.startsWith('mock-') ? Number(reportId.replace('mock-', '')) : null
+  const mockItem =
+    mockIndex != null && Number.isFinite(mockIndex)
+      ? reports[Math.min(Math.max(0, mockIndex), reports.length - 1)]
+      : null
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setMessage('')
+      if (reportId.startsWith('mock-')) {
+        if (!cancelled) {
+          setRow(null)
+          setLoading(false)
+        }
+        return
+      }
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setRow(null)
+          setLoading(false)
+          setMessage('Supabase 미설정')
+        }
+        return
+      }
+      const data = await fetchReportById(reportId)
+      if (!cancelled) {
+        setRow(data)
+        setLoading(false)
+        if (!data) setMessage('제보를 찾을 수 없습니다.')
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [reportId])
+
+  const parsed = useMemo(() => {
+    if (row) return parseAdminReportContent(row.content, row.category, row.title)
+    if (mockItem) {
+      return {
+        typeLabel: mockItem.type,
+        routeLabel: mockItem.target,
+        directionLabel: '-',
+        stopName: '-',
+        vehicleLabel: '-',
+        body: '버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.',
+      }
+    }
+    return null
+  }, [row, mockItem])
+
+  const onKeep = () => {
+    navigate('/reports')
+  }
+
+  const onDelete = async () => {
+    if (!row) {
+      setMessage('mock 제보는 DB에 없어 삭제할 수 없습니다. 목록으로 돌아갑니다.')
+      navigate('/reports')
+      return
+    }
+    setBusy(true)
+    const res = await deleteReport(row.id)
+    setBusy(false)
+    if (!res.ok) {
+      setMessage(res.message || '삭제에 실패했습니다.')
+      setConfirmDelete(false)
+      return
+    }
+    navigate('/reports')
+  }
+
+  const statusTone =
+    row?.status === 'PENDING' ? 'orange' : row?.status === 'PROCESSING' ? 'blue' : row ? 'green' : mockItem?.tone ?? 'gray'
+  const statusLabel = row ? reportStatusKo[row.status] ?? row.status : mockItem?.status ?? '-'
+
+  return (
+    <div className="page">
+      <div className="card-head" style={{ marginBottom: 4 }}>
+        <div>
+          <h2 className="page-title">제보 상세</h2>
+          <p className="page-subtitle">학생 앱 제보와 같은 내용을 검토합니다. 문제없으면 유지하고, 부적절하면 삭제하세요.</p>
+        </div>
+        <button className="btn btn-ghost" type="button" onClick={() => navigate('/reports')}>
+          목록으로
+        </button>
+      </div>
+
+      <div className="report-detail-layout">
+        {loading ? (
+          <section className="card card-pad">
+            <p className="muted">불러오는 중…</p>
+          </section>
+        ) : parsed ? (
+          <>
+            <section className="card card-pad report-summary-card">
+              <div className="report-summary-top">
+                <StatusBadge tone={statusTone as 'orange' | 'blue' | 'green' | 'gray'}>{statusLabel}</StatusBadge>
+                <span className="muted" style={{ fontSize: 12.5 }}>
+                  {row?.created_at
+                    ? new Date(row.created_at).toLocaleString('ko-KR')
+                    : mockItem?.time ?? '-'}
+                  {row ? ` · ${row.source === 'DRIVER' ? '기사 문의' : '학생 제보'}` : ' · mock'}
+                </span>
               </div>
+              <div className="report-summary-type">{parsed.typeLabel}</div>
+              <h3 className="report-summary-title">{row?.title ?? mockItem?.type ?? '제보'}</h3>
+              <p className="report-summary-meta">
+                {parsed.routeLabel}
+                {parsed.directionLabel && parsed.directionLabel !== '-' ? ` · ${parsed.directionLabel}` : ''}
+                {' · '}
+                {parsed.stopName}
+              </p>
+            </section>
+
+            <div className="report-info-banner">학생들의 제보입니다. 실제 상황과 다를 수 있어요.</div>
+
+            <section className="card card-pad report-section-card">
+              <h3>제보 내용</h3>
+              <p className="report-body-text">{parsed.body}</p>
+            </section>
+
+            <section className="card card-pad report-section-card">
+              <h3>관련 정보</h3>
+              <div className="report-info-list">
+                <div className="report-info-row">
+                  <span>노선</span>
+                  <strong>{parsed.routeLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>방향</span>
+                  <strong>{parsed.directionLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>정류장</span>
+                  <strong>{parsed.stopName}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>차량</span>
+                  <strong>{parsed.vehicleLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>제보 유형</span>
+                  <strong>{parsed.typeLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>상태</span>
+                  <strong>{statusLabel}</strong>
+                </div>
+                {row ? (
+                  <div className="report-info-row">
+                    <span>작성자</span>
+                    <strong>{row.user_id.slice(0, 8)}…</strong>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="card card-pad report-section-card">
+              <h3>참고</h3>
+              <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+                제보 내용은 실시간으로 변동될 수 있으며, 부적절한 표현이 있으면 삭제할 수 있습니다. 문제없으면 원문
+                그대로 유지하세요.
+              </p>
+            </section>
+
+            {message ? (
+              <p className="muted" style={{ color: '#b45309', margin: 0 }}>
+                {message}
+              </p>
+            ) : null}
+
+            <div className="report-detail-actions">
+              {!confirmDelete ? (
+                <>
+                  <button className="btn btn-primary" type="button" disabled={busy || loading} onClick={onKeep}>
+                    원문 그대로 유지
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    type="button"
+                    disabled={busy || loading}
+                    onClick={() => setConfirmDelete(true)}
+                    style={{ color: '#eb4047', borderColor: '#f5c2c5' }}
+                  >
+                    삭제
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
+                    이 제보를 삭제할까요? 되돌릴 수 없습니다.
+                  </span>
+                  <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void onDelete()}>
+                    {busy ? '삭제 중…' : '삭제 확인'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    취소
+                  </button>
+                </>
+              )}
             </div>
-            <div className="card card-pad" style={{ boxShadow: 'none', background: '#fafbff', whiteSpace: 'pre-wrap' }}>
-              {item?.content ??
-                '버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.'}
-            </div>
-          </div>
-        </section>
+          </>
+        ) : (
+          <section className="card card-pad">
+            <p className="muted">{message || '제보를 찾을 수 없습니다.'}</p>
+            <button className="btn btn-outline" type="button" onClick={() => navigate('/reports')}>
+              목록으로
+            </button>
+          </section>
+        )}
       </div>
     </div>
   )
+}
+
+const REPORT_META_KEYS = ['노선', '방향', '정류장', '차량', '유형'] as const
+
+function parseAdminReportContent(
+  content: string,
+  category: string | null | undefined,
+  title: string,
+): {
+  typeLabel: string
+  routeLabel: string
+  directionLabel: string
+  stopName: string
+  vehicleLabel: string
+  body: string
+} {
+  const meta: Record<string, string> = {}
+  const lines = content.split(/\r?\n/)
+  let i = 0
+  for (; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    if (!trimmed) {
+      i++
+      break
+    }
+    const idx = trimmed.indexOf(':')
+    if (idx <= 0) break
+    const key = trimmed.slice(0, idx).trim()
+    if ((REPORT_META_KEYS as readonly string[]).includes(key)) {
+      meta[key] = trimmed.slice(idx + 1).trim()
+    } else {
+      break
+    }
+  }
+  while (i < lines.length && !lines[i].trim()) i++
+  const body = lines.slice(i).join('\n').trim() || content
+
+  const typeFromCategory =
+    category &&
+    (
+      {
+        Full: '만석',
+        Other: '기타',
+        LongQueue: '대기줄 김',
+        TrafficJam: '교통 정체',
+        Arrival: '버스 출발/도착',
+        SeatAvailable: '좌석 여유',
+        ShortQueue: '대기줄 짧음',
+        Passed: '버스가 지나감',
+      } as Record<string, string>
+    )[category]
+
+  return {
+    typeLabel: meta['유형'] || typeFromCategory || category || '제보',
+    routeLabel: meta['노선'] || title.replace(/^\[[^\]]+\]\s*/, '').split(' · ')[0] || '-',
+    directionLabel: meta['방향'] || '-',
+    stopName: meta['정류장'] || title.split(' · ').slice(1).join(' · ') || '-',
+    vehicleLabel: meta['차량'] || '-',
+    body,
+  }
 }
 
 /** ADM-06 공지·긴급 알림 관리 — Figma 430:19126 */
@@ -445,7 +764,7 @@ export function NoticesPage() {
   }
 
   const setEditorContent = (htmlOrPlain: string, asHtml = false) => {
-    const html = asHtml ? htmlOrPlain : plainTextToEditorHtml(htmlOrPlain)
+    const html = asHtml ? htmlOrPlain : noticeContentToEditorHtml(htmlOrPlain)
     if (editorRef.current) editorRef.current.innerHTML = html || ''
     setBodyHtml(html)
     setBodyLen(htmlToPlainText(html).replace(/\n$/g, '').length)
@@ -464,31 +783,43 @@ export function NoticesPage() {
     fileInputRef.current?.click()
   }
 
-  const onFileAttachChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const onFileAttachChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const src = typeof reader.result === 'string' ? reader.result : ''
-        if (!src) return
-        runEditorCommand('insertImage', src)
-      }
-      reader.readAsDataURL(file)
+    if (!isSupabaseConfigured) {
+      window.alert('Supabase 미설정입니다. 첨부할 수 없습니다.')
       return
     }
+
+    const safeName = file.name.replace(/[^\w.\-가-힣 ]+/g, '_').slice(0, 120) || 'file'
+    const path = `${crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`
+    const { error } = await supabase.storage.from('notice-attachments').upload(path, file, {
+      upsert: false,
+      contentType: file.type || undefined,
+    })
+    if (error) {
+      window.alert(`첨부 업로드 실패: ${error.message}`)
+      return
+    }
+
+    const { data } = supabase.storage.from('notice-attachments').getPublicUrl(path)
+    const url = data.publicUrl
     const el = editorRef.current
     if (!el) return
     el.focus()
-    document.execCommand('insertText', false, `[첨부: ${file.name}]`)
+    const html =
+      `<div class="${NOTICE_ATTACH_CLASS}">` +
+      `<a href="${escapeHtml(url)}">${escapeHtml(file.name)}</a>` +
+      `</div>`
+    document.execCommand('insertHTML', false, html)
     syncEditorState()
   }
 
   const formLocked = Boolean(selectedNoticeId) && !editing
 
   const buildNoticePayload = () => {
-    const contentPlain = htmlToPlainText(editorRef.current?.innerHTML ?? bodyHtml).trim()
+    const content = serializeNoticeContent(editorRef.current?.innerHTML ?? bodyHtml).trim()
     const audience: NoticeAudience[] = []
     if (targetStudent) audience.push('STUDENT')
     if (targetDriver) audience.push('DRIVER')
@@ -499,7 +830,7 @@ export function NoticesPage() {
     const endsAt = permanent ? null : toIso(endDate, endHour, endMinute)
     return {
       title: title.trim(),
-      content: contentPlain,
+      content,
       type,
       audience,
       is_push: push,
@@ -772,7 +1103,10 @@ export function NoticesPage() {
         : noticeType === '운행 변경'
           ? '운행 변경'
           : '일반 공지'
-  const previewPlainBody = htmlToPlainText(bodyHtml).trim()
+  const previewPlainBody = serializeNoticeContent(bodyHtml)
+    .replace(NOTICE_ATTACH_BLOCK_RE, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
   const driverAlarmBody = previewPlainBody
     ? `${title.trim() || '제목'} — ${previewPlainBody}`
     : title.trim() || '제목'

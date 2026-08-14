@@ -160,7 +160,104 @@ export async function fetchBuses(): Promise<BusRow[] | null> {
 }
 
 export async function fetchReports(): Promise<ReportRow[] | null> {
+  if (!isSupabaseConfigured) return null
+  // 관리자 제보 관리: 학생 상황 제보(REPORT)만. 소통 글(POST)·기사 문의 제외.
+  const studentOnly = await supabase
+    .from('reports')
+    .select('*')
+    .eq('board_type', 'REPORT')
+    .eq('source', 'STUDENT')
+    .order('created_at', { ascending: false })
+  if (!studentOnly.error) return studentOnly.data as ReportRow[]
+
+  console.warn('[reports] student filter failed, fallback:', studentOnly.error.message)
+  const reportOnly = await supabase
+    .from('reports')
+    .select('*')
+    .eq('board_type', 'REPORT')
+    .order('created_at', { ascending: false })
+  if (!reportOnly.error) return reportOnly.data as ReportRow[]
+
+  console.warn('[reports] board_type filter failed, fallback:', reportOnly.error?.message)
   return selectAll<ReportRow>('reports')
+}
+
+/** 학생 상황 제보 전체 건수 (대시보드 KPI) */
+export async function countStudentReports(): Promise<{
+  total: number
+  pending: number
+} | null> {
+  if (!isSupabaseConfigured) return null
+
+  const tryCount = async (filters: { boardType?: boolean; source?: boolean }) => {
+    let q = supabase.from('reports').select('*', { count: 'exact', head: true })
+    if (filters.boardType) q = q.eq('board_type', 'REPORT')
+    if (filters.source) q = q.eq('source', 'STUDENT')
+    return q
+  }
+
+  const attempts = [
+    { boardType: true, source: true },
+    { boardType: true, source: false },
+    { boardType: false, source: true },
+    { boardType: false, source: false },
+  ] as const
+
+  let total: number | null = null
+  for (const filters of attempts) {
+    const { count, error } = await tryCount(filters)
+    if (!error) {
+      total = count ?? 0
+      break
+    }
+  }
+  if (total == null) return null
+
+  let pending = 0
+  const pendingAttempts = [
+    { boardType: true, source: true },
+    { boardType: true, source: false },
+    { boardType: false, source: false },
+  ] as const
+  for (const filters of pendingAttempts) {
+    let q = supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'PENDING')
+    if (filters.boardType) q = q.eq('board_type', 'REPORT')
+    if (filters.source) q = q.eq('source', 'STUDENT')
+    const { count, error } = await q
+    if (!error) {
+      pending = count ?? 0
+      break
+    }
+  }
+
+  return { total, pending }
+}
+
+/** reports INSERT/UPDATE/DELETE Realtime 구독 */
+export function subscribeStudentReports(onChange: () => void): () => void {
+  if (!isSupabaseConfigured) return () => {}
+
+  const channel = supabase
+    .channel(`onda-admin-reports-${Date.now()}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'reports' },
+      () => {
+        onChange()
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn('[reports] realtime', status)
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
 }
 
 export async function fetchStops(): Promise<StopRow[] | null> {
@@ -177,6 +274,20 @@ export async function updateReportStatus(
 ): Promise<{ ok: boolean; message?: string }> {
   if (!isSupabaseConfigured) return { ok: false, message: 'Supabase 미설정' }
   const { error } = await supabase.from('reports').update({ status }).eq('id', id)
+  if (error) return { ok: false, message: error.message }
+  return { ok: true }
+}
+
+export async function fetchReportById(id: string): Promise<ReportRow | null> {
+  if (!isSupabaseConfigured) return null
+  const { data, error } = await supabase.from('reports').select('*').eq('id', id).maybeSingle()
+  if (error || !data) return null
+  return data as ReportRow
+}
+
+export async function deleteReport(id: string): Promise<{ ok: boolean; message?: string }> {
+  if (!isSupabaseConfigured) return { ok: false, message: 'Supabase 미설정' }
+  const { error } = await supabase.from('reports').delete().eq('id', id)
   if (error) return { ok: false, message: error.message }
   return { ok: true }
 }

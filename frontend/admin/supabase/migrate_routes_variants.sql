@@ -3,6 +3,18 @@
 -- Apply: node scripts/apply-routes-variants.mjs
 
 -- =============================================================================
+-- 0-pre) routes 위치 컬럼 (없으면 추가 — 구 DB / 3NF 드롭 대비)
+-- =============================================================================
+alter table public.routes
+  add column if not exists start_location text;
+
+alter table public.routes
+  add column if not exists end_location text;
+
+comment on column public.routes.start_location is '노선 기점 표시명 (UI용)';
+comment on column public.routes.end_location is '노선 종점 표시명 (UI용)';
+
+-- =============================================================================
 -- 0) 정류장 (공지 표기명)
 -- =============================================================================
 insert into public.stops (id, stop_name, latitude, longitude)
