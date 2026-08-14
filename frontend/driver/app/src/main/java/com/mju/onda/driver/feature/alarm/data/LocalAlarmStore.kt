@@ -78,7 +78,8 @@ object LocalAlarmStore {
                     .put("noticeHeadline", a.noticeHeadline)
                     .put("noticeType", a.noticeType)
                     .put("noticeDateTime", a.noticeDateTime)
-                    .put("noticeContent", a.noticeContent),
+                    .put("noticeContent", a.noticeContent)
+                    .put("noticeEdited", a.noticeEdited),
             )
         }
         prefs?.edit()?.putString(KEY_JSON, arr.toString())?.apply()
@@ -105,6 +106,7 @@ object LocalAlarmStore {
                             noticeType = o.optString("noticeType").takeIf { it.isNotBlank() },
                             noticeDateTime = o.optString("noticeDateTime").takeIf { it.isNotBlank() },
                             noticeContent = o.optString("noticeContent").takeIf { it.isNotBlank() },
+                            noticeEdited = o.optBoolean("noticeEdited", false),
                         ),
                     )
                 }

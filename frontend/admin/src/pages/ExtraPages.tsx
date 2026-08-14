@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Bell,
@@ -16,16 +16,74 @@ import {
   Wrench,
 } from 'lucide-react'
 import {
-  drivers,
+  drivers as mockDrivers,
   maintenances,
-  notifications as mockNotifications,
   routes as mockRoutes,
-  scheduleExceptions,
-  stops as mockStops,
   vehicles as mockVehicles,
 } from '../data/mock'
+import { createRoute, fetchRouteCatalog, fetchStopCatalog, upsertStop, type StopCatalogItem } from '../lib/routesApi'
 import { StatusBadge } from '../components/ui/Form'
 import '../styles/extra-pages.css'
+
+const extraDrivers = mockDrivers.map((d, i) => ({
+  ...d,
+  bus: `버스 ${i + 1}호차`,
+  route: '-',
+}))
+
+const mockNotifications = [
+  {
+    id: 'n1',
+    category: 'GPS',
+    title: '온다 6호차 GPS 미수신',
+    body: '죽전역 노선 차량의 위치 신호가 32분째 수신되지 않습니다.',
+    time: '방금 전',
+    unread: true,
+    tone: 'red' as const,
+    href: '/live/detail',
+  },
+  {
+    id: 'n2',
+    category: '제보',
+    title: '신규 제보 3건 접수',
+    body: '만석·대기줄 관련 제보가 처리 대기 상태입니다.',
+    time: '12분 전',
+    unread: true,
+    tone: 'orange' as const,
+    href: '/reports',
+  },
+  {
+    id: 'n3',
+    category: '정비',
+    title: '정기 점검 일정 알림',
+    body: '72버 1234 차량의 정기점검이 2일 후 예정되어 있습니다.',
+    time: '1시간 전',
+    unread: true,
+    tone: 'orange' as const,
+    href: '/vehicles/maintenance/detail',
+  },
+]
+
+const scheduleExceptions = [
+  {
+    date: '2026.08.14',
+    day: '금',
+    reason: '개교기념일',
+    route: '전체 노선',
+    action: '운행 축소',
+    status: '예정',
+    note: '첫차·막차 유지, 중간 배차 30분 간격으로 조정',
+  },
+  {
+    date: '2026.08.20',
+    day: '목',
+    reason: '기상악화(폭우)',
+    route: '기흥역 통학버스',
+    action: '임시 중단',
+    status: '예정',
+    note: '안전 운행 불가 시 학생 앱 긴급 공지와 함께 중단',
+  },
+]
 
 function Crumb({ items }: { items: { label: string; to?: string }[] }) {
   return (
@@ -119,27 +177,49 @@ export function NotificationsPage() {
 /** 정류장 관리 */
 export function StopsPage() {
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [catalog, setCatalog] = useState<StopCatalogItem[] | null>(null)
+
+  useEffect(() => {
+    void fetchStopCatalog().then(setCatalog)
+  }, [])
 
   const list = useMemo(() => {
-    if (!query.trim()) return mockStops
+    const rows = catalog ?? []
+    if (!query.trim()) return rows
     const q = query.trim().toLowerCase()
-    return mockStops.filter(
-      (s) => s.name.toLowerCase().includes(q) || s.routes.toLowerCase().includes(q) || s.guide.toLowerCase().includes(q),
+    return rows.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.routes.toLowerCase().includes(q) ||
+        `${s.lat} ${s.lng}`.includes(q),
     )
-  }, [query])
+  }, [catalog, query])
 
-  const detail = list[selected] ?? list[0]
+  useEffect(() => {
+    if (!list.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !list.some((s) => s.id === selectedId)) setSelectedId(list[0].id)
+  }, [list, selectedId])
+
+  const detail = list.find((s) => s.id === selectedId) ?? list[0]
+  const linkedRouteCount = new Set((catalog ?? []).flatMap((s) => s.routeIds)).size
+  const coordPct =
+    catalog && catalog.length
+      ? Math.round((catalog.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng)).length / catalog.length) * 100)
+      : 0
 
   return (
     <div className="page extra-page">
       <Crumb items={[{ label: '노선 관리', to: '/routes' }, { label: '정류장 관리' }]} />
       <div className="extra-kpis">
         {[
-          { label: '전체 정류장', value: String(mockStops.length), unit: '개소', tone: 'blue', icon: MapPin },
-          { label: '통학 노선', value: '2', unit: '개소', tone: 'green', icon: Bus },
-          { label: '셔틀 노선', value: '2', unit: '개소', tone: 'orange', icon: RouteIcon },
-          { label: '좌표 등록', value: '100', unit: '%', tone: 'purple', icon: MapPin },
+          { label: '전체 정류장', value: String(catalog?.length ?? 0), unit: '개소', tone: 'blue', icon: MapPin },
+          { label: '연결 노선', value: String(linkedRouteCount), unit: '개', tone: 'green', icon: Bus },
+          { label: '목록 표시', value: String(list.length), unit: '개소', tone: 'orange', icon: RouteIcon },
+          { label: '좌표 등록', value: String(coordPct), unit: '%', tone: 'purple', icon: MapPin },
         ].map((kpi) => {
           const Icon = kpi.icon
           return (
@@ -176,11 +256,10 @@ export function StopsPage() {
               <Search size={14} />
               <input
                 className="input"
-                placeholder="정류장명, 노선, 안내 검색"
+                placeholder="정류장명, 노선, 좌표 검색"
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value)
-                  setSelected(0)
                 }}
               />
             </label>
@@ -195,12 +274,26 @@ export function StopsPage() {
               </tr>
             </thead>
             <tbody>
-              {list.map((row, idx) => (
+              {catalog === null ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    불러오는 중…
+                  </td>
+                </tr>
+              ) : null}
+              {catalog && !list.length ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    등록된 정류장이 없습니다.
+                  </td>
+                </tr>
+              ) : null}
+              {list.map((row) => (
                 <tr
-                  key={row.name}
-                  className={idx === selected ? 'selected' : undefined}
+                  key={row.id}
+                  className={row.id === detail?.id ? 'selected' : undefined}
                   style={{ cursor: 'pointer' }}
-                  onClick={() => setSelected(idx)}
+                  onClick={() => setSelectedId(row.id)}
                 >
                   <td style={{ fontWeight: 700 }}>{row.name}</td>
                   <td>{row.routes}</td>
@@ -208,7 +301,11 @@ export function StopsPage() {
                     {row.lat}, {row.lng}
                   </td>
                   <td>
-                    <Link className="btn btn-outline btn-xs" to={`/stops/new?edit=${encodeURIComponent(row.name)}`} onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      className="btn btn-outline btn-xs"
+                      to={`/stops/new?id=${encodeURIComponent(row.id)}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       수정
                     </Link>
                   </td>
@@ -231,8 +328,8 @@ export function StopsPage() {
                 {[
                   ['정류장명', detail.name],
                   ['이용 노선', detail.routes],
-                  ['위도', detail.lat],
-                  ['경도', detail.lng],
+                  ['위도', String(detail.lat)],
+                  ['경도', String(detail.lng)],
                 ].map(([k, v]) => (
                   <div key={k} className="extra-detail-card">
                     <div className="muted">{k}</div>
@@ -240,18 +337,17 @@ export function StopsPage() {
                   </div>
                 ))}
               </div>
-              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#54627c', lineHeight: 1.5 }}>{detail.guide}</p>
               <div className="extra-actions" style={{ borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
                 <Link className="btn btn-outline btn-xs" to="/routes">
                   노선으로
                 </Link>
-                <Link className="btn btn-primary btn-xs" to={`/stops/new?edit=${encodeURIComponent(detail.name)}`}>
+                <Link className="btn btn-primary btn-xs" to={`/stops/new?id=${encodeURIComponent(detail.id)}`}>
                   수정하기
                 </Link>
               </div>
             </>
           ) : (
-            <p className="muted">검색 결과가 없습니다.</p>
+            <p className="muted">{catalog === null ? '불러오는 중…' : '검색 결과가 없습니다.'}</p>
           )}
         </section>
       </div>
@@ -263,22 +359,65 @@ export function StopsPage() {
 export function StopFormPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const editName = params.get('edit')
-  const existing = mockStops.find((s) => s.name === editName)
+  const editId = params.get('id')
+  const presetRouteId = params.get('routeId') ?? ''
+  const [stops, setStops] = useState<StopCatalogItem[] | null>(null)
+  const [routes, setRoutes] = useState<{ id: string; name: string }[]>([])
+  const [name, setName] = useState('')
+  const [lat, setLat] = useState('')
+  const [lng, setLng] = useState('')
+  const [routeId, setRouteId] = useState(presetRouteId)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void Promise.all([fetchStopCatalog(), fetchRouteCatalog()]).then(([stopRows, routeRows]) => {
+      setStops(stopRows)
+      setRoutes(routeRows.map((r) => ({ id: r.id, name: r.name })))
+    })
+  }, [])
+
+  const existing = stops?.find((s) => s.id === editId) ?? null
+
+  useEffect(() => {
+    if (!existing) return
+    setName(existing.name)
+    setLat(String(existing.lat))
+    setLng(String(existing.lng))
+    if (!presetRouteId) setRouteId(existing.routeIds[0] ?? '')
+  }, [existing, presetRouteId])
+
+  const onSubmit = async () => {
+    setSaving(true)
+    const result = await upsertStop({
+      id: existing?.id,
+      name,
+      lat: Number(lat),
+      lng: Number(lng),
+      routeId: routeId || undefined,
+    })
+    setSaving(false)
+    if (!result.ok) {
+      window.alert(result.message ?? '저장에 실패했습니다.')
+      return
+    }
+    navigate('/stops')
+  }
+
+  const isEdit = Boolean(existing)
 
   return (
     <div className="page extra-page">
       <Crumb
         items={[
           { label: '정류장 관리', to: '/stops' },
-          { label: existing ? '정류장 수정' : '정류장 등록' },
+          { label: isEdit ? '정류장 수정' : '정류장 등록' },
         ]}
       />
       <section className="extra-panel">
         <div className="extra-panel-head">
           <h3>
             <MapPin size={17} />
-            {existing ? '정류장 수정' : '정류장 등록'}
+            {isEdit ? '정류장 수정' : '정류장 등록'}
           </h3>
         </div>
         <div className="extra-form-grid">
@@ -286,15 +425,16 @@ export function StopFormPage() {
             <label>
               정류장명<span className="req">*</span>
             </label>
-            <input className="input" defaultValue={existing?.name ?? ''} placeholder="예: 기흥역 5번 출구" />
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 기흥역 5번 출구" />
           </div>
           <div className="field">
-            <label>
-              이용 노선<span className="req">*</span>
-            </label>
-            <select className="select" defaultValue={existing?.routes ?? mockRoutes[0]?.name}>
-              {mockRoutes.map((r) => (
-                <option key={r.name}>{r.name}</option>
+            <label>이용 노선</label>
+            <select className="select" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
+              <option value="">연결 안 함</option>
+              {routes.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
               ))}
             </select>
           </div>
@@ -302,25 +442,21 @@ export function StopFormPage() {
             <label>
               위도<span className="req">*</span>
             </label>
-            <input className="input" defaultValue={existing?.lat ?? ''} placeholder="37.2754" />
+            <input className="input" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="37.2754" />
           </div>
           <div className="field">
             <label>
               경도<span className="req">*</span>
             </label>
-            <input className="input" defaultValue={existing?.lng ?? ''} placeholder="127.1159" />
-          </div>
-          <div className="field full">
-            <label>안내 문구</label>
-            <textarea className="textarea" rows={3} defaultValue={existing?.guide ?? ''} placeholder="승하차 위치 안내" />
+            <input className="input" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="127.1159" />
           </div>
         </div>
         <div className="extra-actions">
           <button className="btn btn-outline" type="button" onClick={() => navigate('/stops')}>
             취소
           </button>
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/stops')}>
-            {existing ? '저장' : '등록'}
+          <button className="btn btn-primary" type="button" onClick={() => void onSubmit()} disabled={saving}>
+            {saving ? '저장 중…' : isEdit ? '저장' : '등록'}
           </button>
         </div>
       </section>
@@ -334,9 +470,9 @@ export function DriversPage() {
   const [selected, setSelected] = useState(0)
 
   const list = useMemo(() => {
-    if (!query.trim()) return drivers
+    if (!query.trim()) return extraDrivers
     const q = query.trim().toLowerCase()
-    return drivers.filter(
+    return extraDrivers.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.email.toLowerCase().includes(q) ||
@@ -360,10 +496,10 @@ export function DriversPage() {
       <Crumb items={[{ label: '사용자 관리', to: '/users' }, { label: '기사 계정 관리' }]} />
       <div className="extra-kpis">
         {[
-          { label: '전체 기사', value: String(drivers.length), unit: '명', tone: 'blue', icon: UserRound },
-          { label: '운행 중', value: String(drivers.filter((d) => d.status === '운행 중').length), unit: '명', tone: 'green', icon: Bus },
-          { label: '운행 가능', value: String(drivers.filter((d) => d.status === '운행 가능').length), unit: '명', tone: 'orange', icon: IdCard },
-          { label: '이상/휴무', value: String(drivers.filter((d) => d.status === '휴무' || d.status === 'GPS 이상').length), unit: '명', tone: 'red', icon: TriangleAlert },
+          { label: '전체 기사', value: String(extraDrivers.length), unit: '명', tone: 'blue', icon: UserRound },
+          { label: '운행 중', value: String(extraDrivers.filter((d) => d.status === '운행 중').length), unit: '명', tone: 'green', icon: Bus },
+          { label: '운행 가능', value: String(extraDrivers.filter((d) => d.status === '운행 가능').length), unit: '명', tone: 'orange', icon: IdCard },
+          { label: '이상/휴무', value: String(extraDrivers.filter((d) => d.status === '휴무' || d.status === 'GPS 이상').length), unit: '명', tone: 'red', icon: TriangleAlert },
         ].map((kpi) => {
           const Icon = kpi.icon
           return (
@@ -490,7 +626,7 @@ export function DriverFormPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const editEmail = params.get('edit')
-  const existing = drivers.find((d) => d.email === editEmail)
+  const existing = extraDrivers.find((d) => d.email === editEmail)
 
   return (
     <div className="page extra-page">
@@ -583,7 +719,7 @@ export function DriverContactPage() {
           </Link>
         </div>
         <div className="driver-contact-card">
-          {drivers.map((d) => (
+          {extraDrivers.map((d) => (
             <div key={d.email} className="driver-contact-row">
               <div>
                 <strong>
@@ -774,6 +910,23 @@ export function UserCreatePage() {
 /** 노선 추가 */
 export function RouteCreatePage() {
   const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const [direction, setDirection] = useState('셔틀')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const onSubmit = async () => {
+    setSaving(true)
+    const result = await createRoute({ name, direction, start, end, description })
+    setSaving(false)
+    if (!result.ok || !result.id) {
+      window.alert(result.message ?? '등록에 실패했습니다.')
+      return
+    }
+    navigate(`/routes/detail?id=${encodeURIComponent(result.id)}`)
+  }
 
   return (
     <div className="page extra-page">
@@ -790,49 +943,46 @@ export function RouteCreatePage() {
             <label>
               노선명<span className="req">*</span>
             </label>
-            <input className="input" placeholder="예: 수원역 통학버스" />
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 수원역 통학버스" />
           </div>
           <div className="field">
             <label>
               노선 유형<span className="req">*</span>
             </label>
-            <select className="select" defaultValue="통학">
+            <select className="select" value={direction} onChange={(e) => setDirection(e.target.value)}>
               <option>통학</option>
               <option>셔틀</option>
               <option>순환</option>
             </select>
           </div>
           <div className="field">
-            <label>운행 요일</label>
-            <input className="input" defaultValue="월~금" />
-          </div>
-          <div className="field">
-            <label>운행 시간</label>
-            <input className="input" defaultValue="07:00 ~ 22:30" />
-          </div>
-          <div className="field">
             <label>기점</label>
-            <input className="input" placeholder="기흥역" />
+            <input className="input" value={start} onChange={(e) => setStart(e.target.value)} placeholder="기흥역" />
           </div>
           <div className="field">
             <label>종점</label>
-            <input className="input" placeholder="명지대 정문" />
+            <input className="input" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="명지대 정문" />
           </div>
           <div className="field full">
             <label>노선 설명</label>
-            <textarea className="textarea" rows={3} placeholder="노선 소개 및 운행 특징" />
+            <textarea
+              className="textarea"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="노선 소개 및 운행 특징"
+            />
           </div>
         </div>
+        <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+          운행 요일·시간은 schedules 시간표가 있으면 자동으로 표시됩니다.
+        </p>
         <div className="extra-actions">
           <button className="btn btn-outline" type="button" onClick={() => navigate('/routes')}>
             취소
           </button>
-          <button
-            className="btn btn-primary"
-            type="button"
-            onClick={() => navigate('/routes/detail')}
-          >
-            등록 후 상세로
+          <button className="btn btn-primary" type="button" onClick={() => void onSubmit()} disabled={saving}>
+            {saving ? '등록 중…' : '등록 후 상세로'}
           </button>
         </div>
       </section>

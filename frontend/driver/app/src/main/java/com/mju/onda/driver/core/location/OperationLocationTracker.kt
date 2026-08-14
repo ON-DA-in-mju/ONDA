@@ -121,37 +121,17 @@ object OperationLocationTracker {
     /** 운행 종료·중단·강제종료·초기화 시 호출 */
 
     fun stop() {
-
         val ctx = appContext ?: return
-
         val endingId = activeOperationId
-
         isTracking = false
-
         activeOperationId = null
-
         LiveHeartbeatReporter.stopAndMarkEnded(endingId)
-
         DeviceStatusReporter.stop()
-
-        val intent = Intent(ctx, OperationLocationService::class.java).apply {
-
-            action = OperationLocationService.ACTION_STOP
-
-        }
-
-        // startService로 STOP을 보내 서비스 내부에서 정리 후 stopSelf
-
         try {
-
-            ctx.startService(intent)
-
-        } catch (_: Exception) {
-
             ctx.stopService(Intent(ctx, OperationLocationService::class.java))
-
+        } catch (_: Exception) {
+            // already stopped
         }
-
     }
 
 

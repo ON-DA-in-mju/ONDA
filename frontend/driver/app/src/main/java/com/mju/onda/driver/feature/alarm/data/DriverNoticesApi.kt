@@ -16,7 +16,7 @@ object DriverNoticesApi {
     private const val TAG = "DriverNoticesApi"
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     private val dateTimeFmt = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")
-    private val zone = ZoneId.systemDefault()
+    private val zone = com.mju.onda.driver.core.KoreaTime.zone
 
     data class DriverNotice(
         val id: String,
@@ -24,6 +24,7 @@ object DriverNoticesApi {
         val content: String,
         val type: String,
         val createdAt: String?,
+        val updatedAt: String?,
         val startsAt: String?,
         val endsAt: String?,
     )
@@ -35,7 +36,7 @@ object DriverNoticesApi {
         val result = SupabaseClient.request(
             method = "GET",
             path = "/rest/v1/notices" +
-                "?select=id,title,content,type,created_at,starts_at,ends_at,status,audience" +
+                "?select=id,title,content,type,created_at,updated_at,starts_at,ends_at,status,audience" +
                 "&status=in.(PUBLISHED,SCHEDULED)" +
                 "&audience=cs.{DRIVER}" +
                 "&order=created_at.desc" +
@@ -61,6 +62,7 @@ object DriverNoticesApi {
                         content = o.optString("content"),
                         type = o.optString("type", "GENERAL"),
                         createdAt = o.optString("created_at").takeIf { it.isNotBlank() },
+                        updatedAt = o.optString("updated_at").takeIf { it.isNotBlank() },
                         startsAt = o.optString("starts_at").takeIf { it.isNotBlank() },
                         endsAt = o.optString("ends_at").takeIf { it.isNotBlank() },
                     )
@@ -82,6 +84,17 @@ object DriverNoticesApi {
             is String -> raw.contains("DRIVER", ignoreCase = true)
             else -> false
         }
+    }
+
+    fun isEdited(createdAt: String?, updatedAt: String?): Boolean {
+        val created = parseInstant(createdAt) ?: return false
+        val updated = parseInstant(updatedAt) ?: return false
+        return java.time.Duration.between(created, updated).seconds >= 2
+    }
+
+    private fun parseInstant(iso: String?): Instant? {
+        if (iso.isNullOrBlank()) return null
+        return runCatching { OffsetDateTime.parse(iso).toInstant() }.getOrNull()
     }
 
     fun inPublishWindow(startsAt: String?, endsAt: String?, now: Instant = Instant.now()): Boolean {
@@ -106,24 +119,77 @@ object DriverNoticesApi {
 
     fun timeLabel(iso: String?): String {
         if (iso.isNullOrBlank()) {
-            return java.time.LocalTime.now().format(timeFmt)
+            return com.mju.onda.driver.core.KoreaTime.nowTime().format(timeFmt)
         }
         return runCatching {
             OffsetDateTime.parse(iso).atZoneSameInstant(zone).toLocalTime().format(timeFmt)
         }.getOrElse {
-            java.time.LocalTime.now().format(timeFmt)
+            com.mju.onda.driver.core.KoreaTime.nowTime().format(timeFmt)
         }
     }
 
     fun displayDateTime(notice: DriverNotice): String {
         val iso = notice.startsAt ?: notice.createdAt
-        if (iso.isNullOrBlank()) {
-            return java.time.LocalDateTime.now().format(dateTimeFmt)
+        val formatted = if (iso.isNullOrBlank()) {
+            com.mju.onda.driver.core.KoreaTime.nowDateTime()
+        } else {
+            runCatching {
+                OffsetDateTime.parse(iso).atZoneSameInstant(zone).toLocalDateTime().format(dateTimeFmt)
+            }.getOrElse {
+                com.mju.onda.driver.core.KoreaTime.nowDateTime()
+            }
         }
-        return runCatching {
-            OffsetDateTime.parse(iso).atZoneSameInstant(zone).toLocalDateTime().format(dateTimeFmt)
-        }.getOrElse {
-            java.time.LocalDateTime.now().format(dateTimeFmt)
+        return if (isEdited(notice.createdAt, notice.updatedAt)) "$formatted · 수정됨" else formatted
+    }
+
+    fun stripHtml(raw: String): String {
+        if (raw.isBlank()) return ""
+        return raw
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("<[^>]+>"), " ")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    fun looksLikeHtml(raw: String): Boolean = Regex("<\\s*[a-zA-Z]").containsMatchIn(raw)
+
+    data class NoticeFile(val name: String, val url: String)
+
+    private val attachBlockRegex = Regex(
+        """<div[^>]*onda-notice-attach[^>]*>\s*<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>\s*</div>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
+
+    fun parseAttachments(html: String): List<NoticeFile> {
+        if (html.isBlank()) return emptyList()
+        val seen = linkedSetOf<String>()
+        val out = mutableListOf<NoticeFile>()
+        attachBlockRegex.findAll(html).forEach { match ->
+            val url = match.groupValues[1].trim()
+            if (url.isBlank() || !seen.add(url)) return@forEach
+            val name = stripHtml(match.groupValues[2]).ifBlank { url.substringAfterLast('/') }
+            out += NoticeFile(name = name, url = url)
+        }
+        return out
+    }
+
+    fun stripAttachments(html: String): String = attachBlockRegex.replace(html, "").trim()
+
+    fun incrementView(id: String) {
+        if (id.isBlank() || !SupabaseClient.isConfigured || SupabaseClient.accessToken.isNullOrBlank()) return
+        val payload = org.json.JSONObject().put("p_notice_id", id).toString()
+        val result = SupabaseClient.request(
+            method = "POST",
+            path = "/rest/v1/rpc/increment_notice_view",
+            jsonBody = payload,
+            authed = true,
+        )
+        if (result.code !in 200..299) {
+            Log.w(TAG, "increment view failed ${result.code}: ${result.body.take(200)}")
         }
     }
 }

@@ -50,12 +50,14 @@ object DriverNoticesPoller {
             for (n in notices) {
                 val alarmId = "notice-${n.id}"
                 val existed = LocalAlarmStore.getAll().any { it.id == alarmId }
+                val edited = DriverNoticesApi.isEdited(n.createdAt, n.updatedAt)
                 val typeLabel = DriverNoticesApi.typeLabel(n.type)
-                val detailContent = n.content
-                    .trim()
+                val htmlContent = n.content.trim()
+                val bodyForList = DriverNoticesApi.stripAttachments(htmlContent)
+                val detailContent = DriverNoticesApi.stripHtml(bodyForList).ifBlank { htmlContent }
                     .replace(Regex("[ \\t]+"), " ")
                     .replace(Regex("\\n{3,}"), "\n\n")
-                val listContent = detailContent.replace(Regex("\\s+"), " ")
+                val listContent = DriverNoticesApi.stripHtml(bodyForList)
                 val listBody = when {
                     listContent.isBlank() -> n.title
                     else -> "${n.title} — $listContent"
@@ -65,13 +67,14 @@ object DriverNoticesPoller {
                         id = alarmId,
                         title = typeLabel,
                         body = listBody,
-                        timeLabel = DriverNoticesApi.timeLabel(n.startsAt ?: n.createdAt),
+                        timeLabel = DriverNoticesApi.timeLabel(n.createdAt ?: n.startsAt),
                         category = AlarmCategory.Notice,
-                        isUnread = true,
+                        isUnread = !existed,
                         noticeHeadline = n.title,
                         noticeType = n.type,
                         noticeDateTime = DriverNoticesApi.displayDateTime(n),
-                        noticeContent = detailContent.ifBlank { n.title },
+                        noticeContent = htmlContent.ifBlank { n.title },
+                        noticeEdited = edited,
                     ),
                 )
                 if (!existed) added += 1

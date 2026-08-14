@@ -30,7 +30,7 @@ export async function fetchSystemLogs(): Promise<SystemLogRow[] | null> {
 
   const { data, error } = await supabase
     .from('system_logs')
-    .select('id, logged_at, type, action, actor, ip, target, result')
+    .select('id, logged_at, type, action, actor_id, ip, target, result')
     .order('logged_at', { ascending: false })
     .limit(100)
 
@@ -39,15 +39,24 @@ export async function fetchSystemLogs(): Promise<SystemLogRow[] | null> {
     return null
   }
 
-  return ((data ?? []) as SystemLogDbRow[]).map((row) => ({
+  const rows = (data ?? []) as SystemLogDbRow[]
+  const actorIds = [...new Set(rows.map((row) => row.actor_id).filter((id): id is string => Boolean(id)))]
+  const nameById = new Map<string, string>()
+  if (actorIds.length > 0) {
+    const { data: users } = await supabase.from('users').select('id, name, email').in('id', actorIds)
+    for (const user of users ?? []) {
+      nameById.set(user.id, user.name || user.email || user.id.slice(0, 8))
+    }
+  }
+
+  return rows.map((row) => ({
     id: row.id,
     time: formatLoggedAt(row.logged_at),
     type: row.type,
     action: row.action,
-    actor: row.actor,
+    actor: row.actor_id ? (nameById.get(row.actor_id) ?? row.actor_id.slice(0, 8)) : null,
     ip: row.ip,
     target: row.target,
     result: row.result,
   }))
 }
-

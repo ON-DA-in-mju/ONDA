@@ -53,10 +53,11 @@ object SystemLogsApi {
             return@withContext false
         }
 
+        val uid = SupabaseClient.userUuid
         val body = JSONObject().apply {
             put("type", type)
             put("action", action)
-            put("actor", actor ?: JSONObject.NULL)
+            if (!uid.isNullOrBlank()) put("actor_id", uid)
             put("ip", ip ?: JSONObject.NULL)
             put("target", target ?: JSONObject.NULL)
             put("result", result)

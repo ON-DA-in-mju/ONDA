@@ -15,6 +15,8 @@
 --   마이그레이션: supabase/migrate_operation_device_status.sql (GPS vs 네트워크 heartbeat + RLS + Realtime)
 --   마이그레이션: supabase/migrate_operation_stop_progress.sql (정류장 진행 스냅샷 + RLS + Realtime)
 --   마이그레이션: supabase/migrate_routes_route_stops.sql (공지 기준 노선·정류장 순서)
+--   마이그레이션: supabase/migrate_vehicle_maintenances.sql (정비 이력 + buses 관리자 쓰기)
+--   시드: supabase/seed_vehicle_maintenances.sql (차량·정비 mock 데이터)
 
 -- users.role: STUDENT | DRIVER | ADMIN
 -- notices: title, content, author_id, type, audience[], starts_at, ends_at, is_push, status

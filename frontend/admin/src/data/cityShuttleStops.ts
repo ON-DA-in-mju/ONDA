@@ -77,6 +77,36 @@ export const MYONGJI_STATION_ROUTE_NAME = '명지대역 셔틀'
 export const MYONGJI_STATION_AFTER18_ROUTE_NAME = '명지대역 셔틀 (18시 이후)'
 export const GIHEUNG_ROUTE_NAME = '기흥역 통학버스'
 
+/** 범례·지도 선 색: 주 → 노 → 초 → 파 → 보 → … */
+export const ROUTE_MAP_PALETTE = [
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6',
+  '#f43f5e',
+] as const
+
+export const ROUTE_NAME_COLORS: Record<string, string> = {
+  [CITY_SHUTTLE_ROUTE_NAME]: ROUTE_MAP_PALETTE[0],
+  [MYONGJI_STATION_ROUTE_NAME]: ROUTE_MAP_PALETTE[1],
+  [GIHEUNG_ROUTE_NAME]: ROUTE_MAP_PALETTE[2],
+  [CITY_SHUTTLE_VACATION_ROUTE_NAME]: ROUTE_MAP_PALETTE[3],
+  [MYONGJI_STATION_AFTER18_ROUTE_NAME]: ROUTE_MAP_PALETTE[4],
+}
+
+/** DB 노선명·id 기준. 알려진 노선은 범례와 맞추고, 그 외는 id로 팔레트에서 고정 할당. */
+export function colorForRoute(name: string, id = ''): string {
+  const known = ROUTE_NAME_COLORS[name]
+  if (known) return known
+  const key = id || name
+  let hash = 0
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return ROUTE_MAP_PALETTE[hash % ROUTE_MAP_PALETTE.length]
+}
+
 /**
  * DB에 route_stops가 아직 없어 주간 명지대역 셔틀과 동일 정류장·좌표를 사용.
  * (route_id: 66666666-6666-6666-6666-666666666001)
@@ -90,31 +120,25 @@ export const LIVE_MAP_ROUTES: MapRouteLayer[] = [
   {
     id: 'city',
     name: CITY_SHUTTLE_ROUTE_NAME,
-    color: '#f97316', // 주
+    color: colorForRoute(CITY_SHUTTLE_ROUTE_NAME),
     stops: CITY_SHUTTLE_STOPS,
   },
   {
     id: 'myongji',
     name: MYONGJI_STATION_ROUTE_NAME,
-    color: '#eab308', // 노
+    color: colorForRoute(MYONGJI_STATION_ROUTE_NAME),
     stops: MYONGJI_STATION_SHUTTLE_STOPS,
   },
   {
     id: 'giheung',
     name: GIHEUNG_ROUTE_NAME,
-    color: '#22c55e', // 초
+    color: colorForRoute(GIHEUNG_ROUTE_NAME),
     stops: GIHEUNG_SHUTTLE_STOPS,
   },
   {
     id: 'city-vacation',
     name: CITY_SHUTTLE_VACATION_ROUTE_NAME,
-    color: '#3b82f6', // 파
+    color: colorForRoute(CITY_SHUTTLE_VACATION_ROUTE_NAME),
     stops: CITY_SHUTTLE_VACATION_STOPS,
-  },
-  {
-    id: 'myongji-after18',
-    name: MYONGJI_STATION_AFTER18_ROUTE_NAME,
-    color: '#8b5cf6', // 보
-    stops: MYONGJI_STATION_AFTER18_STOPS,
   },
 ]

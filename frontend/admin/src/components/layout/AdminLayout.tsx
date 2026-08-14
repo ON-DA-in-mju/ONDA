@@ -28,9 +28,9 @@ const TOAST_DURATION_MS = 8_000
 const titles: Record<string, string> = {
   '/dashboard': '대시보드',
   '/schedules': '오늘의 운행·배차 목록',
+  '/schedules/operations': '운행 관리',
   '/schedules/assignments': '기사 배정',
   '/schedules/detail': '운행 일정 상세',
-  '/schedules/bulk': '일괄 등록 미리보기',
   '/schedules/suspend': '운행 중단·기상악화 처리',
   '/live': '실시간 운행 관제',
   '/live/detail': '오늘의 운행 목록',
@@ -80,6 +80,7 @@ export function AdminLayout() {
 
     let alive = true
     const poll = createExclusivePoll(async () => {
+      void import('../../lib/forceSuspendApi').then((api) => api.expireSuspendedRoutes()).catch(() => undefined)
       // 레이아웃은 pending만 — 전체 조인 조회가 쌓이면 클릭이 먹통처럼 보임
       const data = await fetchAdminNotifications({ pendingOnly: true })
       if (!alive) return

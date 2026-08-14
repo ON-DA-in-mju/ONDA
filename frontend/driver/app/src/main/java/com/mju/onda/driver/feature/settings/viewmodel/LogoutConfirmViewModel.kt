@@ -92,9 +92,15 @@ class LogoutConfirmViewModel : ViewModel() {
 
     fun onConfirmLogout() {
 
-        SessionStateHolder.clear()
+        viewModelScope.launch {
 
-        viewModelScope.launch { _events.emit(LogoutConfirmEvent.LoggedOut) }
+            com.mju.onda.driver.core.location.OperationLocationTracker.stop()
+
+            SessionStateHolder.clear()
+
+            _events.emit(LogoutConfirmEvent.LoggedOut)
+
+        }
 
     }
 

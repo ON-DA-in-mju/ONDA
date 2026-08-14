@@ -10,6 +10,7 @@ import com.mju.onda.driver.feature.alarm.data.DriverNoticesApi
 import com.mju.onda.driver.feature.alarm.data.DriverNoticesPoller
 import com.mju.onda.driver.feature.alarm.data.MockOperationAlarms
 import com.mju.onda.driver.feature.alarm.data.OperationAlarm
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -87,7 +88,11 @@ class OperationAlarmViewModel : ViewModel() {
             when {
                 alarmId.startsWith("vehicle-") ->
                     _events.emit(OperationAlarmEvent.OpenVehicleChange(alarmId))
-                alarm?.category == AlarmCategory.Notice ->
+                alarm?.category == AlarmCategory.Notice -> {
+                    val noticeId = alarmId.removePrefix("notice-")
+                    viewModelScope.launch(Dispatchers.IO) {
+                        DriverNoticesApi.incrementView(noticeId)
+                    }
                     _events.emit(
                         OperationAlarmEvent.OpenNoticeDetail(
                             typeLabel = alarm.title,
@@ -97,6 +102,7 @@ class OperationAlarmViewModel : ViewModel() {
                             urgent = DriverNoticesApi.isUrgentType(alarm.noticeType.orEmpty()),
                         ),
                     )
+                }
                 alarm?.category == AlarmCategory.AssignmentChange ->
                     _events.emit(OperationAlarmEvent.OpenAssignmentChange(alarmId))
                 alarm?.category == AlarmCategory.DepartureTimeChange ->

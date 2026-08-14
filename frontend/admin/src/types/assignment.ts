@@ -10,6 +10,7 @@ export type TodayAssignment = {
   id: string
   /** YYYY-MM-DD */
   date: string
+  /** 미배정이면 빈 문자열 */
   driverId: string
   driverName: string
   routeName: string

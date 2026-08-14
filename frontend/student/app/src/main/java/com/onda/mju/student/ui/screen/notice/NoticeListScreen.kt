@@ -60,7 +60,7 @@ private val UrgentRed = Color(0xFFE11D48)
 fun NoticeListScreen(
     modifier: Modifier = Modifier,
     notices: List<NoticeItem> = sampleNotices(),
-    onNoticeClick: (Int) -> Unit = {},
+    onNoticeClick: (String) -> Unit = {},
     onTimetableClick: () -> Unit = {},
     onStopGuideClick: () -> Unit = {},
 ) {
@@ -237,7 +237,7 @@ private fun UrgentNoticeCard(item: NoticeItem, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(item.title, color = TitleBlack, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(item.datetime, color = BodyGray, fontSize = 11.sp)
+            Text(item.datetimeLabel(), color = BodyGray, fontSize = 11.sp)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
     }
@@ -292,7 +292,7 @@ private fun StandardNoticeCard(item: NoticeItem, onClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                if (item.edited) "${item.datetime} · 수정" else item.datetime,
+                item.datetimeLabel(),
                 color = BodyGray,
                 fontSize = 11.sp,
             )

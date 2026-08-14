@@ -54,6 +54,30 @@ object TodayAssignmentsHolder {
         persist(operations)
     }
 
+    /** 운행 시작/종료 직후 홈이 DB 재조회 전에 배지를 맞추도록 로컬 캐시만 갱신한다. */
+    fun updateLocalStatus(
+        operationId: String,
+        status: OperationStatus,
+        startedAtMillis: Long? = null,
+        endedAtMillis: Long? = null,
+    ) {
+        val current = cached ?: return
+        var changed = false
+        val next = current.map { op ->
+            if (!op.matchesId(operationId)) {
+                op
+            } else {
+                changed = true
+                op.copy(
+                    status = status,
+                    startedAtMillis = startedAtMillis?.takeIf { it > 0L } ?: op.startedAtMillis,
+                    endedAtMillis = endedAtMillis?.takeIf { it > 0L } ?: op.endedAtMillis,
+                )
+            }
+        }
+        if (changed) set(next)
+    }
+
     fun getOrNull(): List<AssignedOperation>? = cached
 
     private fun persist(operations: List<AssignedOperation>) {

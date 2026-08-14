@@ -27,6 +27,8 @@ object UserScopedPrefs {
         "onda_alarm_settings",
         "onda_location_consent",
         "onda_today_assignments",
+        "onda_seen_assignments",
+        "onda_local_alarms",
     )
 
     /** 데모/시드 로그인 ID. 로컬 prefs 일괄 삭제용. */

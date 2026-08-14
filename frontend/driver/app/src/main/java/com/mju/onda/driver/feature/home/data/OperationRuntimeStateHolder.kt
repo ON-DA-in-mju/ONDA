@@ -55,6 +55,7 @@ object OperationRuntimeStateHolder {
         startedAtById.clear()
         endedAtById.clear()
         pendingStartId = null
+        persist()
         prefs = null
         com.mju.onda.driver.core.location.OperationLocationTracker.stop()
     }
@@ -102,6 +103,11 @@ object OperationRuntimeStateHolder {
             rememberStartedAt(operationId, System.currentTimeMillis())
         }
         persist()
+        TodayAssignmentsHolder.updateLocalStatus(
+            operationId,
+            OperationStatus.InProgress,
+            startedAtMillis = startedAtMillis(operationId),
+        )
         com.mju.onda.driver.core.location.OperationLocationTracker.startForOperation(operationId)
         // system_logs 를 operations PATCH 와 분리 — PATCH 지연/실패해도 로그는 남긴다.
         ioScope.launch {
@@ -117,9 +123,16 @@ object OperationRuntimeStateHolder {
     }
 
     fun endOperation(operationId: String) {
-        // EndProcessing → EndComplete 로 두 번 호출되는 경우 중복 기록 방지
-        if (operationId.isNotBlank() && isEnded(operationId) && !isInProgress(operationId)) {
-            android.util.Log.i("OpRuntime", "end skipped (already ended) op=$operationId")
+        if (operationId.isBlank()) return
+        // EndProcessing → EndComplete 중복 호출, 또는 별칭(uuid/external_id)만
+        // 운행 중으로 남은 경우: 이력/PATCH 를 다시 남기지 않고 로컬만 정리한다.
+        if (isEnded(operationId)) {
+            if (isInProgress(operationId)) {
+                android.util.Log.i("OpRuntime", "end local-only (alias leftover) op=$operationId")
+                endOperationInternal(operationId, syncDb = false)
+            } else {
+                android.util.Log.i("OpRuntime", "end skipped (already ended) op=$operationId")
+            }
             return
         }
         endOperationInternal(operationId, syncDb = true)
@@ -132,15 +145,27 @@ object OperationRuntimeStateHolder {
 
     private fun endOperationInternal(operationId: String, syncDb: Boolean) {
         if (operationId.isBlank()) return
-        inProgressIds.remove(operationId)
-        endedIds += operationId
-        if (operationId !in startedAtById) {
-            startedAtById[operationId] = System.currentTimeMillis()
-        }
-        if (operationId !in endedAtById) {
-            endedAtById[operationId] = System.currentTimeMillis()
+        val aliases = aliasIds(operationId)
+        val now = System.currentTimeMillis()
+        // startOperation 과 같이 external_id·uuid 별칭을 모두 갱신해야
+        // 홈이 다른 id 로 아직 운행 중이라고 남는 일을 막는다.
+        inProgressIds.removeAll(aliases)
+        endedIds += aliases
+        aliases.forEach { id ->
+            if (id !in startedAtById) {
+                startedAtById[id] = now
+            }
+            if (id !in endedAtById) {
+                endedAtById[id] = now
+            }
         }
         persist()
+        TodayAssignmentsHolder.updateLocalStatus(
+            operationId,
+            OperationStatus.Ended,
+            startedAtMillis = startedAtMillis(operationId),
+            endedAtMillis = endedAtMillis(operationId) ?: now,
+        )
         if (!hasActiveOperation()) {
             com.mju.onda.driver.core.location.OperationLocationTracker.stop()
         }
@@ -216,9 +241,12 @@ object OperationRuntimeStateHolder {
         return op.status == OperationStatus.Ended
     }
 
-    fun hasActiveOperation(): Boolean =
-        inProgressIds.isNotEmpty() ||
-            MockTodayOperations.assignedOperations.any { it.status == OperationStatus.InProgress }
+    fun hasActiveOperation(): Boolean {
+        if (inProgressIds.any { id -> !isEnded(id) }) return true
+        return MockTodayOperations.assignedOperations.any {
+            it.status == OperationStatus.InProgress && !isEnded(it.id)
+        }
+    }
 
     fun activeOperationId(): String? = inProgressIds.firstOrNull()
 
@@ -335,9 +363,13 @@ object OperationRuntimeStateHolder {
         resetIfNewDay()
         return operations.map { op ->
             when {
+                // 로컬 종료가 캐시(아직 IN_PROGRESS)보다 우선. 아니면 홈이 계속 운행 중으로 남는다.
+                isEnded(op.id) && !isInProgress(op.id) ->
+                    op.copy(status = OperationStatus.Ended)
                 isInProgress(op.id) || op.status == OperationStatus.InProgress ->
                     op.copy(status = OperationStatus.InProgress)
-                isEnded(op.id) || op.status == OperationStatus.Ended -> op.copy(status = OperationStatus.Ended)
+                isEnded(op.id) || op.status == OperationStatus.Ended ->
+                    op.copy(status = OperationStatus.Ended)
                 op.status == OperationStatus.Unavailable -> op
                 else -> op.copy(status = AssignmentStatusResolver.resolve(op))
             }

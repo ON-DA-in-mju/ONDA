@@ -1,5 +1,7 @@
 package com.mju.onda.driver.feature.alarm.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -50,6 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,11 +75,13 @@ import com.mju.onda.driver.core.ui.components.OndaTopBar
 import com.mju.onda.driver.feature.alarm.data.AlarmCategory
 import com.mju.onda.driver.feature.alarm.data.AlarmFilter
 import com.mju.onda.driver.feature.alarm.data.AlarmGenerator
+import com.mju.onda.driver.feature.alarm.data.DriverNoticesApi
 import com.mju.onda.driver.feature.alarm.data.MockOperationAlarms
 import com.mju.onda.driver.feature.alarm.data.OperationAlarm
 import com.mju.onda.driver.feature.alarm.viewmodel.OperationAlarmEvent
 import com.mju.onda.driver.feature.alarm.viewmodel.OperationAlarmViewModel
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
+
 private data class NoticeDialogUi(
     val typeLabel: String,
     val headline: String,
@@ -254,6 +259,9 @@ private fun NoticePreviewDialog(
     val bodyColor = Color(0xFF374151)
     val titleColor = Color(0xFF111827)
     val bodyToCloseGap = with(LocalDensity.current) { 25.sp.toDp() }
+    val context = LocalContext.current
+    val attachments = remember(notice.body) { DriverNoticesApi.parseAttachments(notice.body) }
+    val bodyHtml = remember(notice.body) { DriverNoticesApi.stripAttachments(notice.body) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -304,18 +312,65 @@ private fun NoticePreviewDialog(
                     lineHeight = 28.sp,
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = notice.body,
-                    color = bodyColor,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Normal,
-                    lineHeight = 30.sp,
-                    softWrap = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                )
+                if (DriverNoticesApi.looksLikeHtml(bodyHtml)) {
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp),
+                        factory = { ctx ->
+                            android.webkit.WebView(ctx).apply {
+                                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                settings.javaScriptEnabled = false
+                            }
+                        },
+                        update = { webView ->
+                            val wrapped = """
+                                <html><head>
+                                <meta charset="utf-8"/>
+                                <meta name="viewport" content="width=device-width,initial-scale=1"/>
+                                <style>
+                                  body{margin:0;padding:0;color:#374151;font-size:16px;line-height:1.6;font-family:sans-serif;}
+                                  img{max-width:100%;height:auto;}
+                                  a{color:#266EF4;}
+                                </style>
+                                </head><body>$bodyHtml</body></html>
+                            """.trimIndent()
+                            webView.loadDataWithBaseURL(null, wrapped, "text/html", "utf-8", null)
+                        },
+                    )
+                } else {
+                    Text(
+                        text = bodyHtml,
+                        color = bodyColor,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Normal,
+                        lineHeight = 30.sp,
+                        softWrap = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                    )
+                }
+                if (attachments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    attachments.forEach { file ->
+                        Text(
+                            text = "첨부된 파일: ${file.name}",
+                            color = Color(0xFF266EF4),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(file.url)))
+                                    }
+                                }
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(bodyToCloseGap))
                 Text(
                     text = "닫기",
@@ -480,6 +535,15 @@ private fun AlarmListItem(
                         color = OndaColors.TextHint,
                     ),
                 )
+                if (alarm.noticeEdited) {
+                    Text(
+                        text = "수정됨",
+                        style = OndaTypography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            color = OndaColors.TextHint,
+                        ),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))

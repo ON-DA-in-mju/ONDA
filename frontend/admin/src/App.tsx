@@ -6,8 +6,8 @@ import { SignupPage } from './pages/SignupPage'
 import { DashboardPage } from './pages/DashboardPage'
 import {
   ScheduleAssignmentsPage,
-  ScheduleBulkPage,
   ScheduleDetailPage,
+  ScheduleOperationsPage,
   SchedulesPage,
   ScheduleSuspendPage,
 } from './pages/SchedulesPages'
@@ -27,10 +27,8 @@ import {
   DriverContactPage,
   DriverFormPage,
   DriversPage,
-  ExceptionSchedulePage,
   MaintenanceCreatePage,
   MaintenanceDetailPage,
-  NotificationsPage,
   RouteCreatePage,
   StopFormPage,
   StopsPage,
@@ -56,11 +54,10 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/schedules/operations" element={<ScheduleOperationsPage />} />
           <Route path="/schedules/assignments" element={<ScheduleAssignmentsPage />} />
           <Route path="/schedules/detail" element={<ScheduleDetailPage />} />
-          <Route path="/schedules/bulk" element={<ScheduleBulkPage />} />
           <Route path="/schedules/suspend" element={<ScheduleSuspendPage />} />
-          <Route path="/schedules/exception" element={<ExceptionSchedulePage />} />
           <Route path="/live" element={<LivePage />} />
           <Route path="/live/detail" element={<LiveDetailPage />} />
           <Route path="/live/detail/:operationId" element={<LiveVehicleDetailPage />} />
@@ -83,7 +80,6 @@ export default function App() {
           <Route path="/users/new" element={<UserCreatePage />} />
           <Route path="/system" element={<SystemPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 

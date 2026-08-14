@@ -31,6 +31,7 @@ import com.onda.mju.student.data.remote.dto.OperationStopProgressDto
 import com.onda.mju.student.data.remote.dto.RouteDetailDto
 import com.onda.mju.student.data.remote.dto.StopDto
 import com.onda.mju.student.data.remote.dto.VehicleLocationDto
+import com.onda.mju.student.data.remote.repository.NoticeRepository
 import com.onda.mju.student.data.remote.repository.OperationDeviceStatusRepository
 import com.onda.mju.student.data.remote.repository.OperationRepository
 import com.onda.mju.student.data.remote.repository.OperationStopProgressRepository
@@ -62,6 +63,7 @@ import com.onda.mju.student.ui.screen.my.MyReportDetailScreen
 import com.onda.mju.student.ui.screen.my.MyReportsScreen
 import com.onda.mju.student.ui.screen.my.NotificationSettingsScreen
 import com.onda.mju.student.ui.screen.notice.NoticeDetailScreen
+import com.onda.mju.student.ui.screen.notice.NoticeItem
 import com.onda.mju.student.ui.screen.notice.NoticeListScreen
 import com.onda.mju.student.ui.screen.notice.StopGuideDetailScreen
 import com.onda.mju.student.ui.screen.notice.StopGuideItem
@@ -72,7 +74,6 @@ import com.onda.mju.student.ui.screen.notice.TimetableRoute
 import com.onda.mju.student.ui.screen.notice.TimetableScreen
 import com.onda.mju.student.ui.screen.notice.emptyStopGuideRoutes
 import com.onda.mju.student.ui.screen.notice.emptyTimetableRoutes
-import com.onda.mju.student.ui.screen.notice.sampleNotices
 import com.onda.mju.student.ui.screen.notification.NotificationDetailScreen
 import com.onda.mju.student.ui.screen.notification.NotificationListScreen
 import com.onda.mju.student.ui.screen.notification.latestHomeNotice
@@ -104,7 +105,7 @@ private sealed interface MainOverlay {
     data class CommunityDetail(val id: String) : MainOverlay
     data object CommunityCreate : MainOverlay
 
-    data class NoticeDetail(val id: Int) : MainOverlay
+    data class NoticeDetail(val id: String) : MainOverlay
     data class Timetable(val forToday: Boolean = false) : MainOverlay
     data object StopGuide : MainOverlay
     data class StopGuideList(val routeId: String) : MainOverlay
@@ -140,7 +141,7 @@ fun StudentMainShell(
     var selectedTab by remember { mutableStateOf(StudentBottomTab.Home) }
     var overlay by remember { mutableStateOf<MainOverlay>(MainOverlay.None) }
     val notifications = remember { sampleNotifications() }
-    val notices = remember { sampleNotices() }
+    var notices by remember { mutableStateOf(emptyList<NoticeItem>()) }
     var communityReports by remember { mutableStateOf(sampleCommunityReports()) }
     var myReportIds by remember { mutableStateOf(setOf("r1", "r2")) }
     var readReportIds by remember { mutableStateOf(setOf("r3", "r4")) }
@@ -167,6 +168,7 @@ fun StudentMainShell(
     val routeRepository = remember { RouteRepository() }
     val routeStopsRepository = remember { RouteStopsRepository() }
     val scheduleRepository = remember { ScheduleRepository() }
+    val noticeRepository = remember { NoticeRepository() }
     val vehicleLocationRepository = remember { VehicleLocationRepository() }
     val operationDeviceStatusRepository = remember { OperationDeviceStatusRepository() }
     val operationStopProgressRepository = remember { OperationStopProgressRepository() }
@@ -187,6 +189,11 @@ fun StudentMainShell(
     }
     val operationStopProgress = remember {
         mutableStateMapOf<String, OperationStopProgressDto>()
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != StudentBottomTab.Notice) return@LaunchedEffect
+        noticeRepository.fetchPublishedForStudent().onSuccess { notices = it }
     }
 
     // Temporary: verify Supabase operations read path + realtime status updates.
@@ -694,14 +701,18 @@ fun StudentMainShell(
                 }
 
                 is MainOverlay.NoticeDetail -> {
-                    val item = notices.first { it.id == current.id }
-                    NoticeDetailScreen(
-                        item = item,
-                        modifier = Modifier.fillMaxSize(),
-                        onBackClick = { overlay = MainOverlay.None },
-                        onNotificationClick = { openNotifications() },
-                        onAttachmentClick = { showTodo("첨부파일 다운로드는 준비 중입니다.") },
-                    )
+                    val item = notices.firstOrNull { it.id == current.id }
+                    if (item != null) {
+                        LaunchedEffect(item.id) {
+                            noticeRepository.incrementView(item.id)
+                        }
+                        NoticeDetailScreen(
+                            item = item,
+                            modifier = Modifier.fillMaxSize(),
+                            onBackClick = { overlay = MainOverlay.None },
+                            onNotificationClick = { openNotifications() },
+                        )
+                    }
                 }
 
                 is MainOverlay.Timetable -> {

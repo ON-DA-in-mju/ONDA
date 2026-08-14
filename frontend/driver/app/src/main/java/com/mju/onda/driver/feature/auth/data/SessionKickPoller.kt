@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  */
 object SessionKickPoller {
     private const val TAG = "SessionKick"
-    private const val INTERVAL_MS = 2_000L
+    private const val INTERVAL_MS = 8_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loopJob: Job? = null
@@ -68,8 +68,10 @@ object SessionKickPoller {
     private fun applyKick() {
         if (handlingKick) return
         handlingKick = true
-        OperationLocationTracker.stop()
-        SessionStateHolder.clear()
-        _kicked.tryEmit(Unit)
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            OperationLocationTracker.stop()
+            SessionStateHolder.clear()
+            _kicked.tryEmit(Unit)
+        }
     }
 }

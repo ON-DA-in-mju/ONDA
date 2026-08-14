@@ -7,6 +7,12 @@ type DirectionsBody = {
   points?: Point[]
 }
 
+type DrivingResult = {
+  path: Array<{ lat: number; lng: number }>
+  distanceMeters: number
+  durationMs: number
+}
+
 /** lng,lat 문자열 */
 function toLngLat(p: Point): string {
   return `${p.lng},${p.lat}`
@@ -34,7 +40,7 @@ function sendJson(res: import('http').ServerResponse, status: number, data: unkn
  * Client Secret은 브라우저에 노출하지 않고 Vite 서버에서만 사용.
  */
 export function naverDirectionsPlugin(): Plugin {
-  const cache = new Map<string, { path: Array<{ lat: number; lng: number }>; at: number }>()
+  const cache = new Map<string, DrivingResult & { at: number }>()
   /** 캠퍼스 고정 노선 — 하루 동안 재사용 */
   const CACHE_TTL_MS = 24 * 60 * 60_000
 
@@ -74,13 +80,19 @@ export function naverDirectionsPlugin(): Plugin {
           const cacheKey = points.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|')
           const cached = cache.get(cacheKey)
           if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-            sendJson(res, 200, { ok: true, path: cached.path, cached: true })
+            sendJson(res, 200, {
+              ok: true,
+              path: cached.path,
+              distanceMeters: cached.distanceMeters,
+              durationMs: cached.durationMs,
+              cached: true,
+            })
             return
           }
 
-          const path = await fetchDrivingPath(clientId, clientSecret, points)
-          cache.set(cacheKey, { path, at: Date.now() })
-          sendJson(res, 200, { ok: true, path, cached: false })
+          const result = await fetchDrivingPath(clientId, clientSecret, points)
+          cache.set(cacheKey, { ...result, at: Date.now() })
+          sendJson(res, 200, { ok: true, ...result, cached: false })
         } catch (e) {
           const message = e instanceof Error ? e.message : 'Directions 요청 실패'
           console.warn('[naver-directions]', message)
@@ -95,19 +107,21 @@ async function fetchDrivingPath(
   clientId: string,
   clientSecret: string,
   points: Point[],
-): Promise<Array<{ lat: number; lng: number }>> {
+): Promise<DrivingResult> {
   // Directions 5: 경유지 최대 5개 → 출발 + 중간5 + 도착 = 최대 7점
   if (points.length <= 7) {
     return requestOneRoute(clientId, clientSecret, points)
   }
   // 그 이상이면 구간을 나눠 이어 붙임
-  const out: Array<{ lat: number; lng: number }> = []
+  const out: DrivingResult = { path: [], distanceMeters: 0, durationMs: 0 }
   for (let i = 0; i < points.length - 1; i += 6) {
     const chunk = points.slice(i, Math.min(i + 7, points.length))
     if (chunk.length < 2) break
     const part = await requestOneRoute(clientId, clientSecret, chunk)
-    if (out.length && part.length) part.shift()
-    out.push(...part)
+    if (out.path.length && part.path.length) part.path.shift()
+    out.path.push(...part.path)
+    out.distanceMeters += part.distanceMeters
+    out.durationMs += part.durationMs
   }
   return out
 }
@@ -116,7 +130,7 @@ async function requestOneRoute(
   clientId: string,
   clientSecret: string,
   points: Point[],
-): Promise<Array<{ lat: number; lng: number }>> {
+): Promise<DrivingResult> {
   const start = toLngLat(points[0])
   const goal = toLngLat(points[points.length - 1])
   const middle = points.slice(1, -1)
@@ -143,15 +157,25 @@ async function requestOneRoute(
   const data = JSON.parse(text) as {
     code?: number
     message?: string
-    route?: { traoptimal?: Array<{ path?: number[][] }> }
+    route?: {
+      traoptimal?: Array<{
+        path?: number[][]
+        summary?: { distance?: number; duration?: number }
+      }>
+    }
   }
   if (data.code !== 0) {
     throw new Error(data.message || `Directions code=${data.code}`)
   }
-  const rawPath = data.route?.traoptimal?.[0]?.path
+  const trip = data.route?.traoptimal?.[0]
+  const rawPath = trip?.path
   if (!rawPath?.length) {
     throw new Error('경로 path가 비어 있습니다')
   }
   // API: [lng, lat]
-  return rawPath.map(([lng, lat]) => ({ lat, lng }))
+  return {
+    path: rawPath.map(([lng, lat]) => ({ lat, lng })),
+    distanceMeters: trip?.summary?.distance ?? 0,
+    durationMs: trip?.summary?.duration ?? 0,
+  }
 }

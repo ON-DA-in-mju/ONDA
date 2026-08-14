@@ -34,6 +34,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.mju.onda.driver.feature.adminforceend.data.AdminForceEndPoller
 import com.mju.onda.driver.feature.adminforceend.ui.AdminForceEndScreen
 import com.mju.onda.driver.feature.alarm.ui.OperationAlarmListScreen
@@ -128,8 +129,12 @@ private val optionalOperationIdArgs = listOf(
 
 private fun NavHostController.navigateToLoginAfterLogout() {
     navigate(Routes.LOGIN) {
-        popUpTo(graph.id) { inclusive = true }
+        popUpTo(graph.findStartDestination().id) {
+            inclusive = true
+            saveState = false
+        }
         launchSingleTop = true
+        restoreState = false
     }
 }
 

@@ -1,5 +1,7 @@
 package com.onda.mju.student.ui.screen.notice
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -56,8 +60,8 @@ fun NoticeDetailScreen(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
-    onAttachmentClick: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -119,12 +123,37 @@ fun NoticeDetailScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(item.title, color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 24.sp)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(item.datetime.replace(" / ", " · "), color = BodyGray, fontSize = 12.sp)
+                    Text(item.datetimeLabel().replace(" / ", " · "), color = BodyGray, fontSize = 12.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            if (Regex("<\\s*[a-zA-Z]").containsMatchIn(item.body)) {
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth(),
+                    factory = { ctx ->
+                        android.webkit.WebView(ctx).apply {
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            settings.javaScriptEnabled = false
+                        }
+                    },
+                    update = { webView ->
+                        val wrapped = """
+                            <html><head>
+                            <meta charset="utf-8"/>
+                            <meta name="viewport" content="width=device-width,initial-scale=1"/>
+                            <style>
+                              body{margin:0;padding:0;color:#111827;font-size:14px;line-height:22px;font-family:sans-serif;}
+                              img{max-width:100%;height:auto;}
+                              a{color:#0041F1;}
+                            </style>
+                            </head><body>${item.body}</body></html>
+                        """.trimIndent()
+                        webView.loadDataWithBaseURL(null, wrapped, "text/html", "utf-8", null)
+                    },
+                )
+            } else {
             val highlight = "오늘 18시 이후 모든 셔틀 운행을 종료합니다."
             Text(
                 text = buildAnnotatedString {
@@ -144,6 +173,7 @@ fun NoticeDetailScreen(
                 fontSize = 14.sp,
                 lineHeight = 22.sp,
             )
+            }
 
             if (item.relatedRoutes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(22.dp))
@@ -165,26 +195,34 @@ fun NoticeDetailScreen(
                 }
             }
 
-            if (item.attachmentName != null) {
+            if (item.attachments.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(22.dp))
-                Text("첨부 안내", color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("첨부 파일", color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.PictureAsPdf, null, tint = OndaBlue, modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(item.attachmentName, color = TitleBlack, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text(item.attachmentMeta.orEmpty(), color = BodyGray, fontSize = 11.sp)
+                item.attachments.forEach { file ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.PictureAsPdf, null, tint = OndaBlue, modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("첨부된 파일: ${file.name}", color = TitleBlack, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        IconButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(file.url)))
+                                }
+                            },
+                        ) {
+                            Icon(Icons.Filled.Download, null, tint = OndaBlue)
+                        }
                     }
-                    IconButton(onClick = onAttachmentClick) {
-                        Icon(Icons.Filled.Download, null, tint = OndaBlue)
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 

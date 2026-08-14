@@ -1,10 +1,12 @@
 package com.mju.onda.driver.feature.alarm.data
 
+import com.mju.onda.driver.core.KoreaTime
 import com.mju.onda.driver.feature.home.data.AssignedOperation
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import com.mju.onda.driver.feature.home.data.OperationNoticeMapper
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.OperationStatus
+import com.mju.onda.driver.feature.home.data.SeenAssignmentIds
 import java.time.Duration
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -43,7 +45,7 @@ object AlarmGenerator {
      * 아니면 5분 이내 임박이면 Imminent.
      */
     fun resolveDepartureAlertKind(operations: List<AssignedOperation>): DepartureAlertKind {
-        val now = LocalTime.now()
+        val now = KoreaTime.nowTime()
         val candidates = operations
             .filter { isNotStartedCandidate(it) }
             .mapNotNull { op -> parseHm(op.departTime) }
@@ -61,7 +63,7 @@ object AlarmGenerator {
 
     /** 출발 5분 전(임박) 배너와 동일한 알림을 목록에 남긴다. */
     fun checkDepartureImminent(operations: List<AssignedOperation>) {
-        val now = LocalTime.now()
+        val now = KoreaTime.nowTime()
         for (op in operations) {
             if (!isNotStartedCandidate(op)) continue
             val depart = parseHm(op.departTime) ?: continue
@@ -85,7 +87,7 @@ object AlarmGenerator {
      * 홈 미시작 배너와 동일한 알림을 생성한다.
      */
     fun checkDepartureOverdue(operations: List<AssignedOperation>) {
-        val now = LocalTime.now()
+        val now = KoreaTime.nowTime()
         for (op in operations) {
             if (!isNotStartedCandidate(op)) continue
             val depart = parseHm(op.departTime) ?: continue
@@ -111,21 +113,28 @@ object AlarmGenerator {
     ) {
         OperationNoticeMapper.rememberPrevious(previous)
         val prevById = previous.associateBy { it.id }
-        val now = LocalTime.now()
-        val timeLabel = now.format(hmFormatter)
+        val seen = SeenAssignmentIds.all()
+        val bootstrapping = seen.isEmpty()
+        val timeLabel = KoreaTime.nowHm()
+        val newlySeen = mutableListOf<String>()
 
         for (op in current) {
             val prev = prevById[op.id]
-            if (prev == null) {
-                addOnce(
-                    alarmId = "assign-${op.id}",
-                    title = "배정 알림",
-                    body = "새로운 운행이 배정되었습니다: ${assignmentLabel(op)}",
-                    timeLabel = timeLabel,
-                    category = AlarmCategory.AssignmentChange,
-                )
+            if (!seen.contains(op.id) && prev == null) {
+                if (!bootstrapping) {
+                    addOnce(
+                        alarmId = "assign-${op.id}",
+                        title = "배정 알림",
+                        body = "새로운 운행이 배정되었습니다: ${assignmentLabel(op)}",
+                        timeLabel = timeLabel,
+                        category = AlarmCategory.AssignmentChange,
+                    )
+                }
+                newlySeen += op.id
                 continue
             }
+            newlySeen += op.id
+            if (prev == null) continue
             if (prev.vehicleName != op.vehicleName &&
                 (prev.vehicleName.isNotBlank() || op.vehicleName.isNotBlank())
             ) {
@@ -162,6 +171,7 @@ object AlarmGenerator {
                 )
             }
         }
+        SeenAssignmentIds.add(newlySeen)
     }
 
     private fun assignmentLabel(op: AssignedOperation): String =

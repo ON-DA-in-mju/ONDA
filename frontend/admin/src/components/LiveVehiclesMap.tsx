@@ -138,10 +138,7 @@ export function LiveVehiclesMap({
     void Promise.all(
       layers.map(async (layer) => {
         const ordered = [...layer.stops].sort((a, b) => a.order - b.order)
-        const result = await fetchNaverDrivingPath(
-          ordered.map((s) => ({ lat: s.lat, lng: s.lng })),
-          { cacheKey: `route:${layer.id}` },
-        )
+        const result = await fetchNaverDrivingPath(ordered.map((s) => ({ lat: s.lat, lng: s.lng })))
         return { id: layer.id, name: layer.name, ...result }
       }),
     ).then((results) => {

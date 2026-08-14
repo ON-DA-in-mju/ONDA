@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   assignDriverToOperation,
   fetchAssignments,
@@ -31,13 +32,20 @@ const statusTone: Record<TodayAssignment['status'], 'gray' | 'orange' | 'blue' |
  * 오른쪽에서 기사만 선택·변경한다.
  */
 export function TodayAssignmentsPanel() {
-  const [date, setDate] = useState(todayDateKey())
+  const [params] = useSearchParams()
+  const [date, setDate] = useState(() => params.get('date') || todayDateKey())
   const [rows, setRows] = useState<TodayAssignment[]>([])
   const [drivers, setDrivers] = useState<DriverOption[]>([])
   const [filterDriver, setFilterDriver] = useState('')
   const [filterRoute, setFilterRoute] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [messageError, setMessageError] = useState(false)
+
+  useEffect(() => {
+    const q = params.get('date')
+    if (q) setDate(q)
+  }, [params])
 
   const loadDrivers = useCallback(async () => {
     setDrivers(await fetchDriverOptions())
@@ -93,13 +101,16 @@ export function TodayAssignmentsPanel() {
     if (!nextDriverId || nextDriverId === row.driverId) return
     setBusyId(row.id)
     setMessage(null)
+    setMessageError(false)
     const result = await assignDriverToOperation(row.id, nextDriverId)
     setBusyId(null)
     if (!result.ok) {
+      setMessageError(true)
       setMessage(result.message || '기사 배정 실패')
       return
     }
     const name = drivers.find((d) => d.id === nextDriverId)?.name ?? nextDriverId
+    setMessageError(false)
     setMessage(`${row.departTime} ${row.routeName} · ${name} 배정됨`)
     await load()
   }
@@ -121,8 +132,8 @@ export function TodayAssignmentsPanel() {
       </div>
 
       <p className="muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 12 }}>
-        선택한 날짜의 배차 목록입니다. schedules 시간표를 날짜별 operations로 펼친 것이며, 노선·호차·시간은
-        고정이고 오른쪽에서 기사만 지정·변경합니다.
+        선택한 날짜의 운행 목록입니다. 기사가 없는 운행은 --- 로 표시되며, 드롭다운에서 기사를 지정합니다. 같은
+        기사의 출발~종료가 겹치면 저장되지 않습니다.
       </p>
 
       <div className="toolbar" style={{ marginBottom: 10, flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -167,7 +178,7 @@ export function TodayAssignmentsPanel() {
           {filterRoute || filterDriver ? ` / 전체 ${rows.length}건` : ''}
         </span>
         {message ? (
-          <span className="muted" style={{ fontSize: 12 }}>
+          <span style={{ fontSize: 12, color: messageError ? '#b91c1c' : undefined }} className={messageError ? undefined : 'muted'}>
             {message}
           </span>
         ) : null}
@@ -191,7 +202,7 @@ export function TodayAssignmentsPanel() {
             {visibleRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="muted">
-                  선택한 날짜에 배차가 없습니다. Supabase `operations`에 해당 일자 행이 있는지 확인해 주세요.
+                  선택한 날짜에 운행이 없습니다. 「운행 관리」에서 먼저 운행을 생성해 주세요.
                 </td>
               </tr>
             ) : (
@@ -218,11 +229,12 @@ export function TodayAssignmentsPanel() {
                       <select
                         className="select"
                         style={{ width: '100%', minWidth: 160, height: 32 }}
-                        value={row.driverId}
+                        value={row.driverId || ''}
                         disabled={assigning || status === 'in_progress' || status === 'ended'}
                         onChange={(e) => void onAssignDriver(row, e.target.value)}
                         aria-label={`${row.routeName} ${row.departTime} 기사 선택`}
                       >
+                        <option value="">---</option>
                         {!driverInList && row.driverId ? (
                           <option value={row.driverId}>
                             {row.driverName || row.driverId} ({row.driverId})

@@ -16,6 +16,7 @@ import {
   type LiveVehicle,
   type RecentOpFeedItem,
 } from '../lib/liveApi'
+import { fetchNotices, type NoticeRow } from '../lib/api'
 import { todayDateKey } from '../types/assignment'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createExclusivePoll } from '../lib/exclusivePoll'
@@ -117,12 +118,64 @@ function buildGpsAlertRows(vehicles: LiveVehicle[], limit = 8): GpsAlertRow[] {
   })
 }
 
+function isLiveUrgentNotice(row: NoticeRow): boolean {
+  if (row.type !== 'URGENT') return false
+  if (row.status === 'ENDED') return false
+  const now = Date.now()
+  if (row.ends_at) {
+    const end = Date.parse(row.ends_at)
+    if (Number.isFinite(end) && end < now) return false
+  }
+  if (row.starts_at) {
+    const start = Date.parse(row.starts_at)
+    if (Number.isFinite(start) && start > now) return false
+  }
+  return true
+}
+
+function noticeTitlePlain(title: string): string {
+  return title.replace(/^\[.*?\]\s*/, '')
+}
+
+function truncateNoticeText(value: string, max = 10): string {
+  const text = value.trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}...`
+}
+
+function noticePeriodLabel(row: NoticeRow): string {
+  const fmt = (iso: string | null | undefined) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (!Number.isFinite(d.getTime())) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`
+  }
+  const start = fmt(row.starts_at)
+  const end = fmt(row.ends_at)
+  if (!start && !end) return '-'
+  if (start && end) return `${start} ~ ${end}`
+  return start || end
+}
+
+function noticeBodyPreview(html: string, max = 10): string {
+  const text = html
+    .replace(/<div[^>]*onda-notice-attach[\s\S]*?<\/div>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!text) return ''
+  return truncateNoticeText(text, max)
+}
+
 /** ADM-02 대시보드 — Figma 위젯 구조 반영 */
 export function DashboardPage() {
   const navigate = useNavigate()
   const [snapshot, setSnapshot] = useState<LiveSnapshot>(emptySnap)
   const [yesterdayTotal, setYesterdayTotal] = useState<number | null>(null)
   const [recentOpsFeed, setRecentOpsFeed] = useState<RecentOpFeedItem[]>([])
+  const [urgentNotices, setUrgentNotices] = useState<NoticeRow[]>([])
 
   useEffect(() => {
     let alive = true
@@ -192,6 +245,17 @@ export function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    void fetchNotices().then((res) => {
+      if (!alive) return
+      setUrgentNotices(res.rows.filter(isLiveUrgentNotice).slice(0, 3))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const vehicles = snapshot.vehicles
 
   const gpsAlertRows = useMemo(() => buildGpsAlertRows(vehicles), [vehicles])
@@ -235,11 +299,19 @@ export function DashboardPage() {
       },
     ]
 
-    // 학생 제보 · 긴급 공지는 기존 mock 유지
-    const keepTitles = new Set(['처리 중 학생 제보', '긴급 공지'])
-    const staticCards = mockKpiCards.filter((c) => keepTitles.has(c.title))
-    return [...liveCards, ...staticCards]
-  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount])
+    const reportCard = mockKpiCards.find((c) => c.title === '처리 중 학생 제보')
+    return [
+      ...liveCards,
+      ...(reportCard ? [reportCard] : []),
+      {
+        title: '긴급 공지',
+        value: urgentNotices.length,
+        unit: '건',
+        delta: urgentNotices.length > 0 ? '게시 중' : '없음',
+        color: '#ec181b',
+      },
+    ]
+  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, urgentNotices.length])
 
   return (
     <div className="page">
@@ -398,23 +470,32 @@ export function DashboardPage() {
         <section className="card card-pad">
           <div className="card-head">
             <h3>최근 긴급 공지</h3>
-            <Link className="btn btn-ghost" to="/notices" style={{ height: 30, fontSize: 12 }}>
-              긴급 공지 등록
-            </Link>
           </div>
-          <div className="alert alert-danger" style={{ display: 'flex', gap: 10 }}>
-            <AlertTriangle size={18} />
-            <div>
-              <strong>폭염 특보에 따른 운행 조정 안내</strong>
-              <div style={{ marginTop: 4 }}>2023.08.20 ~ 2023.08.23</div>
-              <div style={{ marginTop: 6 }}>
-                폭염 특보 발령으로 일부 노선의 배차 간격과 운행 시간이 임시 조정됩니다.
-              </div>
+          {urgentNotices.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13, padding: '8px 0 0' }}>
+              게시 중인 긴급 공지가 없습니다.
             </div>
-          </div>
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
+          ) : (
+            <div className="alert-stack" style={{ gap: 4, marginTop: 4 }}>
+              {urgentNotices.map((row) => (
+                <div
+                  key={row.id}
+                  className="alert alert-danger"
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 10px', margin: 0 }}
+                >
+                  <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ lineHeight: 1.25 }}>
+                    <strong>{truncateNoticeText(noticeTitlePlain(row.title))}</strong>
+                    <div>{noticePeriodLabel(row)}</div>
+                    {noticeBodyPreview(row.content) ? <div>{noticeBodyPreview(row.content)}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: 8, textAlign: 'right' }}>
             <Link to="/notices" className="muted" style={{ fontSize: 12, color: 'var(--color-primary)' }}>
-              긴급 공지 전체 보기 &gt;
+              공지 전체 보기 &gt;
             </Link>
           </div>
         </section>

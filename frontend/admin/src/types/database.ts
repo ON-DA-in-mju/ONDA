@@ -64,6 +64,8 @@ type Tables = {
       updated_at: string
       start_location: string | null
       end_location: string | null
+      /** 운행 중단 종료 시각. 지나면 자동으로 운행 가능 */
+      suspended_until: string | null
     }
     Insert: {
       id?: string
@@ -75,6 +77,7 @@ type Tables = {
       updated_at?: string
       start_location?: string | null
       end_location?: string | null
+      suspended_until?: string | null
     }
     Update: Partial<Tables['routes']['Insert']>
     Relationships: []
@@ -174,7 +177,8 @@ type Tables = {
     Row: {
       id: string
       schedule_id: string
-      driver_id: string
+      /** 미배정이면 null */
+      driver_id: string | null
       bus_id: string
       operation_date: string
       status: OperationStatus
@@ -194,7 +198,7 @@ type Tables = {
     Insert: {
       id?: string
       schedule_id: string
-      driver_id: string
+      driver_id?: string | null
       bus_id: string
       operation_date: string
       status?: OperationStatus
@@ -294,6 +298,8 @@ type Tables = {
       ends_at: string | null
       /** 푸시 동시 발송 여부 */
       is_push: boolean
+      /** 고유 조회수 (사용자당 1회) */
+      view_count: number
       /** DRAFT | SCHEDULED | PUBLISHED | ENDED */
       status: NoticeStatus
       created_at: string | null
@@ -309,6 +315,7 @@ type Tables = {
       starts_at?: string | null
       ends_at?: string | null
       is_push?: boolean
+      view_count?: number
       status?: NoticeStatus
       created_at?: string | null
       updated_at?: string | null
@@ -392,6 +399,7 @@ type Tables = {
       status: string
       mileage: string | null
       next_maintenance: string | null
+      bus_id: string | null
       created_at: string
     }
     Insert: {
@@ -401,6 +409,7 @@ type Tables = {
       status?: string
       mileage?: string | null
       next_maintenance?: string | null
+      bus_id?: string | null
       created_at?: string
     }
     Update: Partial<Tables['vehicles']['Insert']>
@@ -409,25 +418,34 @@ type Tables = {
   maintenances: {
     Row: {
       id: string
+      bus_id: string | null
+      vehicle_id: string | null
       maintained_at: string
-      plate: string
+      /** 레거시 번호판. 정규 키는 bus_id */
+      plate: string | null
       item: string
       type: string
       mechanic: string | null
       cost: number
       status: string
+      memo: string | null
       created_at: string
+      updated_at: string | null
     }
     Insert: {
       id?: string
+      bus_id?: string | null
+      vehicle_id?: string | null
       maintained_at: string
-      plate: string
+      plate?: string | null
       item: string
-      type: string
+      type?: string
       mechanic?: string | null
       cost?: number
       status?: string
+      memo?: string | null
       created_at?: string
+      updated_at?: string | null
     }
     Update: Partial<Tables['maintenances']['Insert']>
     Relationships: []
@@ -438,7 +456,7 @@ type Tables = {
       logged_at: string
       type: string
       action: string
-      actor: string | null
+      actor_id: string | null
       ip: string | null
       target: string | null
       result: string
@@ -448,7 +466,7 @@ type Tables = {
       logged_at?: string
       type: string
       action: string
-      actor?: string | null
+      actor_id?: string | null
       ip?: string | null
       target?: string | null
       result?: string
@@ -482,33 +500,18 @@ type Tables = {
     Update: Partial<Tables['safe_stop_requests']['Insert']>
     Relationships: []
   }
-  operation_device_status: {
-    Row: {
-      operation_id: string
-      gps_ok: boolean
-      gps_enabled: boolean
-      last_location_at: string | null
-      last_accuracy: number | null
-      updated_at: string
-    }
-    Insert: {
-      operation_id: string
-      gps_ok?: boolean
-      gps_enabled?: boolean
-      last_location_at?: string | null
-      last_accuracy?: number | null
-      updated_at?: string
-    }
-    Update: Partial<Tables['operation_device_status']['Insert']>
-    Relationships: []
-  }
 }
 
 export type Database = {
   public: {
     Tables: Tables
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      increment_notice_view: {
+        Args: { p_notice_id: string }
+        Returns: number
+      }
+    }
     Enums: {
       user_role: UserRole
       bus_status: BusStatus

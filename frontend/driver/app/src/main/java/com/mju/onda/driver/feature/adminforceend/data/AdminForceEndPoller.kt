@@ -27,7 +27,7 @@ import org.json.JSONArray
  */
 object AdminForceEndPoller {
     private const val TAG = "AdminForceEndPoller"
-    private const val INTERVAL_MS = 2_000L
+    private const val INTERVAL_MS = 8_000L
 
     private val uuidRegex = Regex(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",

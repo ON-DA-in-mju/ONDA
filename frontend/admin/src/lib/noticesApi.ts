@@ -9,8 +9,10 @@ import {
 export type NoticeRow = Database['public']['Tables']['notices']['Row']
 
 /** 공지 목록 — notices(title, content, author_id) */
-export async function fetchNotices(): Promise<NoticeRow[] | null> {
-  if (!isSupabaseConfigured) return null
+export async function fetchNotices(): Promise<{ rows: NoticeRow[]; error?: string }> {
+  if (!isSupabaseConfigured) {
+    return { rows: [], error: 'Supabase가 설정되지 않았습니다.' }
+  }
 
   const { data, error } = await supabase
     .from('notices')
@@ -19,12 +21,14 @@ export async function fetchNotices(): Promise<NoticeRow[] | null> {
 
   if (error) {
     console.error('[notices]', error.message)
-    return null
+    return { rows: [], error: error.message }
   }
-  return (data ?? []).map((row) => ({
-    ...row,
-    audience: normalizeNoticeAudience((row as NoticeRow & { audience?: unknown }).audience),
-  }))
+  return {
+    rows: (data ?? []).map((row) => ({
+      ...row,
+      audience: normalizeNoticeAudience((row as NoticeRow & { audience?: unknown }).audience),
+    })),
+  }
 }
 
 export async function createNotice(payload: {
@@ -42,7 +46,7 @@ export async function createNotice(payload: {
     return { ok: false, message: 'Supabase 미설정' }
   }
 
-  const { error } = await supabase.from('notices').insert({
+  const { data, error } = await supabase.from('notices').insert({
     title: payload.title,
     content: payload.content,
     author_id: payload.author_id ?? null,
@@ -50,9 +54,8 @@ export async function createNotice(payload: {
     audience: payload.audience,
     starts_at: payload.starts_at ?? null,
     ends_at: payload.ends_at ?? null,
-    is_push: payload.is_push ?? false,
     status: payload.status ?? 'PUBLISHED',
-  })
+  }).select('id')
   if (error) {
     return {
       ok: false,
@@ -60,6 +63,9 @@ export async function createNotice(payload: {
         ? MISSING_AUDIENCE_COLUMN_MESSAGE
         : error.message,
     }
+  }
+  if (!data?.length) {
+    return { ok: false, message: '등록 권한이 없어 공지가 저장되지 않았습니다.' }
   }
   return { ok: true }
 }
@@ -132,7 +138,6 @@ export async function updateNotice(
       audience: payload.audience,
       starts_at: payload.starts_at ?? null,
       ends_at: payload.ends_at ?? null,
-      is_push: payload.is_push ?? false,
       status: payload.status ?? 'PUBLISHED',
       updated_at: new Date().toISOString(),
     })
@@ -149,4 +154,14 @@ export async function updateNotice(
   }
   if (!data?.length) return { ok: false, message: '수정 권한이 없거나 공지를 찾을 수 없습니다.' }
   return { ok: true }
+}
+
+export async function incrementNoticeView(id: string): Promise<number | null> {
+  if (!isSupabaseConfigured || !id.trim()) return null
+  const { data, error } = await supabase.rpc('increment_notice_view', { p_notice_id: id })
+  if (error) {
+    console.warn('[notices] view increment', error.message)
+    return null
+  }
+  return typeof data === 'number' ? data : null
 }

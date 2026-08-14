@@ -29,6 +29,7 @@ data class OperationAlarm(
     val noticeType: String? = null,
     val noticeDateTime: String? = null,
     val noticeContent: String? = null,
+    val noticeEdited: Boolean = false,
 )
 
 object MockOperationAlarms {

@@ -58,7 +58,8 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title="ON-DA 관리자 시스템 회원가입"
+      titleLine1="ON-DA 관리자 시스템"
+      titleLine2="회원가입"
       lead="ON-DA 관리자 시스템에 오신 것을 환영합니다. 계정을 생성하고 운행 관제를 시작하세요."
       footer={<AuthSwitchLink question="이미 계정이 있으신가요?" to="/login" label="로그인" />}
     >

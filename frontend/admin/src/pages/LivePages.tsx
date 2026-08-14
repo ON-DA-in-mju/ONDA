@@ -169,6 +169,7 @@ function useLiveSnapshot(pollMs = LIVE_POLL_MS) {
 export function LivePage() {
   const { snapshot, lastUpdatedAt, refresh, refreshing } = useLiveSnapshot()
   const [routeFilter, setRouteFilter] = useState('')
+  const [mapRouteFilter, setMapRouteFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [query, setQuery] = useState('')
   const [listPage, setListPage] = useState(1)
@@ -200,15 +201,21 @@ export function LivePage() {
   }, [vehicles, selectedVehicleId])
 
   const mapRoutes = useMemo(() => {
+    if (mapRouteFilter) {
+      return LIVE_MAP_ROUTES.filter((r) => r.name === mapRouteFilter)
+    }
     if (!selectedVehicle?.routeName) return LIVE_MAP_ROUTES
     const matched = LIVE_MAP_ROUTES.filter((r) => r.name === selectedVehicle.routeName)
     return matched.length ? matched : LIVE_MAP_ROUTES
-  }, [selectedVehicle])
+  }, [selectedVehicle, mapRouteFilter])
 
   const mapVehicles = useMemo(() => {
-    if (!selectedVehicle) return vehicles
-    return vehicles.filter((v) => v.id === selectedVehicle.id)
-  }, [vehicles, selectedVehicle])
+    const byRoute = mapRouteFilter
+      ? vehicles.filter((v) => v.routeName === mapRouteFilter)
+      : vehicles
+    if (!selectedVehicle) return byRoute
+    return byRoute.filter((v) => v.id === selectedVehicle.id)
+  }, [vehicles, selectedVehicle, mapRouteFilter])
 
   const toggleVehicleSelect = useCallback((id: string) => {
     setSelectedVehicleId((prev) => (prev === id ? null : id))
@@ -329,7 +336,22 @@ export function LivePage() {
       <div className="grid live-map-list-grid" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
         <section className="card card-pad live-map-card">
           <div className="live-map-block">
-            <h3 className="live-map-title">실시간 차량 위치</h3>
+            <div className="live-map-head">
+              <h3 className="live-map-title">실시간 차량 위치</h3>
+              <select
+                className="select live-map-route-select"
+                value={mapRouteFilter}
+                onChange={(e) => setMapRouteFilter(e.target.value)}
+                aria-label="지도 표시 노선"
+              >
+                <option value="">전체 노선</option>
+                {LIVE_MAP_ROUTES.map((route) => (
+                  <option key={route.id} value={route.name}>
+                    {route.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="live-status-row">
               <div className="live-status-legend" aria-label="차량 상태 범례">
                 <span className="live-status-item">
