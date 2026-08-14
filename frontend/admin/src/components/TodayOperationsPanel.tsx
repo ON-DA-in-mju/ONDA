@@ -54,8 +54,6 @@ export function TodayOperationsPanel() {
   const [scheduleKey, setScheduleKey] = useState('')
   const [vehicleName, setVehicleName] = useState('')
   const [expectedEndTime, setExpectedEndTime] = useState('')
-  const [origin, setOrigin] = useState('')
-  const [destination, setDestination] = useState('')
   const [round, setRound] = useState(1)
   const [busy, setBusy] = useState(false)
   const [copyBusy, setCopyBusy] = useState(false)
@@ -166,18 +164,14 @@ export function TodayOperationsPanel() {
     void fetchRouteStopsByName(actualRouteForStops).then((data) => {
       if (!alive) return
       setStops(data)
-      if (data.length) {
-        setOrigin(data[0].name)
-        setDestination(data[data.length - 1].name)
-      } else {
-        setOrigin('')
-        setDestination('')
-      }
     })
     return () => {
       alive = false
     }
   }, [actualRouteForStops])
+
+  const origin = stops[0]?.name ?? ''
+  const destination = stops[stops.length - 1]?.name ?? ''
 
   const selectedTime = selectedDepart?.time ?? ''
   const lastExpectedMinutes = stops[stops.length - 1]?.expectedMinutes ?? null
@@ -367,45 +361,27 @@ export function TodayOperationsPanel() {
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-origin">출발 정류장</label>
-          <select
+          <input
             id="op-origin"
-            className="select"
-            style={{ width: 180, height: 32 }}
-            value={origin}
-            onChange={(e) => setOrigin(e.target.value)}
-            disabled={!stops.length}
-          >
-            {stops.length === 0 ? (
-              <option value="">—</option>
-            ) : (
-              stops.map((s) => (
-                <option key={`o-${s.id}`} value={s.name}>
-                  {s.name}
-                </option>
-              ))
-            )}
-          </select>
+            className="input"
+            style={{ width: 180, height: 32, background: '#f3f4f6', cursor: 'default' }}
+            value={origin || '—'}
+            readOnly
+            tabIndex={-1}
+            title="노선의 첫 정류장으로 고정됩니다"
+          />
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-dest">도착 정류장</label>
-          <select
+          <input
             id="op-dest"
-            className="select"
-            style={{ width: 180, height: 32 }}
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            disabled={!stops.length}
-          >
-            {stops.length === 0 ? (
-              <option value="">—</option>
-            ) : (
-              stops.map((s) => (
-                <option key={`d-${s.id}`} value={s.name}>
-                  {s.name}
-                </option>
-              ))
-            )}
-          </select>
+            className="input"
+            style={{ width: 180, height: 32, background: '#f3f4f6', cursor: 'default' }}
+            value={destination || '—'}
+            readOnly
+            tabIndex={-1}
+            title="노선의 마지막 정류장으로 고정됩니다"
+          />
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-round">회차</label>

@@ -71,15 +71,19 @@ function isVisibleInTimetablePeriod(
   return routeRunsOnTerm(routeName, period === 'VACATION' ? 'VACATION' : 'SEMESTER')
 }
 
-type ScheduleRowStatus = '운행 예정' | '곧 출발' | '운행 중' | '운행 종료'
+type ScheduleRowStatus = '운행 예정' | '곧 출발' | '운행 중' | '운행 종료' | '-'
 type ScheduleTone = 'blue' | 'orange' | 'green' | 'gray'
 
-function statusFromAssignments(items: TodayAssignment[]): {
+/** 오늘 남은 운행이 없으면 "-" (배차 없음·이미 지난 회차만 있는 경우) */
+function statusFromAssignments(
+  items: TodayAssignment[],
+  now = new Date(),
+): {
   status: ScheduleRowStatus
   tone: ScheduleTone
   rounds: number
 } {
-  const resolved = items.map((a) => resolveAssignmentStatus(a))
+  const resolved = items.map((a) => resolveAssignmentStatus(a, now))
   const rounds = items.length
   if (resolved.some((s) => s === 'in_progress')) {
     return { status: '운행 중', tone: 'green', rounds }
@@ -87,13 +91,22 @@ function statusFromAssignments(items: TodayAssignment[]): {
   if (resolved.some((s) => s === 'departing_soon')) {
     return { status: '곧 출발', tone: 'orange', rounds }
   }
-  if (resolved.some((s) => s === 'ended') && resolved.every((s) => s === 'ended')) {
-    return { status: '운행 종료', tone: 'gray', rounds }
-  }
-  if (rounds > 0) {
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const hasUpcoming = items.some((a, i) => {
+    const s = resolved[i]
+    if (s === 'ended') return false
+    if (s === 'waiting') return true
+    const depart = timeToMinutes(a.departTime)
+    return depart != null && depart >= nowMinutes
+  })
+  if (hasUpcoming) {
     return { status: '운행 예정', tone: 'blue', rounds }
   }
-  return { status: '운행 예정', tone: 'blue', rounds: 0 }
+  if (rounds > 0 && resolved.every((s) => s === 'ended')) {
+    return { status: '운행 종료', tone: 'gray', rounds }
+  }
+  return { status: '-', tone: 'gray', rounds }
 }
 
 /** ADM-03 운행 일정 목록 — Figma 좌/우 위젯 구조 */
@@ -313,7 +326,7 @@ export function SchedulesPage() {
           interval: averageIntervalLabel(routeItems.map((a) => a.departTime)),
           rounds: derived.rounds,
           status: isToday ? derived.status : '-',
-          tone: derived.tone,
+          tone: derived.status === '-' || !isToday ? 'gray' : derived.tone,
         }
       })
   }, [assignments, routeFilter, routeOptions, dbSchedules, selectedWeekday, timetablePeriod, selectedDateKey])
