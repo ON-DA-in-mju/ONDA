@@ -9,15 +9,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class NoticeBadge(val label: String, val color: Color) {
-    Important("중요 공지", Color(0xFFE11D48)),
-    ImportantShort("중요", Color(0xFFE11D48)),
+    Important("긴급 공지", Color(0xFFE11D48)),
+    ImportantShort("중요 공지", Color(0xFFE11D48)),
     Operation("운행 변경", Color(0xFF2563EB)),
-    General("일반", Color(0xFF60A5FA)),
+    General("일반 공지", Color(0xFF60A5FA)),
 }
 
 data class NoticeAttachment(
     val name: String,
-    val url: String,
+    val url: String? = null,
+    val meta: String? = null,
 )
 
 data class NoticeItem(
@@ -32,13 +33,31 @@ data class NoticeItem(
     val body: String,
     val relatedRoutes: List<String> = emptyList(),
     val attachments: List<NoticeAttachment> = emptyList(),
+    val attachmentName: String? = null,
+    val attachmentMeta: String? = null,
+    val attachmentUrl: String? = null,
+    val status: String = "PUBLISHED",
+    val type: String = "GENERAL",
+    /** ISO timestamp for relative time / sort (starts_at or created_at) */
+    val createdAtIso: String? = null,
 ) {
-    fun datetimeLabel(): String = if (edited) "$datetime · 수정됨" else datetime
+    val resolvedAttachments: List<NoticeAttachment>
+        get() = attachments.ifEmpty {
+            listOfNotNull(
+                attachmentName?.let { name ->
+                    NoticeAttachment(
+                        name = name,
+                        url = attachmentUrl,
+                        meta = attachmentMeta,
+                    )
+                },
+            )
+        }
 }
 
 fun sampleNotices(): List<NoticeItem> = listOf(
     NoticeItem(
-        id = "1",
+        id = "sample-1",
         title = "폭우로 인해 오늘 18시 이후 모든 셔틀 운행이 종료됩니다.",
         description = null,
         datetime = "2026.06.20 / 15:45",
@@ -50,9 +69,10 @@ fun sampleNotices(): List<NoticeItem> = listOf(
             "• 기흥역 통학버스\n• 명지대역 통학버스\n• 시내 셔틀\n\n" +
             "운행 재개 여부는 추가 공지로 안내드리겠습니다. 이용해 주셔서 감사합니다.",
         relatedRoutes = listOf("기흥역 통학버스", "명지대역 통학버스", "시내 셔틀"),
+        type = "URGENT",
     ),
     NoticeItem(
-        id = "2",
+        id = "sample-2",
         title = "기흥역 통학버스 17:15 차량 5대 운행",
         description = "기존 4대에서 5대로 증차 운행합니다. 이용에 참고해 주세요.",
         datetime = "2026.06.20 / 14:20",
@@ -61,9 +81,10 @@ fun sampleNotices(): List<NoticeItem> = listOf(
         edited = true,
         body = "기흥역 통학버스 17:15 회차가 기존 4대에서 5대로 증차됩니다.",
         relatedRoutes = listOf("기흥역 통학버스"),
+        type = "IMPORTANT",
     ),
     NoticeItem(
-        id = "3",
+        id = "sample-3",
         title = "방학 중 셔틀버스 시간표 안내",
         description = "7/1(화)부터 방학 시간표가 적용됩니다.",
         datetime = "2026.06.19 / 11:00",
@@ -71,9 +92,10 @@ fun sampleNotices(): List<NoticeItem> = listOf(
         icon = Icons.Filled.Event,
         body = "여름방학 기간 동안 셔틀버스 운행 시간표가 변경됩니다. 7/1(화)부터 방학 시간표가 적용됩니다.",
         relatedRoutes = listOf("기흥역 통학버스", "명지대역 통학버스", "시내 셔틀"),
+        type = "OPERATION_CHANGE",
     ),
     NoticeItem(
-        id = "4",
+        id = "sample-4",
         title = "명지대역 사거리 정류장 위치 안내",
         description = "정류장 위치가 소폭 조정되었습니다.",
         datetime = "2026.06.18 / 09:30",
@@ -81,11 +103,29 @@ fun sampleNotices(): List<NoticeItem> = listOf(
         icon = Icons.Filled.Place,
         body = "명지대역 사거리 정류장 대기 위치가 횡단보도 쪽으로 소폭 이동했습니다.",
         relatedRoutes = listOf("명지대역 통학버스"),
+        type = "GENERAL",
     ),
 )
 
 fun List<NoticeItem>.search(query: String): List<NoticeItem> {
     val q = query.trim()
     if (q.isEmpty()) return this
-    return filter { it.title.contains(q, ignoreCase = true) }
+    return filter {
+        it.title.contains(q, ignoreCase = true) ||
+            it.body.contains(q, ignoreCase = true)
+    }
+}
+
+/** 공지 유형 필터 (notices.type) */
+enum class NoticeTypeFilter(val label: String, val dbType: String?) {
+    All("전체", null),
+    Urgent("긴급", "URGENT"),
+    Important("중요", "IMPORTANT"),
+    Operation("운행 변경", "OPERATION_CHANGE"),
+    General("일반", "GENERAL"),
+}
+
+fun List<NoticeItem>.filterByType(filter: NoticeTypeFilter): List<NoticeItem> {
+    val type = filter.dbType ?: return this
+    return filter { it.type.equals(type, ignoreCase = true) }
 }

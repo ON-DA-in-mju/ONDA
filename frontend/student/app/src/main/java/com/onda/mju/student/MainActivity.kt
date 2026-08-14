@@ -1,6 +1,7 @@
 package com.onda.mju.student
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,6 +11,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.onda.mju.student.data.auth.AutoLoginPreferences
 import com.onda.mju.student.data.auth.SupabaseAuthRepository
 import com.onda.mju.student.data.permission.PermissionGrantState
+import com.onda.mju.student.data.permission.currentPermissionGrantState
 import com.onda.mju.student.ui.screen.login.FindIdScreen
 import com.onda.mju.student.ui.screen.login.FindPasswordScreen
 import com.onda.mju.student.ui.screen.login.LoginScreen
@@ -28,6 +31,8 @@ import com.onda.mju.student.ui.screen.main.StudentMainShell
 import com.onda.mju.student.ui.screen.permission.PermissionCompleteScreen
 import com.onda.mju.student.ui.screen.permission.PermissionGuideScreen
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -41,6 +46,12 @@ private enum class AppScreen {
     PermissionComplete,
     Main,
 }
+
+/** 브랜드가 잠깐 보이도록 하는 최소 스플래시 시간 */
+private const val SplashMinMillis = 280L
+
+/** 자동 로그인 세션 복원 대기 상한 (스플래시와 병렬) */
+private const val SessionWaitMillis = 450L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,12 +73,7 @@ private fun OndaStudentApp() {
 
     var screen by remember { mutableStateOf(AppScreen.Splash) }
     var permissionGrantState by remember {
-        mutableStateOf(
-            PermissionGrantState(
-                locationGranted = false,
-                notificationGranted = false,
-            ),
-        )
+        mutableStateOf(currentPermissionGrantState(context))
     }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -78,6 +84,12 @@ private fun OndaStudentApp() {
         }
     }
 
+    fun screenAfterLogin(): AppScreen {
+        val grants = currentPermissionGrantState(context)
+        permissionGrantState = grants
+        return if (grants.isReadyForMain) AppScreen.Main else AppScreen.PermissionGuide
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -85,20 +97,26 @@ private fun OndaStudentApp() {
     ) { _ ->
         when (screen) {
             AppScreen.Splash -> {
-                SplashScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onSplashFinished = {
-                        scope.launch {
-                            val canAutoLogin = autoLoginPrefs.isEnabled &&
-                                authRepository.awaitActiveSession()
-                            screen = if (canAutoLogin) {
-                                AppScreen.Main
+                // 세션 복원과 최소 스플래시를 병렬로 돌리고, 둘 다 끝나면 즉시 전환
+                LaunchedEffect(Unit) {
+                    val startedAt = SystemClock.elapsedRealtime()
+                    coroutineScope {
+                        val sessionOk = async {
+                            if (autoLoginPrefs.isEnabled) {
+                                authRepository.awaitActiveSession(SessionWaitMillis)
                             } else {
-                                AppScreen.LoginStart
+                                false
                             }
                         }
-                    },
-                )
+                        val canAutoLogin = sessionOk.await() && authRepository.hasActiveSession()
+                        val elapsed = SystemClock.elapsedRealtime() - startedAt
+                        if (elapsed < SplashMinMillis) {
+                            delay(SplashMinMillis - elapsed)
+                        }
+                        screen = if (canAutoLogin) AppScreen.Main else AppScreen.LoginStart
+                    }
+                }
+                SplashScreen(modifier = Modifier.fillMaxSize())
             }
 
             AppScreen.LoginStart -> {
@@ -122,11 +140,9 @@ private fun OndaStudentApp() {
                     onFindPasswordClick = { screen = AppScreen.FindPassword },
                     onShowMessage = ::showMessage,
                     onLoginSuccess = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("로그인되었습니다.")
-                            delay(400)
-                            screen = AppScreen.PermissionGuide
-                        }
+                        showMessage("로그인되었습니다.")
+                        // 권한 이미 있으면 권한 화면을 건너뛰고 바로 홈으로
+                        screen = screenAfterLogin()
                     },
                 )
             }
@@ -156,7 +172,8 @@ private fun OndaStudentApp() {
                     onSkipClick = { screen = AppScreen.Main },
                     onPermissionsConfigured = { grantState ->
                         permissionGrantState = grantState
-                        screen = AppScreen.PermissionComplete
+                        // 완료 화면 한 번 더 거치지 않고 바로 홈으로
+                        screen = AppScreen.Main
                     },
                 )
             }

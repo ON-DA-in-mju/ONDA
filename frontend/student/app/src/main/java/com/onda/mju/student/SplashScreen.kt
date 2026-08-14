@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,11 +21,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
-import kotlinx.coroutines.delay
 
 private val SplashBackground = Color.White
 private val SplashSloganColor = Color(0xFF051228)
-private const val SplashDisplayMillis = 2_000L
 
 /**
  * Fractions derived from the Figma frame (400 x 845), using the phone content
@@ -40,13 +37,7 @@ private const val IllustrationHeightFraction = 304f / 845f
 @Composable
 fun SplashScreen(
     modifier: Modifier = Modifier,
-    onSplashFinished: () -> Unit = {},
 ) {
-    LaunchedEffect(Unit) {
-        delay(SplashDisplayMillis)
-        onSplashFinished()
-    }
-
     SplashContent(modifier = modifier)
 }
 

@@ -28,7 +28,17 @@ frontend/driver/.cxx/
 frontend/driver/captures/
 frontend/driver/.kotlin/
 
-# Android (student app)
+# Android (student app — legacy path)
+apps/student-android/.gradle/
+apps/student-android/build/
+apps/student-android/app/build/
+apps/student-android/local.properties
+apps/student-android/*.iml
+apps/student-android/.cxx/
+apps/student-android/captures/
+apps/student-android/.kotlin/
+
+# Android (student app — frontend/student)
 frontend/student/.gradle/
 frontend/student/build/
 frontend/student/app/build/
@@ -37,6 +47,10 @@ frontend/student/*.iml
 frontend/student/.cxx/
 frontend/student/captures/
 frontend/student/.kotlin/
+frontend/student/src.jar
+frontend/student/com/
+frontend/student/META-INF/
+
 *.apk
 *.aab
 *.ap_

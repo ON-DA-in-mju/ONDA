@@ -1,8 +1,8 @@
 package com.onda.mju.student.ui.screen.my
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,15 +21,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,6 +44,7 @@ private val PageBg = Color(0xFFF5F7FA)
 private val SoftBlue = Color(0xFFEDF4FE)
 private val ValidBg = Color(0xFFD1FAE5)
 private val ValidText = Color(0xFF059669)
+private val DeleteRed = Color(0xFFEF4444)
 
 @Composable
 fun MyReportDetailScreen(
@@ -114,8 +114,29 @@ fun MyReportDetailScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    StatusChip(valid = report.isValid)
+                    Text(
+                        text = "수정",
+                        color = OndaBlue,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(onClick = onEditClick)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                    Text(
+                        text = "삭제",
+                        color = DeleteRed,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(onClick = onDeleteClick)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                StatusChip(valid = report.isValid)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     "${report.routeLabel} · ${report.vehicleLabel}",
@@ -130,12 +151,46 @@ fun MyReportDetailScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(report.registeredAt, color = BodyGray, fontSize = 12.sp)
+                Text(
+                    "${report.registeredAt} · 익명 · 댓글 ${report.commentCount}",
+                    color = BodyGray,
+                    fontSize = 12.sp,
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
             SectionCard(title = "제보 내용") {
                 Text(report.body, color = TitleBlack, fontSize = 14.sp, lineHeight = 22.sp)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            SectionCard(title = "반응") {
+                InfoRow(label = "공감") {
+                    Text(
+                        "${report.likeCount}",
+                        color = TitleBlack,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                HorizontalDivider(color = CardBorder)
+                InfoRow(label = "비공감") {
+                    Text(
+                        "${report.dislikeCount}",
+                        color = TitleBlack,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                HorizontalDivider(color = CardBorder)
+                InfoRow(label = "댓글") {
+                    Text(
+                        "${report.commentCount}",
+                        color = TitleBlack,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -186,37 +241,13 @@ fun MyReportDetailScreen(
                 Icon(Icons.Filled.Info, null, tint = OndaBlue, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "제보는 등록 후 10분 동안 유효하며, 이후 자동으로 만료됩니다.",
+                    "제보는 등록 후 10분 동안 유효하며, 이후 자동으로 만료됩니다. 수정·삭제는 오른쪽 상단에서 할 수 있습니다.",
                     color = OndaBlue,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(
-                onClick = onEditClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.5.dp, OndaBlue),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = OndaBlue),
-            ) {
-                Text("수정하기", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = onDeleteClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, CardBorder),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = BodyGray),
-            ) {
-                Text("삭제하기", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            }
             Spacer(modifier = Modifier.height(20.dp))
         }
     }

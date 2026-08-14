@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.ui.screen.community.CommunityReport
 import com.onda.mju.student.ui.screen.community.ReportCard
-import com.onda.mju.student.ui.screen.community.sampleCommunityReports
 
 private val TitleBlack = Color(0xFF111827)
 private val BodyGray = Color(0xFF6B7280)
@@ -34,7 +33,7 @@ private val BodyGray = Color(0xFF6B7280)
 @Composable
 fun MyReportsScreen(
     modifier: Modifier = Modifier,
-    reports: List<CommunityReport> = sampleCommunityReports().take(2),
+    reports: List<CommunityReport> = emptyList(),
     onBackClick: () -> Unit = {},
     onReportClick: (String) -> Unit = {},
 ) {
@@ -66,9 +65,21 @@ fun MyReportsScreen(
         ) {
             Text("내가 등록한 제보 ${reports.size}건", color = BodyGray, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(12.dp))
-            reports.forEach { report ->
-                ReportCard(report = report, onClick = { onReportClick(report.id) })
-                Spacer(modifier = Modifier.height(10.dp))
+            if (reports.isEmpty()) {
+                Text(
+                    "등록한 제보가 없습니다.",
+                    color = BodyGray,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 28.dp),
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                reports.forEach { report ->
+                    ReportCard(report = report, onClick = { onReportClick(report.id) })
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }

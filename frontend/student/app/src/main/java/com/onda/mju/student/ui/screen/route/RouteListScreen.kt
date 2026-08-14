@@ -23,10 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,7 +45,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.onda.mju.student.R
 import com.onda.mju.student.ui.theme.ONDAStudentTheme
 
 private val OndaBlue = Color(0xFF0041F1)
@@ -61,7 +56,7 @@ private val CardBorder = Color(0xFFE5E7EB)
 private val FilterBorder = Color(0xFFE5E7EB)
 private val RunningBadgeBg = Color(0xFF14B8A6)
 private val ScheduledBadgeBg = Color(0xFF60A5FA)
-private val StarYellow = Color(0xFFFBBF24)
+private val EndedBadgeBg = Color(0xFF9CA3AF)
 
 /** Bidirectional arrow used in design (U+21C4). */
 private const val BidirectionalArrow = "\u21C4"
@@ -81,7 +76,6 @@ fun RouteListScreen(
     modifier: Modifier = Modifier,
     routes: List<RouteUiModel> = sampleRouteList(),
     onRouteClick: (String) -> Unit = {},
-    onFavoriteClick: (String) -> Unit = {},
 ) {
     var selectedFilter by remember { mutableStateOf(RouteFilter.ALL) }
     val visibleRoutes = remember(routes, selectedFilter) {
@@ -124,16 +118,24 @@ fun RouteListScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            visibleRoutes.forEach { route ->
-                RouteCard(
-                    route = route,
-                    thumbSize = RouteThumbSize,
-                    onClick = { onRouteClick(route.id) },
-                    onFavoriteClick = { onFavoriteClick(route.id) },
-                    modifier = Modifier
-                        .padding(horizontal = sideInset)
-                        .padding(bottom = 14.dp),
+            if (visibleRoutes.isEmpty()) {
+                Text(
+                    text = "해당 상태의 노선이 없습니다.",
+                    color = MetaGray,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = sideInset, vertical = 24.dp),
                 )
+            } else {
+                visibleRoutes.forEach { route ->
+                    RouteCard(
+                        route = route,
+                        thumbSize = RouteThumbSize,
+                        onClick = { onRouteClick(route.id) },
+                        modifier = Modifier
+                            .padding(horizontal = sideInset)
+                            .padding(bottom = 14.dp),
+                    )
+                }
             }
         }
     }
@@ -144,14 +146,13 @@ private fun RouteListHeader(
     sideInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // Edge-to-edge banner; title text keeps the same side inset as the list below.
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(HeaderIllustAspect),
     ) {
         Image(
-            painter = painterResource(id = R.drawable.route_list_header_illustration),
+            painter = painterResource(id = com.onda.mju.student.R.drawable.route_list_header_illustration),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
@@ -204,16 +205,22 @@ private fun RouteFilterBar(
             modifier = Modifier.weight(1f),
         )
         FilterTab(
-            label = "운행 중",
+            label = "운행중",
             selected = selected == RouteFilter.RUNNING,
             onClick = { onSelected(RouteFilter.RUNNING) },
             modifier = Modifier.weight(1f),
         )
         FilterTab(
-            label = "즐겨찾기",
-            selected = selected == RouteFilter.FAVORITE,
-            onClick = { onSelected(RouteFilter.FAVORITE) },
-            modifier = Modifier.weight(1f),
+            label = "운행 예정",
+            selected = selected == RouteFilter.SCHEDULED,
+            onClick = { onSelected(RouteFilter.SCHEDULED) },
+            modifier = Modifier.weight(1.15f),
+        )
+        FilterTab(
+            label = "운행 종료",
+            selected = selected == RouteFilter.ENDED,
+            onClick = { onSelected(RouteFilter.ENDED) },
+            modifier = Modifier.weight(1.15f),
         )
     }
 }
@@ -236,8 +243,9 @@ private fun FilterTab(
         Text(
             text = label,
             color = if (selected) Color.White else MetaGray,
-            fontSize = 13.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
         )
     }
 }
@@ -247,7 +255,6 @@ private fun RouteCard(
     route: RouteUiModel,
     thumbSize: Dp,
     onClick: () -> Unit,
-    onFavoriteClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -258,15 +265,12 @@ private fun RouteCard(
             .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
             .background(Color.White)
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 28.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Identical circular thumb for every route: fill circle with Crop (no stretch).
             Image(
                 painter = painterResource(id = route.imageRes),
                 contentDescription = route.name,
@@ -282,10 +286,11 @@ private fun RouteCard(
                 Text(
                     text = route.name,
                     color = TitleBlack,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    lineHeight = 20.sp,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -302,16 +307,6 @@ private fun RouteCard(
                 RouteDetailLine(route = route)
             }
         }
-
-        Icon(
-            imageVector = if (route.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-            contentDescription = if (route.isFavorite) "즐겨찾기 해제" else "즐겨찾기 등록",
-            tint = if (route.isFavorite) StarYellow else OndaBlue,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(24.dp)
-                .clickable(onClick = onFavoriteClick),
-        )
     }
 }
 
@@ -320,6 +315,7 @@ private fun RouteStatusBadge(status: RouteStatus) {
     val (bg, label) = when (status) {
         RouteStatus.RUNNING -> RunningBadgeBg to "운행 중"
         RouteStatus.SCHEDULED -> ScheduledBadgeBg to "운행 예정"
+        RouteStatus.ENDED -> EndedBadgeBg to "운행 종료"
     }
     Text(
         text = label,
@@ -339,14 +335,19 @@ private fun RouteDetailLine(route: RouteUiModel) {
     Text(
         text = buildAnnotatedString {
             withStyle(SpanStyle(color = MetaGray, fontWeight = FontWeight.Medium)) {
-                if (route.status == RouteStatus.RUNNING && count != null) {
-                    append("현재 ${count}대 운행 중 | 다음 출발 ")
-                } else {
-                    append("다음 출발 ")
+                when {
+                    route.status == RouteStatus.RUNNING && count != null ->
+                        append("현재 ${count}대 운행 중 | 다음 출발 ")
+                    route.status == RouteStatus.ENDED ->
+                        append("오늘 운행 종료")
+                    else ->
+                        append("다음 출발 ")
                 }
             }
-            withStyle(SpanStyle(color = OndaBlue, fontWeight = FontWeight.Bold)) {
-                append(route.nextDeparture)
+            if (route.status != RouteStatus.ENDED) {
+                withStyle(SpanStyle(color = OndaBlue, fontWeight = FontWeight.Bold)) {
+                    append(route.nextDeparture)
+                }
             }
         },
         fontSize = 12.sp,

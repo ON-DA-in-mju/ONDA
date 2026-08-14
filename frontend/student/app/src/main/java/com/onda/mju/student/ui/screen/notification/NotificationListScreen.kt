@@ -57,14 +57,14 @@ private val ReadMuted = Color(0xFF9CA3AF)
 @Composable
 fun NotificationListScreen(
     notifications: List<NotificationItem>,
-    unreadIds: Set<Int>,
+    unreadIds: Set<String>,
     markAllDone: Boolean,
     modifier: Modifier = Modifier,
     showUnreadOnly: Boolean = false,
     onShowUnreadOnlyChange: (Boolean) -> Unit = {},
     onBackClick: () -> Unit = {},
     onMarkAllRead: () -> Unit = {},
-    onNotificationClick: (Int) -> Unit = {},
+    onNotificationClick: (String) -> Unit = {},
 ) {
     var selectedFilter by remember { mutableStateOf(NotificationFilter.All) }
 
@@ -343,7 +343,7 @@ private fun NotificationListScreenPreview() {
     ONDAStudentTheme {
         NotificationListScreen(
             notifications = sampleNotifications(),
-            unreadIds = setOf(1, 2, 3),
+            unreadIds = setOf("sample-1", "sample-2", "sample-3"),
             markAllDone = false,
         )
     }

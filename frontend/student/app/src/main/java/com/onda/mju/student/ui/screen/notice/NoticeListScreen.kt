@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,16 +58,23 @@ private val SoftBlue = Color(0xFFEDF4FE)
 private val UrgentBg = Color(0xFFFFF1F2)
 private val UrgentRed = Color(0xFFE11D48)
 
+/** Intrinsic ratio of bus_detail_hero.png (159×128). */
+private const val NoticeHeaderIllustAspect = 159f / 128f
+
 @Composable
 fun NoticeListScreen(
     modifier: Modifier = Modifier,
-    notices: List<NoticeItem> = sampleNotices(),
+    notices: List<NoticeItem> = emptyList(),
     onNoticeClick: (String) -> Unit = {},
     onTimetableClick: () -> Unit = {},
     onStopGuideClick: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
-    val filtered = remember(notices, query) { notices.search(query) }
+    var typeFilter by remember { mutableStateOf(NoticeTypeFilter.All) }
+    var typeMenuOpen by remember { mutableStateOf(false) }
+    val filtered = remember(notices, query, typeFilter) {
+        notices.filterByType(typeFilter).search(query)
+    }
 
     Column(
         modifier = modifier
@@ -81,65 +90,120 @@ fun NoticeListScreen(
                 .padding(horizontal = 18.dp)
                 .padding(top = 8.dp),
         ) {
-            Column(modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth(0.62f)) {
+            Column(modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth(0.55f)) {
                 Text("공지사항", color = TitleBlack, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text("셔틀버스 관련 공지를 확인하세요", color = BodyGray, fontSize = 13.sp)
             }
             Image(
-                painter = painterResource(id = R.drawable.notice_header_illustration),
+                painter = painterResource(id = R.drawable.bus_detail_hero),
                 contentDescription = null,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .width(140.dp)
-                    .aspectRatio(170f / 110f),
+                    .align(Alignment.CenterEnd)
+                    .width(148.dp)
+                    .aspectRatio(NoticeHeaderIllustAspect),
                 contentScale = ContentScale.Fit,
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Search, null, tint = BodyGray, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                    decorationBox = { inner ->
-                        if (query.isEmpty()) {
-                            Text("공지 제목을 검색하세요", color = BodyGray, fontSize = 13.sp)
-                        }
-                        inner()
-                    },
-                )
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Search, null, tint = BodyGray, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            if (query.isEmpty()) {
+                                Text("공지 제목을 검색하세요", color = BodyGray, fontSize = 13.sp)
+                            }
+                            inner()
+                        },
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .height(44.dp)
+                        .border(
+                            width = if (typeMenuOpen) 1.5.dp else 1.dp,
+                            color = if (typeMenuOpen || typeFilter != NoticeTypeFilter.All) {
+                                OndaBlue
+                            } else {
+                                CardBorder
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { typeMenuOpen = !typeMenuOpen }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Tune, null, tint = OndaBlue, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        typeFilter.label,
+                        color = TitleBlack,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        null,
+                        tint = if (typeMenuOpen) OndaBlue else BodyGray,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
-            Row(
-                modifier = Modifier
-                    .height(44.dp)
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Tune, null, tint = OndaBlue, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("전체", color = TitleBlack, fontSize = 13.sp)
-                Icon(Icons.Filled.KeyboardArrowDown, null, tint = BodyGray, modifier = Modifier.size(18.dp))
+
+            if (typeMenuOpen) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .heightIn(max = 240.dp)
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White),
+                ) {
+                    NoticeTypeFilter.entries.forEach { option ->
+                        val selected = option == typeFilter
+                        Text(
+                            text = option.label,
+                            color = if (selected) OndaBlue else TitleBlack,
+                            fontSize = 13.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    typeFilter = option
+                                    typeMenuOpen = false
+                                }
+                                .background(if (selected) SoftBlue else Color.Transparent)
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                        )
+                    }
+                }
             }
         }
 
@@ -171,11 +235,28 @@ fun NoticeListScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            filtered.forEach { item ->
-                if (item.isUrgentCard) {
-                    UrgentNoticeCard(item = item, onClick = { onNoticeClick(item.id) })
-                } else {
-                    StandardNoticeCard(item = item, onClick = { onNoticeClick(item.id) })
+            if (filtered.isEmpty()) {
+                Text(
+                    text = when {
+                        notices.isEmpty() -> "등록된 공지가 없습니다."
+                        query.isNotBlank() || typeFilter != NoticeTypeFilter.All ->
+                            "조건에 맞는 공지가 없습니다."
+                        else -> "등록된 공지가 없습니다."
+                    },
+                    color = BodyGray,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 28.dp),
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                filtered.forEach { item ->
+                    if (item.isUrgentCard) {
+                        UrgentNoticeCard(item = item, onClick = { onNoticeClick(item.id) })
+                    } else {
+                        StandardNoticeCard(item = item, onClick = { onNoticeClick(item.id) })
+                    }
                 }
             }
         }
@@ -237,7 +318,7 @@ private fun UrgentNoticeCard(item: NoticeItem, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(item.title, color = TitleBlack, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(item.datetimeLabel(), color = BodyGray, fontSize = 11.sp)
+            Text(item.datetime, color = BodyGray, fontSize = 11.sp)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
     }
@@ -292,7 +373,7 @@ private fun StandardNoticeCard(item: NoticeItem, onClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                item.datetimeLabel(),
+                if (item.edited) "${item.datetime} · 수정" else item.datetime,
                 color = BodyGray,
                 fontSize = 11.sp,
             )

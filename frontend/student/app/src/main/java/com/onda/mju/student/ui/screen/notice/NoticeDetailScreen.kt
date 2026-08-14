@@ -1,10 +1,9 @@
 package com.onda.mju.student.ui.screen.notice
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Button
@@ -36,15 +36,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 
 private val OndaBlue = Color(0xFF0041F1)
 private val TitleBlack = Color(0xFF111827)
@@ -52,7 +49,6 @@ private val BodyGray = Color(0xFF6B7280)
 private val CardBorder = Color(0xFFE8EDF2)
 private val SoftBlue = Color(0xFFEDF4FE)
 private val UrgentBg = Color(0xFFFFF1F2)
-private val UrgentRed = Color(0xFFE11D48)
 
 @Composable
 fun NoticeDetailScreen(
@@ -60,8 +56,10 @@ fun NoticeDetailScreen(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
+    onAttachmentClick: (NoticeAttachment) -> Unit = {},
 ) {
-    val context = LocalContext.current
+    val attachments = item.resolvedAttachments
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -97,14 +95,17 @@ fun NoticeDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(UrgentBg, RoundedCornerShape(14.dp))
+                    .background(
+                        if (item.isUrgentCard) UrgentBg else SoftBlue,
+                        RoundedCornerShape(14.dp),
+                    )
                     .padding(14.dp),
             ) {
                 Box(
                     modifier = Modifier
                         .width(4.dp)
                         .height(72.dp)
-                        .background(UrgentRed, RoundedCornerShape(999.dp)),
+                        .background(item.badge.color, RoundedCornerShape(999.dp)),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -115,64 +116,32 @@ fun NoticeDetailScreen(
                                 .background(Color.White, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(item.icon, null, tint = UrgentRed, modifier = Modifier.size(16.dp))
+                            Icon(item.icon, null, tint = item.badge.color, modifier = Modifier.size(16.dp))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(item.badge.label, color = UrgentRed, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(
+                            item.badge.label,
+                            color = item.badge.color,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                        )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(item.title, color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 24.sp)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(item.datetimeLabel().replace(" / ", " · "), color = BodyGray, fontSize = 12.sp)
+                    Text(item.datetime.replace(" / ", " · "), color = BodyGray, fontSize = 12.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            if (Regex("<\\s*[a-zA-Z]").containsMatchIn(item.body)) {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth(),
-                    factory = { ctx ->
-                        android.webkit.WebView(ctx).apply {
-                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            settings.javaScriptEnabled = false
-                        }
-                    },
-                    update = { webView ->
-                        val wrapped = """
-                            <html><head>
-                            <meta charset="utf-8"/>
-                            <meta name="viewport" content="width=device-width,initial-scale=1"/>
-                            <style>
-                              body{margin:0;padding:0;color:#111827;font-size:14px;line-height:22px;font-family:sans-serif;}
-                              img{max-width:100%;height:auto;}
-                              a{color:#0041F1;}
-                            </style>
-                            </head><body>${item.body}</body></html>
-                        """.trimIndent()
-                        webView.loadDataWithBaseURL(null, wrapped, "text/html", "utf-8", null)
-                    },
+            if (item.body.isNotBlank()) {
+                Text(
+                    text = item.body,
+                    color = TitleBlack,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
                 )
-            } else {
-            val highlight = "오늘 18시 이후 모든 셔틀 운행을 종료합니다."
-            Text(
-                text = buildAnnotatedString {
-                    val body = item.body
-                    val idx = body.indexOf(highlight)
-                    if (idx >= 0) {
-                        append(body.substring(0, idx))
-                        withStyle(SpanStyle(color = UrgentRed, fontWeight = FontWeight.Bold)) {
-                            append(highlight)
-                        }
-                        append(body.substring(idx + highlight.length))
-                    } else {
-                        append(body)
-                    }
-                },
-                color = TitleBlack,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
-            )
             }
 
             if (item.relatedRoutes.isNotEmpty()) {
@@ -195,34 +164,17 @@ fun NoticeDetailScreen(
                 }
             }
 
-            if (item.attachments.isNotEmpty()) {
+            if (attachments.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(22.dp))
-                Text("첨부 파일", color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("첨부파일", color = TitleBlack, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Spacer(modifier = Modifier.height(10.dp))
-                item.attachments.forEach { file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Filled.PictureAsPdf, null, tint = OndaBlue, modifier = Modifier.size(28.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("첨부된 파일: ${file.name}", color = TitleBlack, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        IconButton(
-                            onClick = {
-                                runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(file.url)))
-                                }
-                            },
-                        ) {
-                            Icon(Icons.Filled.Download, null, tint = OndaBlue)
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    attachments.forEach { file ->
+                        NoticeAttachmentRow(
+                            attachment = file,
+                            onClick = { onAttachmentClick(file) },
+                        )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
@@ -241,4 +193,57 @@ fun NoticeDetailScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun NoticeAttachmentRow(
+    attachment: NoticeAttachment,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(SoftBlue, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = attachmentIcon(attachment.name),
+                contentDescription = null,
+                tint = OndaBlue,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = attachment.name,
+                color = TitleBlack,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = attachment.meta ?: if (attachment.url != null) "탭하여 열기" else "첨부파일",
+                color = BodyGray,
+                fontSize = 11.sp,
+            )
+        }
+        IconButton(onClick = onClick) {
+            Icon(Icons.Filled.Download, contentDescription = "첨부파일 열기", tint = OndaBlue)
+        }
+    }
+}
+
+private fun attachmentIcon(name: String): ImageVector {
+    val ext = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+    return if (ext == "pdf") Icons.Filled.PictureAsPdf else Icons.Filled.InsertDriveFile
 }

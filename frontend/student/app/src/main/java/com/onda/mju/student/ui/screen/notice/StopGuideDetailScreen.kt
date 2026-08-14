@@ -82,7 +82,7 @@ fun StopGuideDetailScreen(
                 locationGuide = "$stopId 정류장에서 탑승할 수 있습니다.",
                 landmarks = listOf(stopId),
                 availableRoutes = emptyList(),
-                thumbRes = R.drawable.route_thumb_city,
+                thumbRes = StopPhotoResources.forStopName(stopId),
             )
     }
     var favorite by remember { mutableStateOf(false) }
@@ -136,7 +136,7 @@ fun StopGuideDetailScreen(
                     .background(SoftBlue),
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.stop_detail_hero),
+                    painter = painterResource(id = stop.thumbRes),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -215,8 +215,8 @@ fun StopGuideDetailScreen(
                 Text("정류장 주변 실제 모습", color = BodyGray, fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(10.dp))
                 Image(
-                    painter = painterResource(id = R.drawable.stop_street_view),
-                    contentDescription = "거리뷰",
+                    painter = painterResource(id = stop.thumbRes),
+                    contentDescription = "정류장 사진",
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))

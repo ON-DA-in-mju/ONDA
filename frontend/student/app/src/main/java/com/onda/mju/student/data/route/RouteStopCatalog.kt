@@ -27,14 +27,14 @@ object RouteStopCatalog {
     ) {
         val configs = LinkedHashMap<String, RouteStopConfig>()
         val infos = LinkedHashMap<String, List<RouteStopInfo>>()
-        for (uiId in StudentRouteIds.orderedUiIds) {
-            val operationalName = OperationalRouteResolver.resolveOperationalRouteName(
-                StudentRouteIds.dbNameForUiId(uiId),
-                date = date,
-            )
-            val stops = stopsByRouteName[operationalName]
-                ?: stopsByRouteName[StudentRouteIds.dbNameForUiId(uiId)]
-                ?: emptyList()
+        // 노선 탭 4종 각각 DB route_name 그대로 매칭 (시내 평일 ≠ 주말·방학)
+        for (uiId in StudentRouteIds.routeListUiIds) {
+            val dbName = StudentRouteIds.dbNameForUiId(uiId)
+            val stops = stopsByRouteName[dbName].orEmpty().ifEmpty {
+                // 오늘 운행 기준 폴백 (구 DB에 방학 노선이 없을 때)
+                val fallback = OperationalRouteResolver.resolveOperationalRouteName(dbName, date)
+                if (fallback != dbName) stopsByRouteName[fallback].orEmpty() else emptyList()
+            }
             if (stops.isNotEmpty()) {
                 infos[uiId] = stops
                 configs[uiId] = configFromStops(uiId, stops)

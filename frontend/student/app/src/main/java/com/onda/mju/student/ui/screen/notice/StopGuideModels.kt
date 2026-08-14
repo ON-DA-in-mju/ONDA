@@ -23,14 +23,16 @@ data class StopGuideItem(
 
 /** Offline placeholder when DB catalog is empty. */
 fun emptyStopGuideRoutes(): List<StopGuideRouteInfo> =
-    StudentRouteIds.orderedUiIds.map { uiId ->
+    StudentRouteIds.routeListUiIds.map { uiId ->
         StopGuideRouteInfo(
             id = StudentRouteIds.guideUiId(uiId),
             title = StudentRouteIds.displayName(uiId),
             description = when (uiId) {
                 StudentRouteIds.GIHEUNG -> "명지대학교와 기흥역을 연결하는 셔틀버스 노선입니다."
                 StudentRouteIds.MYEONGJI_STATION -> "명지대학교와 명지대역을 연결하는 셔틀버스 노선입니다."
-                else -> "학교와 용인 시내 주요 정류장을 연결하는 시내 셔틀버스 노선입니다."
+                StudentRouteIds.CITY_SHUTTLE_VACATION ->
+                    "공휴일·주말·방학 중 운행하는 시내 셔틀버스 노선입니다."
+                else -> "학기 중 평일에 운행하는 시내 셔틀버스 노선입니다."
             },
             thumbRes = StudentRouteIds.imageRes(uiId),
         )

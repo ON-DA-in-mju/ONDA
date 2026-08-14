@@ -48,6 +48,7 @@ fun List<RouteUiModel>.toFavoriteRoutes(): List<FavoriteRoute> =
             status = when (route.status) {
                 RouteStatus.RUNNING -> "운행 중"
                 RouteStatus.SCHEDULED -> "운행 예정"
+                RouteStatus.ENDED -> "운행 종료"
             },
             nextDeparture = route.nextDeparture,
             operatingCount = route.activeVehicleCount?.let { "${it}대" } ?: "-",
@@ -59,11 +60,24 @@ fun List<RouteUiModel>.toFavoriteRoutes(): List<FavoriteRoute> =
         )
     }
 
+fun List<RouteUiModel>.toFavoriteRoutes(favoriteRouteIds: Set<String>): List<FavoriteRoute> {
+    if (favoriteRouteIds.isEmpty()) return emptyList()
+    val ordered = StudentRouteIds.routeListUiIds.filter { it in favoriteRouteIds } +
+        favoriteRouteIds.filter { it !in StudentRouteIds.routeListUiIds }
+    return ordered.mapNotNull { id -> firstOrNull { it.id == id } }.toFavoriteRoutes()
+}
+
 fun buildFavoriteStops(
     guideItems: List<StopGuideItem>,
-    limit: Int = 8,
-): List<FavoriteStop> =
-    guideItems.take(limit).map { item ->
+    favoriteStopIds: Set<String> = emptySet(),
+    limit: Int = 50,
+): List<FavoriteStop> {
+    val source = if (favoriteStopIds.isEmpty()) {
+        emptyList()
+    } else {
+        guideItems.filter { it.id in favoriteStopIds }
+    }
+    return source.take(limit).map { item ->
         FavoriteStop(
             id = item.id,
             name = item.name,
@@ -82,6 +96,7 @@ fun buildFavoriteStops(
             },
         )
     }
+}
 
 @Deprecated("Use routes/stops from DB", ReplaceWith("emptyList()"))
 fun sampleFavoriteRoutes(): List<FavoriteRoute> = emptyList()

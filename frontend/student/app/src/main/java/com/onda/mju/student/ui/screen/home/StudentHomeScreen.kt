@@ -6,15 +6,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,13 +31,14 @@ import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Subway
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -54,15 +56,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
 import com.onda.mju.student.core.calendar.AcademicCalendar
+import com.onda.mju.student.data.route.StudentRouteIds
 import com.onda.mju.student.ui.screen.notification.formatUnreadBadgeLabel
 import com.onda.mju.student.ui.screen.route.RouteStatus
 import com.onda.mju.student.ui.screen.route.RouteUiModel
@@ -99,30 +103,24 @@ fun StudentHomeScreen(
     operationLastUpdatedAtMillis: Long = System.currentTimeMillis(),
     scheduleKindLabel: String = AcademicCalendar.todayScheduleKindLabel(),
     routes: List<RouteUiModel> = sampleRouteList(),
+    favoriteRoutes: List<RouteUiModel> = emptyList(),
     onNotificationClick: () -> Unit = {},
-    onStatusTimetableClick: () -> Unit = {},
     onNoticeBannerClick: () -> Unit = {},
     onFavoriteManageClick: () -> Unit = {},
-    onFavoriteClick: () -> Unit = {},
+    onFavoriteClick: (String) -> Unit = {},
     onRouteShortcutClick: (String) -> Unit = {},
     onQuickActionClick: (String) -> Unit = {},
 ) {
-    BoxWithConstraints(
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val sideInset = (screenWidthDp * SideInsetFraction).coerceIn(16.dp, 22.dp)
+
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(Color.White)
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState()),
     ) {
-        val density = LocalDensity.current
-        val sideInset = with(density) {
-            (maxWidth.toPx() * SideInsetFraction).toDp()
-        }.coerceIn(16.dp, 22.dp)
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState()),
-        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -138,40 +136,40 @@ fun StudentHomeScreen(
                     onClick = onNotificationClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 2.dp, end = 6.dp),
+                        .padding(top = 4.dp, end = 8.dp),
                 ) {
                     val badgeLabel = formatUnreadBadgeLabel(unreadNotificationCount)
                         .ifEmpty { null }
                     Box(
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(32.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Notifications,
                             contentDescription = "알림",
                             tint = OndaBlue,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(26.dp),
                         )
                         if (badgeLabel != null) {
                             val isMulti = badgeLabel.length > 1
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .offset(x = 1.dp, y = (-1).dp)
-                                    .height(15.dp)
-                                    .defaultMinSize(minWidth = 15.dp)
-                                    .border(1.25.dp, Color.White, RoundedCornerShape(999.dp))
+                                    .offset(x = 2.dp, y = (-2).dp)
+                                    .height(16.dp)
+                                    .defaultMinSize(minWidth = 16.dp)
+                                    .border(1.5.dp, Color.White, RoundedCornerShape(999.dp))
                                     .clip(RoundedCornerShape(999.dp))
                                     .background(UnreadBadgeRed)
-                                    .padding(horizontal = if (isMulti) 3.5.dp else 0.dp),
+                                    .padding(horizontal = if (isMulti) 4.dp else 0.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     text = badgeLabel,
                                     color = Color.White,
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    lineHeight = 9.sp,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 11.sp,
                                     maxLines = 1,
                                 )
                             }
@@ -189,7 +187,6 @@ fun StudentHomeScreen(
                 OperationStatusCard(
                     lastUpdatedAtMillis = operationLastUpdatedAtMillis,
                     scheduleKindLabel = scheduleKindLabel,
-                    onTimetableClick = onStatusTimetableClick,
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -207,10 +204,18 @@ fun StudentHomeScreen(
                     onActionClick = onFavoriteManageClick,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                FavoriteCard(
-                    route = routes.firstOrNull { it.id == "giheung" } ?: routes.firstOrNull(),
-                    onClick = onFavoriteClick,
-                )
+                if (favoriteRoutes.isEmpty()) {
+                    FavoriteEmptyCard(onManageClick = onFavoriteManageClick)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        favoriteRoutes.forEach { route ->
+                            FavoriteCard(
+                                route = route,
+                                onClick = { onFavoriteClick(route.id) },
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -237,7 +242,6 @@ fun StudentHomeScreen(
                 Spacer(modifier = Modifier.height(10.dp))
                 QuickActionRow(onActionClick = onQuickActionClick)
             }
-        }
     }
 }
 
@@ -245,7 +249,6 @@ fun StudentHomeScreen(
 private fun OperationStatusCard(
     lastUpdatedAtMillis: Long,
     scheduleKindLabel: String,
-    onTimetableClick: () -> Unit,
 ) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(lastUpdatedAtMillis) {
@@ -315,30 +318,6 @@ private fun OperationStatusCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onTimetableClick)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "시간표 확인하기",
-                    color = OndaBlue,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = OndaBlue,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
         }
     }
 }
@@ -358,7 +337,7 @@ private fun NoticeBanner(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Outlined.Campaign,
+            imageVector = Icons.Filled.Campaign,
             contentDescription = null,
             tint = OndaBlue,
             modifier = Modifier.size(22.dp),
@@ -434,14 +413,57 @@ private fun SectionHeader(
 }
 
 @Composable
+private fun FavoriteEmptyCard(
+    onManageClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .clickable(onClick = onManageClick)
+            .padding(horizontal = 14.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.StarBorder,
+            contentDescription = null,
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "즐겨찾기한 노선이 없습니다",
+                color = TitleBlack,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "관리에서 자주 쓰는 노선을 추가하세요",
+                color = Color(0xFF64748B),
+                fontSize = 12.sp,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+@Composable
 private fun FavoriteCard(
-    route: RouteUiModel?,
+    route: RouteUiModel,
     onClick: () -> Unit,
 ) {
-    val statusLabel = route?.homeStatusBadgeText() ?: "운행 예정"
-    val (badgeBg, badgeFg) = route?.homeStatusBadgeColors()
-        ?: (BadgePendingBg to BadgePendingText)
-    val detailText = route?.homeFavoriteDetailText() ?: "다음 출발 -"
+    val statusLabel = route.homeStatusBadgeText()
+    val (badgeBg, badgeFg) = route.homeStatusBadgeColors()
+    val detailText = route.homeFavoriteDetailText()
 
     Row(
         modifier = Modifier
@@ -478,7 +500,7 @@ private fun FavoriteCard(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = route?.name ?: "기흥역 통학버스",
+                    text = route.name,
                     color = TitleBlack,
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -516,22 +538,41 @@ private fun RouteShortcutRow(
     } else {
         sampleRouteList()
     }
-    Row(
+    // 2열 그리드 — 카드 높이·너비 통일
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        shortcutRoutes.forEach { route ->
-            val (badgeBg, badgeFg) = route.homeStatusBadgeColors()
-            RouteShortcutCard(
-                icon = route.homeShortcutIcon(),
-                title = route.name,
-                badge = route.homeShortcutBadgeText(),
-                badgeBg = badgeBg,
-                badgeFg = badgeFg,
-                nextDeparture = "다음 출발 ${route.nextDeparture}",
-                onClick = { onRouteClick(route.id) },
-                modifier = Modifier.weight(1f),
-            )
+        shortcutRoutes.chunked(2).forEach { rowRoutes ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(158.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowRoutes.forEach { route ->
+                    val (badgeBg, badgeFg) = route.homeStatusBadgeColors()
+                    RouteShortcutCard(
+                        icon = route.homeShortcutIcon(),
+                        title = route.homeShortcutTitle(),
+                        badge = route.homeShortcutBadgeText(),
+                        badgeBg = badgeBg,
+                        badgeFg = badgeFg,
+                        nextDeparture = when (route.status) {
+                            RouteStatus.ENDED -> "오늘 운행 종료"
+                            else -> "다음 출발 ${route.nextDeparture}"
+                        },
+                        onClick = { onRouteClick(route.id) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                }
+                // 홀수 개일 때 빈 칸으로 너비 맞춤
+                if (rowRoutes.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -539,6 +580,7 @@ private fun RouteShortcutRow(
 private fun RouteUiModel.homeStatusBadgeText(): String = when (status) {
     RouteStatus.RUNNING -> "운행 중"
     RouteStatus.SCHEDULED -> "운행 예정"
+    RouteStatus.ENDED -> "운행 종료"
 }
 
 private fun RouteUiModel.homeShortcutBadgeText(): String = when (status) {
@@ -547,11 +589,13 @@ private fun RouteUiModel.homeShortcutBadgeText(): String = when (status) {
         if (count != null) "${count}대 운행 중" else "운행 중"
     }
     RouteStatus.SCHEDULED -> "운행 예정"
+    RouteStatus.ENDED -> "운행 종료"
 }
 
 private fun RouteUiModel.homeStatusBadgeColors(): Pair<Color, Color> = when (status) {
     RouteStatus.RUNNING -> BadgeGreenBg to BadgeGreenText
     RouteStatus.SCHEDULED -> BadgePendingBg to BadgePendingText
+    RouteStatus.ENDED -> Color(0xFFF3F4F6) to Color(0xFF6B7280)
 }
 
 private fun RouteUiModel.homeFavoriteDetailText(): String {
@@ -563,9 +607,19 @@ private fun RouteUiModel.homeFavoriteDetailText(): String {
     }
 }
 
+/** 홈 바로가기용 짧은 제목 (카드 높이 맞춤) */
+private fun RouteUiModel.homeShortcutTitle(): String = when (id) {
+    StudentRouteIds.GIHEUNG -> "기흥역 통학버스"
+    StudentRouteIds.MYEONGJI_STATION -> "명지대역 셔틀"
+    StudentRouteIds.CITY_SHUTTLE -> "시내 셔틀"
+    StudentRouteIds.CITY_SHUTTLE_VACATION -> "시내 셔틀\n(주말·방학)"
+    else -> name
+}
+
 private fun RouteUiModel.homeShortcutIcon(): ImageVector = when (id) {
-    "myeongji_station" -> Icons.Filled.Subway
-    "city_shuttle" -> Icons.Filled.Apartment
+    StudentRouteIds.MYEONGJI_STATION -> Icons.Filled.Subway
+    StudentRouteIds.CITY_SHUTTLE -> Icons.Filled.Apartment
+    StudentRouteIds.CITY_SHUTTLE_VACATION -> Icons.Filled.DirectionsBus
     else -> Icons.Filled.DirectionsBus
 }
 
@@ -586,12 +640,12 @@ private fun RouteShortcutCard(
             .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
             .background(Color.White)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 14.dp),
+            .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(SoftBlueBg),
             contentAlignment = Alignment.Center,
@@ -600,21 +654,27 @@ private fun RouteShortcutCard(
                 imageVector = icon,
                 contentDescription = null,
                 tint = OndaBlue,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,
             color = TitleBlack,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
+            minLines = 2,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            lineHeight = 16.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 32.dp),
         )
         Spacer(modifier = Modifier.height(8.dp))
         StatusPill(text = badge, bg = badgeBg, fg = badgeFg)
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.weight(1f))
         Text(
             text = nextDeparture,
             color = OndaBlue,
@@ -622,6 +682,8 @@ private fun RouteShortcutCard(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -645,13 +707,13 @@ private fun QuickActionRow(onActionClick: (String) -> Unit) {
             modifier = Modifier.weight(1f),
         )
         QuickActionButton(
-            icon = Icons.Outlined.Campaign,
-            label = "공지사항",
-            onClick = { onActionClick("공지사항") },
+            icon = Icons.Filled.EditNote,
+            label = "글쓰기",
+            onClick = { onActionClick("글쓰기") },
             modifier = Modifier.weight(1f),
         )
         QuickActionButton(
-            icon = Icons.Filled.EditNote,
+            icon = Icons.Filled.Edit,
             label = "간편 제보",
             onClick = { onActionClick("간편 제보") },
             modifier = Modifier.weight(1f),

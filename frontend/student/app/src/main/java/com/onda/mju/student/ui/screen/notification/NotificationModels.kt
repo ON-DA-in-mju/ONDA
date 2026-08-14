@@ -19,7 +19,7 @@ enum class NotificationFilter(val label: String) {
 }
 
 data class NotificationItem(
-    val id: Int,
+    val id: String,
     val categoryLabel: String,
     val categoryColor: Color,
     val iconBg: Color,
@@ -31,6 +31,7 @@ data class NotificationItem(
     val filters: Set<NotificationFilter>,
     val initiallyUnread: Boolean,
     val detail: NotificationDetail,
+    val sortInstantMillis: Long = 0L,
 )
 
 data class NotificationDetail(
@@ -92,8 +93,8 @@ fun List<NotificationItem>.latestHomeNotice(): NotificationItem? =
     filter { it.categoryLabel in HomeBannerCategories }
         .maxByOrNull { it.detail.datetime }
 
-/** Unread count from the shared unread-id set (Mock now; swap source later for Supabase). */
-fun unreadNotificationCount(unreadIds: Set<Int>): Int = unreadIds.size
+/** Unread count from the shared unread-id set. */
+fun unreadNotificationCount(unreadIds: Set<String>): Int = unreadIds.size
 
 /** Badge label for the home bell; empty when there are no unread alerts. */
 fun formatUnreadBadgeLabel(unreadCount: Int): String = when {
@@ -104,7 +105,7 @@ fun formatUnreadBadgeLabel(unreadCount: Int): String = when {
 
 fun sampleNotifications(): List<NotificationItem> = listOf(
     NotificationItem(
-        id = 1,
+        id = "sample-1",
         categoryLabel = "긴급 공지",
         categoryColor = EmergencyRed,
         iconBg = EmergencyIconBg,
@@ -115,6 +116,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "2분 전",
         filters = setOf(NotificationFilter.Important, NotificationFilter.Operation),
         initiallyUnread = true,
+        sortInstantMillis = 1,
         detail = NotificationDetail(
             categoryLabel = "긴급 공지",
             categoryColor = EmergencyRed,
@@ -130,7 +132,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         ),
     ),
     NotificationItem(
-        id = 2,
+        id = "sample-2",
         categoryLabel = "운행 변경",
         categoryColor = OperationBlue,
         iconBg = OperationIconBg,
@@ -141,6 +143,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "10분 전",
         filters = setOf(NotificationFilter.Operation),
         initiallyUnread = true,
+        sortInstantMillis = 2,
         detail = NotificationDetail(
             categoryLabel = "운행 변경",
             categoryColor = OperationBlue,
@@ -163,7 +166,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         ),
     ),
     NotificationItem(
-        id = 3,
+        id = "sample-3",
         categoryLabel = "하차 알림",
         categoryColor = AlightTeal,
         iconBg = AlightIconBg,
@@ -174,6 +177,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "3분 전",
         filters = setOf(NotificationFilter.Alight),
         initiallyUnread = true,
+        sortInstantMillis = 3,
         detail = NotificationDetail(
             categoryLabel = "하차 알림",
             categoryColor = AlightTeal,
@@ -189,7 +193,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         ),
     ),
     NotificationItem(
-        id = 4,
+        id = "sample-4",
         categoryLabel = "운행 시작",
         categoryColor = StartPurple,
         iconBg = StartIconBg,
@@ -200,6 +204,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "15분 전",
         filters = setOf(NotificationFilter.Operation),
         initiallyUnread = false,
+        sortInstantMillis = 4,
         detail = NotificationDetail(
             categoryLabel = "운행 시작",
             categoryColor = StartPurple,
@@ -217,7 +222,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         ),
     ),
     NotificationItem(
-        id = 5,
+        id = "sample-5",
         categoryLabel = "공지",
         categoryColor = NoticeOrange,
         iconBg = NoticeIconBg,
@@ -228,6 +233,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "1시간 전",
         filters = setOf(NotificationFilter.Operation),
         initiallyUnread = false,
+        sortInstantMillis = 5,
         detail = NotificationDetail(
             categoryLabel = "공지",
             categoryColor = NoticeOrange,
@@ -243,7 +249,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         ),
     ),
     NotificationItem(
-        id = 6,
+        id = "sample-6",
         categoryLabel = "서비스",
         categoryColor = ServiceGray,
         iconBg = ServiceIconBg,
@@ -254,6 +260,7 @@ fun sampleNotifications(): List<NotificationItem> = listOf(
         timeLabel = "3시간 전",
         filters = setOf(NotificationFilter.Service),
         initiallyUnread = false,
+        sortInstantMillis = 6,
         detail = NotificationDetail(
             categoryLabel = "서비스",
             categoryColor = ServiceGray,

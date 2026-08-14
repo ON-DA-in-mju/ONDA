@@ -28,8 +28,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -171,10 +169,6 @@ fun RouteLiveScreen(
         if (prev != next) {
             trackerByVehicle = trackerByVehicle + (trackerKey to next)
         }
-    }
-
-    var alertStops by remember(routeId, directionIndex) {
-        mutableStateOf(emptySet<String>())
     }
 
     val locationAgeSeconds = remember(selectedLiveVehicle?.recordedAt, nowMillis) {
@@ -411,10 +405,6 @@ fun RouteLiveScreen(
 
             StopTimeline(
                 progress = timelineProgress,
-                alertStops = alertStops,
-                onToggleAlert = { stopId ->
-                    alertStops = if (stopId in alertStops) alertStops - stopId else alertStops + stopId
-                },
                 onStopClick = onStopClick,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -434,8 +424,6 @@ fun RouteLiveScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text("• 예상 도착시간은 교통상황에 따라 변경될 수 있어요.", color = OndaBlue, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("• 하차 알림은 선택한 정류장 기준으로 설정됩니다.", color = OndaBlue, fontSize = 12.sp)
                     }
                 }
             }
@@ -452,8 +440,6 @@ private val TimelineRailWidth = 28.dp
 @Composable
 private fun StopTimeline(
     progress: StopTimelineProgress,
-    alertStops: Set<String>,
-    onToggleAlert: (String) -> Unit,
     onStopClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -573,17 +559,6 @@ private fun StopTimeline(
                                 fontSize = 12.sp,
                             )
                         }
-                    }
-                    IconButton(onClick = { onToggleAlert(stop.id) }) {
-                        Icon(
-                            imageVector = if (stop.id in alertStops) {
-                                Icons.Filled.Notifications
-                            } else {
-                                Icons.Filled.NotificationsOff
-                            },
-                            contentDescription = "하차 알림",
-                            tint = if (stop.id in alertStops) OndaBlue else BodyGray,
-                        )
                     }
                 }
             }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Policy
@@ -55,6 +56,9 @@ private val BodyGray = Color(0xFF6B7280)
 private val CardBorder = Color(0xFFE8EDF2)
 private val SoftBlue = Color(0xFFEDF4FE)
 
+/** Intrinsic ratio of bus_detail_hero.png (159×128). */
+private const val MyHeaderIllustAspect = 159f / 128f
+
 @Composable
 fun MyHomeScreen(
     modifier: Modifier = Modifier,
@@ -64,6 +68,7 @@ fun MyHomeScreen(
     onFavoriteManageClick: () -> Unit = {},
     onNotificationSettingClick: () -> Unit = {},
     onMyReportsClick: () -> Unit = {},
+    onMyPostsClick: () -> Unit = {},
     onPrivacyClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
@@ -76,25 +81,42 @@ fun MyHomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
-        Text(
-            text = "MY",
-            color = TitleBlack,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.settings_header_illustration),
-            contentDescription = null,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .aspectRatio(360f / 120f),
-            contentScale = ContentScale.Fit,
-        )
+                .padding(horizontal = 18.dp)
+                .padding(top = 8.dp, bottom = 4.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth(0.55f),
+            ) {
+                Text(
+                    text = "MY",
+                    color = TitleBlack,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "계정과 설정을 관리하세요",
+                    color = BodyGray,
+                    fontSize = 13.sp,
+                )
+            }
+            Image(
+                painter = painterResource(id = R.drawable.bus_detail_hero),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(148.dp)
+                    .aspectRatio(MyHeaderIllustAspect),
+                contentScale = ContentScale.Fit,
+            )
+        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Row(
             modifier = Modifier
@@ -134,6 +156,8 @@ fun MyHomeScreen(
             MenuRow(Icons.Filled.Notifications, "알림 설정", onNotificationSettingClick)
             HorizontalDivider(color = CardBorder)
             MenuRow(Icons.Filled.Campaign, "내 제보 내역", onMyReportsClick)
+            HorizontalDivider(color = CardBorder)
+            MenuRow(Icons.Filled.EditNote, "내가 쓴 글", onMyPostsClick)
             HorizontalDivider(color = CardBorder)
             MenuRow(Icons.Filled.Policy, "개인정보 처리방침", onPrivacyClick)
             HorizontalDivider(color = CardBorder)

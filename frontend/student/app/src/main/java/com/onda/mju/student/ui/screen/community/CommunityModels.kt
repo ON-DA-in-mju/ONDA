@@ -18,6 +18,16 @@ enum class CommunityFilter(val label: String) {
     Traffic("교통 정체"),
 }
 
+enum class ReportReaction(val dbValue: String) {
+    Like("LIKE"),
+    Dislike("DISLIKE");
+
+    companion object {
+        fun fromDb(value: String?): ReportReaction? =
+            entries.firstOrNull { it.dbValue.equals(value, ignoreCase = true) }
+    }
+}
+
 enum class ReportType(
     val label: String,
     val color: Color,
@@ -48,7 +58,34 @@ data class CommunityReport(
     val vehicleLabel: String = "2호차",
     val registeredAt: String = "2026.06.20 16:42",
     val isValid: Boolean = true,
+    /** public.reports.user_id — DB 연동 시 본인 제보 구분용 */
+    val userId: String = "",
+    /** public.reports.status: PENDING | PROCESSING | COMPLETED */
+    val status: String = "PENDING",
+    /** 현재 로그인 사용자의 반응 (없으면 null) */
+    val myReaction: ReportReaction? = null,
+    val commentCount: Int = 0,
+    /** 고유 조회수 (몇 명이 봤는지) */
+    val viewCount: Int = 0,
 )
+
+/** 좋아요/싫어요 토글 후 카운트·내 반응을 로컬에 반영 */
+fun CommunityReport.withToggledReaction(target: ReportReaction): CommunityReport {
+    val next = if (myReaction == target) null else target
+    var likes = likeCount
+    var dislikes = dislikeCount
+    when (myReaction) {
+        ReportReaction.Like -> likes = (likes - 1).coerceAtLeast(0)
+        ReportReaction.Dislike -> dislikes = (dislikes - 1).coerceAtLeast(0)
+        null -> Unit
+    }
+    when (next) {
+        ReportReaction.Like -> likes += 1
+        ReportReaction.Dislike -> dislikes += 1
+        null -> Unit
+    }
+    return copy(likeCount = likes, dislikeCount = dislikes, myReaction = next)
+}
 
 fun sampleCommunityReports(): List<CommunityReport> = listOf(
     CommunityReport(
@@ -132,6 +169,8 @@ fun createCommunityReport(
     dislikeCount: Int = 0,
     registeredAt: String = "방금 전",
     isValid: Boolean = true,
+    userId: String = "",
+    status: String = "PENDING",
 ): CommunityReport = CommunityReport(
     id = id,
     type = type,
@@ -147,4 +186,6 @@ fun createCommunityReport(
     vehicleLabel = vehicleLabel,
     registeredAt = registeredAt,
     isValid = isValid,
+    userId = userId,
+    status = status,
 )

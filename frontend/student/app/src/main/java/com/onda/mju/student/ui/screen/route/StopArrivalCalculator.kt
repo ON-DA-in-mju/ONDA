@@ -44,7 +44,7 @@ fun resolveStopSelection(
         routeIdHint?.takeIf { it.isNotBlank() }?.let {
             add(com.onda.mju.student.data.route.StudentRouteIds.normalizeUiId(it))
         }
-        addAll(com.onda.mju.student.data.route.StudentRouteIds.orderedUiIds)
+        addAll(com.onda.mju.student.data.route.StudentRouteIds.routeListUiIds)
     }.distinct()
 
     for (routeId in routeCandidates) {

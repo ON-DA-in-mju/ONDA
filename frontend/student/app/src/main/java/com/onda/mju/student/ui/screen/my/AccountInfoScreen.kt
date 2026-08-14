@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -51,9 +52,10 @@ private val SuccessText = Color(0xFF0F766E)
 @Composable
 fun AccountInfoScreen(
     modifier: Modifier = Modifier,
-    userName: String = "김명지",
-    userEmail: String = "mju_student@mju.ac.kr",
+    userName: String = "학생",
+    userEmail: String = "",
     onBackClick: () -> Unit = {},
+    onEditNameClick: () -> Unit = {},
     onChangePasswordClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
@@ -98,10 +100,26 @@ fun AccountInfoScreen(
                         Icon(Icons.Filled.Person, null, tint = OndaBlue, modifier = Modifier.size(26.dp))
                     }
                     Spacer(modifier = Modifier.width(14.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(userName, color = TitleBlack, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(userEmail, color = BodyGray, fontSize = 13.sp)
+                        Text(
+                            userEmail.ifBlank { "이메일 없음" },
+                            color = BodyGray,
+                            fontSize = 13.sp,
+                        )
                     }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedButton(
+                    onClick = onEditNameClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.5.dp, OndaBlue),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = OndaBlue),
+                ) {
+                    Text("수정하기", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = CardBorder)
@@ -129,9 +147,9 @@ fun AccountInfoScreen(
                     .fillMaxWidth()
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
             ) {
-                DetailRow("이름", userName)
+                DetailRow("이름", userName, onClick = onEditNameClick)
                 HorizontalDivider(color = CardBorder)
-                DetailRow("학교 이메일", userEmail)
+                DetailRow("학교 이메일", userEmail.ifBlank { "-" })
                 HorizontalDivider(color = CardBorder)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
@@ -147,8 +165,6 @@ fun AccountInfoScreen(
                             .background(SuccessBg, RoundedCornerShape(999.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
                 }
                 HorizontalDivider(color = CardBorder)
                 Row(
@@ -191,14 +207,23 @@ fun AccountInfoScreen(
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = TitleBlack, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Text(value, color = BodyGray, fontSize = 13.sp)
-        Spacer(modifier = Modifier.width(6.dp))
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
+        if (onClick != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = BodyGray)
+        }
     }
 }
