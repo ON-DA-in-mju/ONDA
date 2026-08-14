@@ -68,3 +68,5 @@ frontend/admin/dist/
 *.jks
 .env
 .env.*
+!.env.example
+frontend/admin/.env.local
