@@ -16,6 +16,11 @@ interface ImportMeta {
 declare namespace naver.maps {
   class LatLng {
     constructor(lat: number, lng: number)
+    lat(): number
+    lng(): number
+  }
+  class Point {
+    constructor(x: number, y: number)
   }
   class Map {
     constructor(el: string | HTMLElement, options?: object)
@@ -23,6 +28,7 @@ declare namespace naver.maps {
     getZoom(): number
     setZoom(zoom: number): void
     fitBounds(bounds: LatLngBounds, margins?: number | number[]): void
+    destroy(): void
   }
   enum ZoomControlStyle {
     LARGE,
@@ -50,6 +56,7 @@ declare namespace naver.maps {
     constructor(options: object)
     setMap(map: Map | null): void
     setPath(path: LatLng[]): void
+    setOptions(options: object): void
   }
   namespace Event {
     function addListener(target: object, eventName: string, listener: (...args: unknown[]) => void): object

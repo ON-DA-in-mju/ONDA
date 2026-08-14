@@ -6,7 +6,7 @@ import {
   MYONGJI_STATION_AFTER18_ROUTE_NAME,
   MYONGJI_STATION_ROUTE_NAME,
 } from '../data/cityShuttleStops'
-import { isCityVacationServiceDay, isKoreanPublicHoliday, semesterForDate, termForDate } from './academicCalendar'
+import { isCityVacationServiceDay, isKoreanPublicHoliday, termForDate } from './academicCalendar'
 
 
 export const OPERATIONAL_ROUTE_NAMES = [
