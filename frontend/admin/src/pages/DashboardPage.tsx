@@ -15,7 +15,12 @@ import {
   type LiveVehicle,
   type RecentOpFeedItem,
 } from '../lib/liveApi'
-import { countStudentReports, fetchNotices, type NoticeRow } from '../lib/api'
+import {
+  countStudentReports,
+  fetchNotices,
+  subscribeStudentReports,
+  type NoticeRow,
+} from '../lib/api'
 import { todayDateKey } from '../types/assignment'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createExclusivePoll } from '../lib/exclusivePoll'
@@ -175,7 +180,10 @@ export function DashboardPage() {
   const [yesterdayTotal, setYesterdayTotal] = useState<number | null>(null)
   const [recentOpsFeed, setRecentOpsFeed] = useState<RecentOpFeedItem[]>([])
   const [urgentNotices, setUrgentNotices] = useState<NoticeRow[]>([])
-  const [reportCounts, setReportCounts] = useState<{ total: number; pending: number } | null>(null)
+  const [studentReportStats, setStudentReportStats] = useState<{
+    total: number
+    pending: number
+  } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -256,13 +264,28 @@ export function DashboardPage() {
     }
   }, [])
 
+  // 전체 학생 제보 건수 — reports DB + Realtime
   useEffect(() => {
     let alive = true
-    void countStudentReports().then((counts) => {
-      if (alive) setReportCounts(counts)
+    const refresh = createExclusivePoll(async () => {
+      const stats = await countStudentReports()
+      if (!alive || !stats) return
+      setStudentReportStats((prev) => {
+        if (prev && prev.total === stats.total && prev.pending === stats.pending) return prev
+        return stats
+      })
     })
+    void refresh()
+    const unsub = subscribeStudentReports(() => {
+      void refresh()
+    })
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 20_000)
     return () => {
       alive = false
+      unsub()
+      window.clearInterval(timer)
     }
   }, [])
 
@@ -307,17 +330,21 @@ export function DashboardPage() {
         delta: gpsIssues > 0 ? '확인 필요' : '이상 없음',
         color: '#eb4047',
       },
+      {
+        title: '전체 학생 제보',
+        value: studentReportStats?.total ?? 0,
+        unit: '건',
+        delta: studentReportStats
+          ? `처리 대기 ${studentReportStats.pending}건`
+          : isSupabaseConfigured
+            ? '불러오는 중…'
+            : 'DB 미설정',
+        color: '#7964f2',
+      },
     ]
 
     return [
       ...liveCards,
-      {
-        title: '전체 학생 제보',
-        value: reportCounts?.total ?? 0,
-        unit: '건',
-        delta: reportCounts ? `처리 대기 ${reportCounts.pending}건` : 'DB 조회 중',
-        color: '#7964f2',
-      },
       {
         title: '긴급 공지',
         value: urgentNotices.length,
@@ -326,7 +353,7 @@ export function DashboardPage() {
         color: '#ec181b',
       },
     ]
-  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, urgentNotices.length, reportCounts])
+  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, studentReportStats, urgentNotices.length])
 
   return (
     <div className="page">
@@ -409,9 +436,9 @@ export function DashboardPage() {
           <div className="donut-wrap">
             <div className="donut">
               <div className="donut-hole">
-                총 12건
+                총 {studentReportStats?.total ?? '—'}건
                 <br />
-                처리 대기
+                전체 제보
               </div>
             </div>
           </div>
@@ -423,7 +450,9 @@ export function DashboardPage() {
             ))}
           </div>
           <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-            가장 많은 제보 유형은 승하차 관련입니다.
+            {studentReportStats
+              ? `처리 대기 ${studentReportStats.pending}건 · Realtime 반영`
+              : '학생 앱 제보와 동일한 reports DB를 사용합니다.'}
           </p>
         </section>
       </div>
