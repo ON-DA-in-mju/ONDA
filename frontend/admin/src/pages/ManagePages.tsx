@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   AlignCenter,
@@ -21,7 +21,9 @@ import { maintenances, notices, reports, systemLogs as mockSystemLogs, users } f
 import {
   createNotice,
   endNotice,
+  deleteReport,
   fetchNotices,
+  fetchReportById,
   fetchReports,
   fetchUsers,
   updateNotice,
@@ -233,6 +235,7 @@ const emptyEditorCmds: EditorCmdState = {
 
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
+  const navigate = useNavigate()
   const [selected, setSelected] = useState(0)
   const [listPage, setListPage] = useState(1)
   const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
@@ -323,7 +326,7 @@ export function ReportsPage() {
                             className="btn btn-outline"
                             type="button"
                             style={{ height: 28 }}
-                            onClick={() => setSelected(absoluteIdx)}
+                            onClick={() => navigate(`/reports/detail/${row.id}`)}
                           >
                             상세
                           </button>
@@ -350,7 +353,7 @@ export function ReportsPage() {
                             className="btn btn-outline"
                             type="button"
                             style={{ height: 28 }}
-                            onClick={() => setSelected(absoluteIdx)}
+                            onClick={() => navigate(`/reports/detail/mock-${absoluteIdx}`)}
                           >
                             상세
                           </button>
@@ -398,6 +401,299 @@ export function ReportsPage() {
       </div>
     </div>
   )
+}
+
+export function ReportDetailPage() {
+  const navigate = useNavigate()
+  const { reportId = '' } = useParams()
+  const [row, setRow] = useState<ReportRow | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const mockIndex = reportId.startsWith('mock-') ? Number(reportId.replace('mock-', '')) : null
+  const mockItem =
+    mockIndex != null && Number.isFinite(mockIndex)
+      ? reports[Math.min(Math.max(0, mockIndex), reports.length - 1)]
+      : null
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setMessage('')
+      if (reportId.startsWith('mock-')) {
+        if (!cancelled) {
+          setRow(null)
+          setLoading(false)
+        }
+        return
+      }
+      if (!isSupabaseConfigured) {
+        if (!cancelled) {
+          setRow(null)
+          setLoading(false)
+          setMessage('Supabase 미설정')
+        }
+        return
+      }
+      const data = await fetchReportById(reportId)
+      if (!cancelled) {
+        setRow(data)
+        setLoading(false)
+        if (!data) setMessage('제보를 찾을 수 없습니다.')
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [reportId])
+
+  const parsed = useMemo(() => {
+    if (row) return parseAdminReportContent(row.content, row.category, row.title)
+    if (mockItem) {
+      return {
+        typeLabel: mockItem.type,
+        routeLabel: mockItem.target,
+        directionLabel: '-',
+        stopName: '-',
+        vehicleLabel: '-',
+        body: '버스가 학생회관 앞 정류장을 정차하지 않고 통과했습니다. 대기 학생이 다수 있었습니다.',
+      }
+    }
+    return null
+  }, [row, mockItem])
+
+  const onKeep = () => {
+    navigate('/reports')
+  }
+
+  const onDelete = async () => {
+    if (!row) {
+      setMessage('mock 제보는 DB에 없어 삭제할 수 없습니다. 목록으로 돌아갑니다.')
+      navigate('/reports')
+      return
+    }
+    setBusy(true)
+    const res = await deleteReport(row.id)
+    setBusy(false)
+    if (!res.ok) {
+      setMessage(res.message || '삭제에 실패했습니다.')
+      setConfirmDelete(false)
+      return
+    }
+    navigate('/reports')
+  }
+
+  const statusTone =
+    row?.status === 'PENDING' ? 'orange' : row?.status === 'PROCESSING' ? 'blue' : row ? 'green' : mockItem?.tone ?? 'gray'
+  const statusLabel = row ? reportStatusKo[row.status] ?? row.status : mockItem?.status ?? '-'
+
+  return (
+    <div className="page">
+      <div className="card-head" style={{ marginBottom: 4 }}>
+        <div>
+          <h2 className="page-title">제보 상세</h2>
+          <p className="page-subtitle">학생 앱 제보와 같은 내용을 검토합니다. 문제없으면 유지하고, 부적절하면 삭제하세요.</p>
+        </div>
+        <button className="btn btn-ghost" type="button" onClick={() => navigate('/reports')}>
+          목록으로
+        </button>
+      </div>
+
+      <div className="report-detail-layout">
+        {loading ? (
+          <section className="card card-pad">
+            <p className="muted">불러오는 중…</p>
+          </section>
+        ) : parsed ? (
+          <>
+            <section className="card card-pad report-summary-card">
+              <div className="report-summary-top">
+                <StatusBadge tone={statusTone as 'orange' | 'blue' | 'green' | 'gray'}>{statusLabel}</StatusBadge>
+                <span className="muted" style={{ fontSize: 12.5 }}>
+                  {row?.created_at
+                    ? new Date(row.created_at).toLocaleString('ko-KR')
+                    : mockItem?.time ?? '-'}
+                  {row ? ` · ${row.source === 'DRIVER' ? '기사 문의' : '학생 제보'}` : ' · mock'}
+                </span>
+              </div>
+              <div className="report-summary-type">{parsed.typeLabel}</div>
+              <h3 className="report-summary-title">{row?.title ?? mockItem?.type ?? '제보'}</h3>
+              <p className="report-summary-meta">
+                {parsed.routeLabel}
+                {parsed.directionLabel && parsed.directionLabel !== '-' ? ` · ${parsed.directionLabel}` : ''}
+                {' · '}
+                {parsed.stopName}
+              </p>
+            </section>
+
+            <div className="report-info-banner">학생들의 제보입니다. 실제 상황과 다를 수 있어요.</div>
+
+            <section className="card card-pad report-section-card">
+              <h3>제보 내용</h3>
+              <p className="report-body-text">{parsed.body}</p>
+            </section>
+
+            <section className="card card-pad report-section-card">
+              <h3>관련 정보</h3>
+              <div className="report-info-list">
+                <div className="report-info-row">
+                  <span>노선</span>
+                  <strong>{parsed.routeLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>방향</span>
+                  <strong>{parsed.directionLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>정류장</span>
+                  <strong>{parsed.stopName}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>차량</span>
+                  <strong>{parsed.vehicleLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>제보 유형</span>
+                  <strong>{parsed.typeLabel}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>상태</span>
+                  <strong>{statusLabel}</strong>
+                </div>
+                {row ? (
+                  <div className="report-info-row">
+                    <span>작성자</span>
+                    <strong>{row.user_id.slice(0, 8)}…</strong>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="card card-pad report-section-card">
+              <h3>참고</h3>
+              <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+                제보 내용은 실시간으로 변동될 수 있으며, 부적절한 표현이 있으면 삭제할 수 있습니다. 문제없으면 원문
+                그대로 유지하세요.
+              </p>
+            </section>
+
+            {message ? (
+              <p className="muted" style={{ color: '#b45309', margin: 0 }}>
+                {message}
+              </p>
+            ) : null}
+
+            <div className="report-detail-actions">
+              {!confirmDelete ? (
+                <>
+                  <button className="btn btn-primary" type="button" disabled={busy || loading} onClick={onKeep}>
+                    원문 그대로 유지
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    type="button"
+                    disabled={busy || loading}
+                    onClick={() => setConfirmDelete(true)}
+                    style={{ color: '#eb4047', borderColor: '#f5c2c5' }}
+                  >
+                    삭제
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
+                    이 제보를 삭제할까요? 되돌릴 수 없습니다.
+                  </span>
+                  <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void onDelete()}>
+                    {busy ? '삭제 중…' : '삭제 확인'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    취소
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <section className="card card-pad">
+            <p className="muted">{message || '제보를 찾을 수 없습니다.'}</p>
+            <button className="btn btn-outline" type="button" onClick={() => navigate('/reports')}>
+              목록으로
+            </button>
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const REPORT_META_KEYS = ['노선', '방향', '정류장', '차량', '유형'] as const
+
+function parseAdminReportContent(
+  content: string,
+  category: string | null | undefined,
+  title: string,
+): {
+  typeLabel: string
+  routeLabel: string
+  directionLabel: string
+  stopName: string
+  vehicleLabel: string
+  body: string
+} {
+  const meta: Record<string, string> = {}
+  const lines = content.split(/\r?\n/)
+  let i = 0
+  for (; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    if (!trimmed) {
+      i++
+      break
+    }
+    const idx = trimmed.indexOf(':')
+    if (idx <= 0) break
+    const key = trimmed.slice(0, idx).trim()
+    if ((REPORT_META_KEYS as readonly string[]).includes(key)) {
+      meta[key] = trimmed.slice(idx + 1).trim()
+    } else {
+      break
+    }
+  }
+  while (i < lines.length && !lines[i].trim()) i++
+  const body = lines.slice(i).join('\n').trim() || content
+
+  const typeFromCategory =
+    category &&
+    (
+      {
+        Full: '만석',
+        Other: '기타',
+        LongQueue: '대기줄 김',
+        TrafficJam: '교통 정체',
+        Arrival: '버스 출발/도착',
+        SeatAvailable: '좌석 여유',
+        ShortQueue: '대기줄 짧음',
+        Passed: '버스가 지나감',
+      } as Record<string, string>
+    )[category]
+
+  return {
+    typeLabel: meta['유형'] || typeFromCategory || category || '제보',
+    routeLabel: meta['노선'] || title.replace(/^\[[^\]]+\]\s*/, '').split(' · ')[0] || '-',
+    directionLabel: meta['방향'] || '-',
+    stopName: meta['정류장'] || title.split(' · ').slice(1).join(' · ') || '-',
+    vehicleLabel: meta['차량'] || '-',
+    body,
+  }
 }
 
 /** ADM-06 공지·긴급 알림 관리 — Figma 430:19126 */

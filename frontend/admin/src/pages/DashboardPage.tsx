@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { kpiCards as mockKpiCards } from '../data/mock'
 import {
   fetchLiveVehicles,
   fetchRecentOperationFeed,
@@ -16,7 +15,7 @@ import {
   type LiveVehicle,
   type RecentOpFeedItem,
 } from '../lib/liveApi'
-import { fetchNotices, type NoticeRow } from '../lib/api'
+import { countStudentReports, fetchNotices, type NoticeRow } from '../lib/api'
 import { todayDateKey } from '../types/assignment'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createExclusivePoll } from '../lib/exclusivePoll'
@@ -176,6 +175,7 @@ export function DashboardPage() {
   const [yesterdayTotal, setYesterdayTotal] = useState<number | null>(null)
   const [recentOpsFeed, setRecentOpsFeed] = useState<RecentOpFeedItem[]>([])
   const [urgentNotices, setUrgentNotices] = useState<NoticeRow[]>([])
+  const [reportCounts, setReportCounts] = useState<{ total: number; pending: number } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -256,6 +256,16 @@ export function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    void countStudentReports().then((counts) => {
+      if (alive) setReportCounts(counts)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const vehicles = snapshot.vehicles
 
   const gpsAlertRows = useMemo(() => buildGpsAlertRows(vehicles), [vehicles])
@@ -299,10 +309,15 @@ export function DashboardPage() {
       },
     ]
 
-    const reportCard = mockKpiCards.find((c) => c.title === '처리 중 학생 제보')
     return [
       ...liveCards,
-      ...(reportCard ? [reportCard] : []),
+      {
+        title: '전체 학생 제보',
+        value: reportCounts?.total ?? 0,
+        unit: '건',
+        delta: reportCounts ? `처리 대기 ${reportCounts.pending}건` : 'DB 조회 중',
+        color: '#7964f2',
+      },
       {
         title: '긴급 공지',
         value: urgentNotices.length,
@@ -311,7 +326,7 @@ export function DashboardPage() {
         color: '#ec181b',
       },
     ]
-  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, urgentNotices.length])
+  }, [snapshot, vehicles, yesterdayTotal, gpsIssueCount, urgentNotices.length, reportCounts])
 
   return (
     <div className="page">

@@ -17,8 +17,10 @@ import {
 import { markNotificationRead } from '../lib/adminNotificationsApi'
 import { LiveVehiclesMap } from '../components/LiveVehiclesMap'
 import { LIVE_MAP_ROUTES } from '../data/cityShuttleStops'
+import { fetchRouteCatalog, type RouteCatalogItem } from '../lib/routesApi'
 import { StatusBadge } from '../components/ui/Form'
 import { ListPagination } from '../components/ui/ListPagination'
+import '../styles/live.css'
 
 /** "명지대역 셔틀 (18시 이후)" → base + suffix 두 줄 표시용 */
 function splitRouteName(routeName: string): { base: string; suffix: string | null } {
@@ -37,8 +39,6 @@ function RouteNameCell({ name }: { name: string }) {
     </span>
   )
 }
-
-const LIVE_ROUTE_FILTER_OPTIONS = LIVE_MAP_ROUTES.map((r) => r.name)
 
 const empty: LiveSnapshot = {
   vehicles: [],
@@ -175,6 +175,29 @@ export function LivePage() {
   const [listPage, setListPage] = useState(1)
   /** 목록에서 선택한 차량 — 지도에 해당 노선만 표시 (재클릭 시 해제) */
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null)
+  const [catalogRoutes, setCatalogRoutes] = useState<RouteCatalogItem[]>([])
+
+  useEffect(() => {
+    let alive = true
+    void fetchRouteCatalog().then((rows) => {
+      if (alive) setCatalogRoutes(rows)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const liveRouteLayers = useMemo(() => {
+    const fromDb = catalogRoutes
+      .filter((r) => r.stops.length > 0)
+      .map((r) => r.mapLayer)
+    return fromDb.length ? fromDb : LIVE_MAP_ROUTES
+  }, [catalogRoutes])
+
+  const liveRouteFilterOptions = useMemo(
+    () => liveRouteLayers.map((r) => r.name),
+    [liveRouteLayers],
+  )
 
   const vehicles = useMemo(() => {
     return snapshot.vehicles.filter((row) => {
@@ -202,12 +225,12 @@ export function LivePage() {
 
   const mapRoutes = useMemo(() => {
     if (mapRouteFilter) {
-      return LIVE_MAP_ROUTES.filter((r) => r.name === mapRouteFilter)
+      return liveRouteLayers.filter((r) => r.name === mapRouteFilter)
     }
-    if (!selectedVehicle?.routeName) return LIVE_MAP_ROUTES
-    const matched = LIVE_MAP_ROUTES.filter((r) => r.name === selectedVehicle.routeName)
-    return matched.length ? matched : LIVE_MAP_ROUTES
-  }, [selectedVehicle, mapRouteFilter])
+    if (!selectedVehicle?.routeName) return liveRouteLayers
+    const matched = liveRouteLayers.filter((r) => r.name === selectedVehicle.routeName)
+    return matched.length ? matched : liveRouteLayers
+  }, [selectedVehicle, mapRouteFilter, liveRouteLayers])
 
   const mapVehicles = useMemo(() => {
     const byRoute = mapRouteFilter
@@ -295,7 +318,7 @@ export function LivePage() {
             onChange={(e) => setRouteFilter(e.target.value)}
           >
             <option value="">노선 전체</option>
-            {LIVE_ROUTE_FILTER_OPTIONS.map((name) => (
+            {liveRouteFilterOptions.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -345,7 +368,7 @@ export function LivePage() {
                 aria-label="지도 표시 노선"
               >
                 <option value="">전체 노선</option>
-                {LIVE_MAP_ROUTES.map((route) => (
+                {liveRouteLayers.map((route) => (
                   <option key={route.id} value={route.name}>
                     {route.name}
                   </option>

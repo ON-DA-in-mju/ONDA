@@ -231,8 +231,6 @@
   overflow: hidden;
   border: 1px solid #eef1f6;
   height: 400px;
-  isolation: isolate;
-  contain: layout paint;
 }
 
 .live-map-frame img {
