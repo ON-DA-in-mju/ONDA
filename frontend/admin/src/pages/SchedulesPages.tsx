@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Bus, CalendarDays, Clock, Search, Users } from 'lucide-react'
 import { WeekRangePicker } from '../components/WeekRangePicker'
 import { SCHEDULE_ROUTE_OPTIONS, schedules } from '../data/mock'
-import { MJU_TIMETABLE_PACKS, MJU_ROUTE_NAMES, type MjuRouteName } from '../data/mjuTimetable'
+import { fetchRouteCatalog } from '../lib/routesApi'
+import { MJU_TIMETABLE_PACKS, type MjuRouteName } from '../data/mjuTimetable'
 import { fetchAssignments, fetchAssignmentsInRange } from '../lib/assignmentsApi'
 import { fetchUsers } from '../lib/api'
 import { fetchSchedulesWithRoutes, routeMatchesFilter, type ScheduleWithRoute } from '../lib/seedMju'
@@ -118,6 +119,7 @@ export function SchedulesPage() {
   const [assignments, setAssignments] = useState<TodayAssignment[]>([])
   const [weekAssignments, setWeekAssignments] = useState<TodayAssignment[]>([])
   const [dbSchedules, setDbSchedules] = useState<ScheduleWithRoute[] | null>(null)
+  const [dbRouteNames, setDbRouteNames] = useState<string[]>([])
   const [listPage, setListPage] = useState(1)
   const [weekPickerOpen, setWeekPickerOpen] = useState(false)
 
@@ -172,6 +174,19 @@ export function SchedulesPage() {
   useEffect(() => {
     void loadDbSchedules()
   }, [loadDbSchedules])
+
+  useEffect(() => {
+    let alive = true
+    void fetchRouteCatalog().then((rows) => {
+      if (!alive) return
+      setDbRouteNames(rows.map((r) => r.name))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const routeOptions = dbRouteNames.length ? dbRouteNames : [...SCHEDULE_ROUTE_OPTIONS]
 
   // 공식 시간표는 DB schedules만 사용. 자동 seed/동기화는 기존 데이터를 지울 수 있어 하지 않음.
 
@@ -275,31 +290,33 @@ export function SchedulesPage() {
 
   const listRows = useMemo(() => {
     const isToday = selectedDateKey === todayDateKey()
-    return schedules
-      .filter((row) => !routeFilter || row.route === routeFilter)
-      .map((row) => {
-        const routeItems = assignments.filter((a) => routeMatchesFilter(a.routeName, row.route))
+    return routeOptions
+      .filter((route) => !routeFilter || route === routeFilter)
+      .map((route, idx) => {
+        const routeItems = assignments.filter((a) => routeMatchesFilter(a.routeName, route))
         const derived = statusFromAssignments(routeItems)
+        const times = (dbSchedules ?? [])
+          .filter(
+            (s) =>
+              s.routes?.route_name === route &&
+              s.weekday === selectedWeekday &&
+              s.semester === timetablePeriod,
+          )
+          .map((s) => formatTime(s.departure_time))
+          .filter(Boolean)
+          .sort()
         return {
-          ...row,
-          ...derived,
-          status: isToday ? derived.status : '-',
-          rounds: derived.rounds,
+          no: idx + 1,
+          route,
+          start: times[0] ?? '-',
+          end: times.at(-1) ?? '-',
           interval: averageIntervalLabel(routeItems.map((a) => a.departTime)),
-          start:
-            dbSchedules
-              ?.filter((s) => s.routes?.route_name === row.route && s.weekday === selectedWeekday && s.semester === timetablePeriod)
-              .map((s) => formatTime(s.departure_time))
-              .sort()[0] ?? row.start,
-          end:
-            [...(dbSchedules ?? [])]
-              .filter((s) => s.routes?.route_name === row.route && s.weekday === selectedWeekday && s.semester === timetablePeriod)
-              .map((s) => formatTime(s.departure_time))
-              .sort()
-              .at(-1) ?? row.end,
+          rounds: derived.rounds,
+          status: isToday ? derived.status : '-',
+          tone: derived.tone,
         }
       })
-  }, [assignments, routeFilter, dbSchedules, selectedWeekday, timetablePeriod, selectedDateKey])
+  }, [assignments, routeFilter, routeOptions, dbSchedules, selectedWeekday, timetablePeriod, selectedDateKey])
 
   const listPageCount = Math.max(1, Math.ceil(listRows.length / LIST_PAGE_SIZE))
   const safeListPage = Math.min(listPage, listPageCount)
@@ -369,12 +386,10 @@ export function SchedulesPage() {
 
   useEffect(() => {
     if (!routeFilter) return
-    if ((MJU_ROUTE_NAMES as readonly string[]).includes(routeFilter)) {
+    if (routeOptions.includes(routeFilter)) {
       setTimetableRoute(routeFilter)
-      return
     }
-    if (routeFilter.includes('시내')) setTimetableRoute('시내 셔틀')
-  }, [routeFilter])
+  }, [routeFilter, routeOptions])
 
   const onPickWeekStart = (start: Date) => {
     setDraftWeekStart(start)
@@ -420,7 +435,7 @@ export function SchedulesPage() {
                   onChange={(e) => setRouteFilter(e.target.value)}
                 >
                   <option value="">노선 전체</option>
-                  {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+                  {routeOptions.map((name) => (
                     <option key={name} value={name}>
                       {name}
                     </option>
@@ -648,17 +663,13 @@ export function SchedulesPage() {
               <h3>공식 시간표</h3>
               <select
                 className="select sched-timetable-route-select"
-                value={
-                  (MJU_ROUTE_NAMES as readonly string[]).includes(timetableRoute)
-                    ? timetableRoute
-                    : '명지대역 셔틀'
-                }
+                value={routeOptions.includes(timetableRoute) ? timetableRoute : routeOptions[0] ?? ''}
                 onChange={(e) => {
                   setTimetableRoute(e.target.value)
                 }}
                 aria-label="상세 시간표 노선"
               >
-                {MJU_ROUTE_NAMES.map((name) => (
+                {routeOptions.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>

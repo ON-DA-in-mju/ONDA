@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { kpiCards as mockKpiCards } from '../data/mock'
 import {
   fetchLiveVehicles,
   fetchRecentOperationFeed,
@@ -333,13 +332,13 @@ export function DashboardPage() {
       },
       {
         title: '전체 학생 제보',
-        value: studentReportStats?.total ?? (isSupabaseConfigured ? 0 : mockKpiCards[4]?.value ?? 0),
+        value: studentReportStats?.total ?? 0,
         unit: '건',
         delta: studentReportStats
           ? `처리 대기 ${studentReportStats.pending}건`
           : isSupabaseConfigured
             ? '불러오는 중…'
-            : 'mock',
+            : 'DB 미설정',
         color: '#7964f2',
       },
     ]

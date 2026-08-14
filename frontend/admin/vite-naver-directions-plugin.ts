@@ -39,6 +39,19 @@ function sendJson(res: import('http').ServerResponse, status: number, data: unkn
  * 네이버 Directions 5 (자동차) 프록시.
  * Client Secret은 브라우저에 노출하지 않고 Vite 서버에서만 사용.
  */
+let authFailLogged = false
+
+function stripEnv(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, '')
+}
+
+function userFacingDirectionsError(raw: string): string {
+  if (/401|Authentication Failed/i.test(raw)) {
+    return 'Directions 인증 실패. NCP Maps 앱 변경 화면에서 Directions 5를 선택·저장한 뒤 서버를 재시작하세요.'
+  }
+  return raw.slice(0, 180)
+}
+
 export function naverDirectionsPlugin(): Plugin {
   const cache = new Map<string, DrivingResult & { at: number }>()
   /** 캠퍼스 고정 노선 — 하루 동안 재사용 */
@@ -48,8 +61,8 @@ export function naverDirectionsPlugin(): Plugin {
     name: 'onda-naver-directions',
     configureServer(server) {
       const env = loadEnv(server.config.mode, process.cwd(), '')
-      const clientId = (env.VITE_NAVER_MAP_CLIENT_ID || env.NAVER_MAP_CLIENT_ID || '').trim()
-      const clientSecret = (env.NAVER_MAP_CLIENT_SECRET || '').trim()
+      const clientId = stripEnv(env.VITE_NAVER_MAP_CLIENT_ID || env.NAVER_MAP_CLIENT_ID || '')
+      const clientSecret = stripEnv(env.NAVER_MAP_CLIENT_SECRET || '')
 
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/naver/driving') || req.method !== 'POST') {
@@ -95,8 +108,16 @@ export function naverDirectionsPlugin(): Plugin {
           sendJson(res, 200, { ok: true, ...result, cached: false })
         } catch (e) {
           const message = e instanceof Error ? e.message : 'Directions 요청 실패'
-          console.warn('[naver-directions]', message)
-          sendJson(res, 502, { ok: false, message })
+          if (!authFailLogged) {
+            authFailLogged = /401|Authentication Failed/i.test(message)
+            console.warn('[naver-directions]', message)
+            if (authFailLogged) {
+              console.warn(
+                '[naver-directions] 같은 오류는 한 번만 출력합니다. NCP Maps 앱 변경에서 Directions 5를 켠 뒤 저장하세요.',
+              )
+            }
+          }
+          sendJson(res, 502, { ok: false, message: userFacingDirectionsError(message) })
         }
       })
     },
@@ -143,16 +164,24 @@ async function requestOneRoute(
     params.set('waypoints', middle.map(toLngLat).join('|'))
   }
 
-  const url = `https://maps.apigw.ntruss.com/map-direction/v1/driving?${params}`
-  const res = await fetch(url, {
-    headers: {
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    },
-  })
-  const text = await res.text()
-  if (!res.ok) {
-    throw new Error(`Directions HTTP ${res.status}: ${text.slice(0, 200)}`)
+  const hosts = [
+    'https://maps.apigw.ntruss.com/map-direction/v1/driving',
+    'https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving',
+  ]
+  const headers = {
+    'x-ncp-apigw-api-key-id': clientId,
+    'x-ncp-apigw-api-key': clientSecret,
+  }
+
+  let text = ''
+  let res: Response | null = null
+  for (const host of hosts) {
+    res = await fetch(`${host}?${params}`, { headers })
+    text = await res.text()
+    if (res.ok) break
+  }
+  if (!res?.ok) {
+    throw new Error(`Directions HTTP ${res?.status}: ${text.slice(0, 200)}`)
   }
   const data = JSON.parse(text) as {
     code?: number

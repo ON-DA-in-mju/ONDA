@@ -144,13 +144,17 @@ export function LiveVehiclesMap({
     ).then((results) => {
       if (cancelled) return
       const next: Record<string, Array<{ lat: number; lng: number }>> = {}
-      const errors: string[] = []
+      let directionsFailed = false
       for (const r of results) {
         if (r.path.length) next[r.id] = r.path
-        if (r.error) errors.push(`${r.name}: ${r.error}`)
+        else if (r.error) directionsFailed = true
       }
       setRoutePaths((prev) => ({ ...prev, ...next }))
-      setRouteError(errors.length ? errors.join(' · ') : null)
+      setRouteError(
+        directionsFailed
+          ? '도로 길찾기는 꺼져 있어 정류장을 직선으로 이었습니다. NCP 앱에서 Directions 5를 켜면 도로 경로가 나옵니다.'
+          : null,
+      )
     })
 
     return () => {
@@ -287,8 +291,13 @@ export function LiveVehiclesMap({
     // 노선별 길찾기 경로
     const seenRoutes = new Set<string>()
     for (const layer of routeLayers) {
-      const pathPts = routePaths[layer.id]
-      if (!pathPts || pathPts.length < 2) continue
+      const driving = routePaths[layer.id]
+      const fallback = [...layer.stops]
+        .sort((a, b) => a.order - b.order)
+        .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng))
+        .map((s) => ({ lat: s.lat, lng: s.lng }))
+      const pathPts = driving && driving.length >= 2 ? driving : fallback
+      if (pathPts.length < 2) continue
       seenRoutes.add(layer.id)
       const path = pathPts.map((p) => new maps.LatLng(p.lat, p.lng))
       let line = polylines.get(layer.id)
@@ -492,7 +501,7 @@ export function LiveVehiclesMap({
               {routeError ? (
                 <>
                   <br />
-                  <span style={{ color: '#b45309' }}>길찾기: {routeError}</span>
+                  <span style={{ color: '#b45309' }}>{routeError}</span>
                 </>
               ) : null}
             </>

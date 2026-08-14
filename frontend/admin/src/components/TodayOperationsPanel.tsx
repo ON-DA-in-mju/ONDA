@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchBuses } from '../lib/api'
+import { fetchRouteCatalog } from '../lib/routesApi'
 import {
   addMinutesToHm,
   copyOperationsFromPreviousWeek,
@@ -15,7 +16,6 @@ import { semesterForDate } from '../lib/academicCalendar'
 import { fetchSchedulesWithRoutes, type ScheduleWithRoute } from '../lib/seedMju'
 import { resolveOperationalRouteName } from '../lib/routeVariants'
 import { StatusBadge } from './ui/Form'
-import { SCHEDULE_ROUTE_OPTIONS } from '../data/mock'
 import { todayDateKey, type TodayAssignment } from '../types/assignment'
 import type { Weekday } from '../types/database'
 
@@ -49,7 +49,8 @@ export function TodayOperationsPanel() {
   const [buses, setBuses] = useState<BusOption[]>([])
   const [schedules, setSchedules] = useState<ScheduleWithRoute[]>([])
   const [stops, setStops] = useState<RouteStopOption[]>([])
-  const [routeName, setRouteName] = useState<string>(SCHEDULE_ROUTE_OPTIONS[0])
+  const [routeName, setRouteName] = useState('')
+  const [routeOptions, setRouteOptions] = useState<string[]>([])
   const [scheduleKey, setScheduleKey] = useState('')
   const [vehicleName, setVehicleName] = useState('')
   const [expectedEndTime, setExpectedEndTime] = useState('')
@@ -79,6 +80,19 @@ export function TodayOperationsPanel() {
 
   useEffect(() => {
     let alive = true
+    void fetchRouteCatalog().then((rows) => {
+      if (!alive) return
+      const names = rows.map((r) => r.name)
+      setRouteOptions(names)
+      setRouteName((prev) => (prev && names.includes(prev) ? prev : names[0] ?? ''))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
     void fetchBuses().then((data) => {
       if (!alive) return
       const options = (data ?? [])
@@ -95,6 +109,10 @@ export function TodayOperationsPanel() {
   useEffect(() => {
     let alive = true
     const loadSchedules = async () => {
+      if (!routeName) {
+        if (alive) setSchedules([])
+        return
+      }
       let data = await fetchSchedulesWithRoutes({ weekday, semester, routeName })
       if (!data?.length) {
         data = await fetchSchedulesWithRoutes({ weekday, routeName })
@@ -286,7 +304,7 @@ export function TodayOperationsPanel() {
             value={routeName}
             onChange={(e) => setRouteName(e.target.value)}
           >
-            {SCHEDULE_ROUTE_OPTIONS.map((name) => (
+            {routeOptions.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
