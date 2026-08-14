@@ -288,12 +288,11 @@ export function expandScheduleRows(): {
     routeName?: string,
   ) => {
     for (const t of trips) {
-      const name = routeName ?? t.route;
       for (const wd of weekdays) {
         const departure_time = `${t.departure}:00`;
         out.push({
           routeName: resolveOperationalRouteName({
-            baseRouteName: t.route,
+            baseRouteName: routeName ?? t.route,
             departureTime: departure_time,
             weekday: wd,
             semester,

@@ -332,9 +332,13 @@ export async function fetchRouteStopsByName(routeName: string): Promise<RouteSto
     return []
   }
 
-  return (data ?? [])
+  return ((data ?? []) as Array<{
+    stop_order: number
+    expected_minutes: number | null
+    stops: { id: string; stop_name: string } | { id: string; stop_name: string }[] | null
+  }>)
     .map((row) => {
-      const stop = row.stops as { id: string; stop_name: string } | { id: string; stop_name: string }[] | null
+      const stop = row.stops
       const s = Array.isArray(stop) ? stop[0] : stop
       if (!s?.id) return null
       return {

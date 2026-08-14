@@ -17,7 +17,7 @@ import {
   Underline,
   X,
 } from 'lucide-react'
-import { maintenances, notices, reports, systemLogs as mockSystemLogs, users } from '../data/mock'
+import { maintenances, reports, systemLogs as mockSystemLogs, users } from '../data/mock'
 import {
   createNotice,
   endNotice,
@@ -236,7 +236,7 @@ const emptyEditorCmds: EditorCmdState = {
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState(0)
+  const [selected] = useState(0)
   const [listPage, setListPage] = useState(1)
   const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
 

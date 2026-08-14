@@ -159,9 +159,30 @@ export async function fetchRouteCatalog(): Promise<RouteCatalogItem[]> {
   if (schedulesRes.error) console.error('[schedules]', schedulesRes.error.message)
   if (opsRes.error) console.error('[operations]', opsRes.error.message)
 
+  const stopRows = (stopsRes.data ?? []) as Array<{
+    route_id: string
+    stop_order: number
+    expected_minutes: number | null
+    stops: StopJoin | StopJoin[] | null
+  }>
+  const scheduleRows = (schedulesRes.data ?? []) as Array<{
+    id: string
+    route_id: string
+    departure_time: string
+    weekday: Weekday
+    semester: SemesterType
+  }>
+  const opRows = (opsRes.data ?? []) as Array<{
+    bus_id: string | null
+    status: string
+    operation_date: string
+    schedules: { route_id: string } | { route_id: string }[] | null
+    buses: BusJoin | BusJoin[] | null
+  }>
+
   const stopsByRoute = new Map<string, RouteStopItem[]>()
-  for (const row of stopsRes.data ?? []) {
-    const stop = unwrap(row.stops as StopJoin | StopJoin[] | null)
+  for (const row of stopRows) {
+    const stop = unwrap(row.stops)
     if (!stop?.id) continue
     const list = stopsByRoute.get(row.route_id) ?? []
     list.push({
@@ -177,7 +198,7 @@ export async function fetchRouteCatalog(): Promise<RouteCatalogItem[]> {
   }
 
   const schedulesByRoute = new Map<string, RouteScheduleItem[]>()
-  for (const row of schedulesRes.data ?? []) {
+  for (const row of scheduleRows) {
     const list = schedulesByRoute.get(row.route_id) ?? []
     list.push({
       id: row.id,
@@ -191,9 +212,9 @@ export async function fetchRouteCatalog(): Promise<RouteCatalogItem[]> {
   }
 
   const busesByRoute = new Map<string, Map<string, RouteBusItem>>()
-  for (const row of opsRes.data ?? []) {
-    const schedule = unwrap(row.schedules as { route_id: string } | { route_id: string }[] | null)
-    const bus = unwrap(row.buses as BusJoin | BusJoin[] | null)
+  for (const row of opRows) {
+    const schedule = unwrap(row.schedules)
+    const bus = unwrap(row.buses)
     const routeId = schedule?.route_id
     const busId = bus?.id || row.bus_id
     if (!routeId || !busId) continue

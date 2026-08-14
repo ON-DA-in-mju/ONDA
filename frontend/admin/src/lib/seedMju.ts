@@ -88,7 +88,7 @@ export async function fetchSchedulesWithRoutes(params?: {
     return null
   }
 
-  return (data ?? []) as ScheduleWithRoute[]
+  return (data ?? []) as unknown as ScheduleWithRoute[]
 }
 
 /**

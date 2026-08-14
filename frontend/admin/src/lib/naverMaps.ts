@@ -7,6 +7,20 @@ export function isNaverMapConfigured(): boolean {
   return CLIENT_ID.length > 0 && !CLIENT_ID.includes('YOUR_')
 }
 
+/** DELAYED / 미수신 등이면 마커 좌표를 고정한다. */
+export function shouldFreezeMarker(gpsStatus?: string): boolean {
+  if (!gpsStatus) return false
+  const s = gpsStatus.trim().toUpperCase()
+  return (
+    s.includes('DELAY') ||
+    s.includes('STALE') ||
+    s.includes('NONE') ||
+    s.includes('ERROR') ||
+    s.includes('미수신') ||
+    s.includes('지연')
+  )
+}
+
 export function loadNaverMaps(): Promise<typeof naver.maps> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('window unavailable'))

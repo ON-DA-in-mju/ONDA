@@ -514,6 +514,14 @@ export type Database = {
         Args: { p_notice_id: string }
         Returns: number
       }
+      increment_notice_view_count: {
+        Args: { p_notice_id: string }
+        Returns: number
+      }
+      expire_suspended_routes: {
+        Args: Record<string, never>
+        Returns: string[]
+      }
     }
     Enums: {
       user_role: UserRole
