@@ -143,10 +143,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: true, message: '로컬 데모 로그인 (Supabase 미설정)' }
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data']
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error']
+    try {
+      ;({ data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('Invalid value') || msg.includes('Failed to execute')) {
+        return {
+          ok: false,
+          message:
+            'Supabase 키 형식이 잘못되었습니다. Vercel 환경변수에 따옴표/공백 없이 넣고 Redeploy 하세요.',
+        }
+      }
+      return { ok: false, message: msg }
+    }
 
     if (error) {
       return { ok: false, message: error.message }

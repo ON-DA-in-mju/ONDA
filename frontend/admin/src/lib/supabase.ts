@@ -1,14 +1,29 @@
 ﻿import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+/** Vercel/Windows env에 붙는 따옴표·CRLF를 제거 (없으면 fetch 'Invalid value' 발생) */
+function cleanEnv(value: string | undefined): string {
+  if (!value) return ''
+  return value
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/[\r\n\u0000]/g, '')
+}
 
-export const isSupabaseConfigured = Boolean(url && anonKey && !url.includes('YOUR_PROJECT'))
+const url = cleanEnv(import.meta.env.VITE_SUPABASE_URL)
+const anonKey = cleanEnv(import.meta.env.VITE_SUPABASE_ANON_KEY)
+
+export const isSupabaseConfigured = Boolean(
+  url &&
+    anonKey &&
+    !url.includes('YOUR_PROJECT') &&
+    url.startsWith('https://') &&
+    anonKey.length > 20,
+)
 
 if (!isSupabaseConfigured) {
   console.warn(
-    '[ONDA] Supabase 환경변수가 없습니다. frontend/admin/.env.local 에 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 넣으세요.',
+    '[ONDA] Supabase 환경변수가 없습니다. Vercel Environment Variables 또는 .env.local 에 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 넣으세요.',
   )
 }
 
