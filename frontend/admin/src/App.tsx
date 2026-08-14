@@ -15,7 +15,6 @@ import { LiveDetailPage, LivePage, LiveSuspendPage, LiveVehicleDetailPage } from
 import { NotificationsPage } from './pages/NotificationsPage'
 import {
   NoticesPage,
-  ReportDetailPage,
   ReportsPage,
   RouteDetailPage,
   RoutesPage,
@@ -65,7 +64,6 @@ export default function App() {
           <Route path="/live/suspend" element={<LiveSuspendPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/reports/detail/:reportId" element={<ReportDetailPage />} />
           <Route path="/notices" element={<NoticesPage />} />
           <Route path="/routes" element={<RoutesPage />} />
           <Route path="/routes/new" element={<RouteCreatePage />} />
