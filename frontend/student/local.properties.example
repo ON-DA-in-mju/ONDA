@@ -1,0 +1,14 @@
+## Copy to local.properties (gitignored) and fill in real values.
+## Do not commit secrets.
+
+sdk.dir=C\:\\Users\\YOUR_USER\\AppData\\Local\\Android\\Sdk
+
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+
+# Same NCP Maps Client ID as admin web (VITE_NAVER_MAP_CLIENT_ID).
+# NCP Console → Application Services → Maps → Dynamic Map
+# Also register Android package: com.onda.mju.student
+NAVER_MAP_CLIENT_ID=YOUR_NAVER_MAP_CLIENT_ID
+# Alias also accepted:
+# NCP_KEY_ID=YOUR_NAVER_MAP_CLIENT_ID

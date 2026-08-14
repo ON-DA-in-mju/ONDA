@@ -1,0 +1,276 @@
+/* ADM-01 대시보드 */
+
+.dash-page {
+  gap: 14px;
+}
+
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dash-kpi {
+  background: #fff;
+  border: 1px solid #eef1f6;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 84px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.dash-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.dash-kpi-body {
+  min-width: 0;
+}
+
+.dash-kpi-body .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-kpi-body .value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #111827;
+}
+
+.dash-kpi-body .value em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 2px;
+  color: #6b7280;
+}
+
+.dash-kpi-body .delta {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dash-kpi-body .delta.up {
+  color: #266ef4;
+}
+
+.dash-kpi-body .delta.down {
+  color: #eb4047;
+}
+
+.dash-kpi-body .delta.flat {
+  color: #9a9eaf;
+}
+
+.dash-panel .card-head {
+  margin-bottom: 10px;
+}
+
+.dash-panel .card-head h3 {
+  font-size: var(--section-title-size);
+  font-weight: var(--section-title-weight);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.dash-map {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eef1f6;
+  height: 240px;
+  background: #eef5ff;
+}
+
+.dash-map .nm-wrap {
+  height: 100%;
+  min-height: 240px;
+  border-radius: 0;
+}
+
+.dash-map img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dash-map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.18);
+}
+
+.dash-map-pin.blue {
+  background: #266ef4;
+}
+.dash-map-pin.green {
+  background: #3fb46a;
+}
+.dash-map-pin.purple {
+  background: #7964f2;
+}
+.dash-map-pin.red {
+  background: #eb4047;
+}
+
+.dash-report {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.dash-report-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-report-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #54627c;
+}
+
+.dash-report-row i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.dash-report-row strong {
+  color: #111827;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dash-notice {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.dash-notice-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #eb4047;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.dash-notice-body {
+  min-width: 0;
+}
+
+.dash-notice-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.dash-notice-body strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.dash-notice-body p {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.dash-notice-link {
+  margin-top: 12px;
+  text-align: right;
+}
+
+.dash-notice-link a {
+  font-size: 12px;
+  font-weight: 700;
+  color: #266ef4;
+}
+
+.dash-mid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.95fr 0.95fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.dash-bottom {
+  display: grid;
+  grid-template-columns: 1.55fr 0.9fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.dash-page .ops-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.dash-page .ops-item:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 1280px) {
+  .dash-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dash-mid,
+  .dash-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-report {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-kpis {
+    grid-template-columns: 1fr;
+  }
+}

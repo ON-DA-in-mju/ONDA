@@ -1,0 +1,388 @@
+/* ADM-02 오늘의 운행 */
+
+.sched-page {
+  gap: 12px;
+}
+
+.sched-page .card-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: var(--section-title-size);
+  font-weight: var(--section-title-weight);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #111827;
+}
+
+.sched-page .card-head h3 .muted {
+  font-weight: 500;
+  color: #8b92a4;
+  font-size: 13px;
+}
+
+.sched-page .card-head h3 svg {
+  width: var(--section-title-icon);
+  height: var(--section-title-icon);
+  color: #266ef4;
+  flex-shrink: 0;
+}
+
+.sched-panel {
+  border-radius: 12px;
+}
+
+.sched-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 16px;
+}
+
+.sched-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sched-filter-field > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+.sched-filter-field > label svg {
+  color: #8b92a4;
+}
+
+.sched-filter-field .select,
+.sched-filter-field .input {
+  height: 36px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.sched-filter-field .select {
+  width: 180px;
+}
+
+.sched-tt-filters {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sched-tt-meta {
+  font-size: 12px;
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.sched-timetable-scroll {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+}
+
+.sched-timetable-scroll .data-table {
+  margin: 0;
+}
+
+.sched-timetable-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+.sched-filter-days {
+  flex: 1 1 280px;
+}
+
+.sched-day-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sched-day {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e8ef;
+  background: #fff;
+  color: #54627c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sched-day.active {
+  background: #266ef4;
+  border-color: #266ef4;
+  color: #fff;
+}
+
+.sched-filter-period {
+  flex: 0 1 auto;
+}
+
+.sched-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sched-period > span {
+  color: #9a9eaf;
+  font-size: 13px;
+}
+
+.sched-date-wrap {
+  position: relative;
+  width: 132px;
+}
+
+.sched-date-wrap .input {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.sched-date-wrap svg {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9a9eaf;
+  pointer-events: none;
+}
+
+.sched-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  padding-bottom: 1px;
+}
+
+.sched-filter-actions .btn {
+  height: 36px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sched-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sched-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+.sched-summary-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.sched-summary-icon.blue {
+  background: #266ef4;
+}
+.sched-summary-icon.green {
+  background: #3fb46a;
+}
+.sched-summary-icon.orange {
+  background: #fdac38;
+}
+.sched-summary-icon.purple {
+  background: #7964f2;
+}
+
+.sched-summary-card .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.sched-summary-card .value {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.sched-summary-card .value em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 2px;
+  color: #6b7280;
+}
+
+.sched-summary-card .hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #9a9eaf;
+}
+
+.sched-subtitle {
+  font-size: 13px;
+  color: #8b92a4;
+  font-weight: 500;
+}
+
+.sched-timetable {
+  display: grid;
+  grid-template-columns: 1fr 36px 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.sched-tt-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.sched-tt-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 28px 0 8px;
+}
+
+.sched-tt-rail > span {
+  flex: 1;
+  width: 2px;
+  background: #dbe4f5;
+  min-height: 24px;
+}
+
+.sched-tt-bus {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #eaf1ff;
+  color: #266ef4;
+  display: grid;
+  place-items: center;
+  border: 2px solid #c9daff;
+  flex-shrink: 0;
+}
+
+.sched-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.sched-tabs button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e8ef;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.sched-tabs button.active {
+  background: #eaf1ff;
+  border-color: #c9daff;
+  color: #266ef4;
+}
+
+.sched-pattern {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  height: 160px;
+  padding: 8px 4px 0;
+  margin-bottom: 8px;
+}
+
+.sched-pattern-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.sched-pattern-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+}
+
+.sched-pattern .bar {
+  width: 8px;
+  border-radius: 4px 4px 0 0;
+  display: block;
+}
+
+.sched-pattern .bar-a {
+  background: #266ef4;
+}
+
+.sched-pattern .bar-b {
+  background: #3fb46a;
+}
+
+.sched-pattern-col em {
+  font-style: normal;
+  font-size: 10px;
+  color: #9a9eaf;
+}
+
+@media (max-width: 1200px) {
+  .sched-timetable {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-tt-rail {
+    flex-direction: row;
+    padding: 4px 0;
+  }
+
+  .sched-tt-rail > span {
+    height: 2px;
+    width: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .sched-filter-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

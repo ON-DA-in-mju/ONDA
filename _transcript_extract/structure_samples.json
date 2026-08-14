@@ -1,0 +1,107 @@
+{
+  "user": [
+    {
+      "line": 1,
+      "summary": {
+        "role": "user",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "text": "..."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "line": 5,
+      "summary": {
+        "role": "user",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "text": "..."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "line": 8,
+      "summary": {
+        "role": "user",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "text": "..."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "assistant": [
+    {
+      "line": 2,
+      "summary": {
+        "role": "assistant",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "text": "..."
+            },
+            {
+              "type": "...",
+              "name": "...",
+              "input": "..."
+            },
+            {
+              "type": "...",
+              "name": "...",
+              "input": "..."
+            },
+            "..."
+          ]
+        }
+      }
+    },
+    {
+      "line": 3,
+      "summary": {
+        "role": "assistant",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "name": "...",
+              "input": "..."
+            },
+            {
+              "type": "...",
+              "name": "...",
+              "input": "..."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "line": 4,
+      "summary": {
+        "role": "assistant",
+        "message": {
+          "content": [
+            {
+              "type": "...",
+              "text": "..."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

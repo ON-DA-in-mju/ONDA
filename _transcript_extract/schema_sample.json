@@ -1,0 +1,7 @@
+{
+  "role": "user",
+  "message": "dict"
+}
+
+FULL FIRST (truncated):
+{"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>Sunday, Aug 2, 2026, 8:35 PM (UTC+9)</timestamp>\n<user_query>\n안녕 내가 한번 코드를 짜보려고 하는데, 코르를 어디서 짜면 될까?\n</user_query>"}]}}

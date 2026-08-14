@@ -1,0 +1,141 @@
+package com.mju.onda.driver.feature.home.data
+
+import android.content.SharedPreferences
+import com.mju.onda.driver.core.UserScopedPrefs
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * 로컬 API에서 받은 오늘 배정을 현재 계정에 보관한다.
+ * MockTodayOperations.assignedOperations가 여기를 우선 참조한다.
+ */
+object TodayAssignmentsHolder {
+    private const val PREFS = "onda_today_assignments"
+    private const val KEY_JSON = "assignments_json"
+    private const val KEY_DAY = "assignments_day"
+
+    @Volatile
+    private var cached: List<AssignedOperation>? = null
+
+    private var prefs: SharedPreferences? = null
+
+    fun bindUser() {
+        prefs = UserScopedPrefs.get(PREFS)
+        val today = com.mju.onda.driver.core.OndaDates.today().toString()
+        val storedDay = prefs?.getString(KEY_DAY, null)
+        if (storedDay != null && storedDay != today) {
+            clear()
+        } else {
+            cached = readPrefs()
+        }
+    }
+
+    fun unbindUser() {
+        cached = null
+        prefs = null
+    }
+
+    fun clear() {
+        cached = null
+        prefs?.edit()?.clear()?.apply()
+    }
+
+    /** 날짜 변경 시 캐시만 비워 서버에서 다시 받게 한다. */
+    fun clearForNewDay() {
+        cached = null
+        prefs?.edit()?.remove(KEY_JSON)?.putString(
+            KEY_DAY,
+            com.mju.onda.driver.core.OndaDates.today().toString(),
+        )?.apply()
+    }
+
+    fun set(operations: List<AssignedOperation>) {
+        cached = operations
+        persist(operations)
+    }
+
+    /** 운행 시작/종료 직후 홈이 DB 재조회 전에 배지를 맞추도록 로컬 캐시만 갱신한다. */
+    fun updateLocalStatus(
+        operationId: String,
+        status: OperationStatus,
+        startedAtMillis: Long? = null,
+        endedAtMillis: Long? = null,
+    ) {
+        val current = cached ?: return
+        var changed = false
+        val next = current.map { op ->
+            if (!op.matchesId(operationId)) {
+                op
+            } else {
+                changed = true
+                op.copy(
+                    status = status,
+                    startedAtMillis = startedAtMillis?.takeIf { it > 0L } ?: op.startedAtMillis,
+                    endedAtMillis = endedAtMillis?.takeIf { it > 0L } ?: op.endedAtMillis,
+                )
+            }
+        }
+        if (changed) set(next)
+    }
+
+    fun getOrNull(): List<AssignedOperation>? = cached
+
+    private fun persist(operations: List<AssignedOperation>) {
+        val arr = JSONArray()
+        operations.forEach { op ->
+            arr.put(
+                JSONObject()
+                    .put("id", op.id)
+                    .put("routeName", op.routeName)
+                    .put("vehicleName", op.vehicleName)
+                    .put("plateNumber", op.plateNumber)
+                    .put("departTime", op.departTime)
+                    .put("origin", op.origin)
+                    .put("destination", op.destination)
+                    .put("round", op.round)
+                    .put("expectedEndTime", op.expectedEndTime)
+                    .put("status", op.status.name)
+                    .put("dbId", op.dbId)
+                    .put("startedAtMillis", op.startedAtMillis)
+                    .put("endedAtMillis", op.endedAtMillis),
+            )
+        }
+        prefs?.edit()
+            ?.putString(KEY_JSON, arr.toString())
+            ?.putString(KEY_DAY, com.mju.onda.driver.core.OndaDates.today().toString())
+            ?.apply()
+    }
+
+    private fun readPrefs(): List<AssignedOperation>? {
+        val raw = prefs?.getString(KEY_JSON, null) ?: return null
+        return try {
+            val arr = JSONArray(raw)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    add(
+                        AssignedOperation(
+                            id = o.getString("id"),
+                            routeName = o.optString("routeName"),
+                            vehicleName = o.optString("vehicleName"),
+                            plateNumber = o.optString("plateNumber"),
+                            departTime = o.optString("departTime"),
+                            origin = o.optString("origin"),
+                            destination = o.optString("destination"),
+                            round = o.optInt("round", 1),
+                            expectedEndTime = o.optString("expectedEndTime"),
+                            status = runCatching {
+                                OperationStatus.valueOf(o.optString("status", "Scheduled"))
+                            }.getOrDefault(OperationStatus.Scheduled),
+                            dbId = o.optString("dbId"),
+                            startedAtMillis = o.optLong("startedAtMillis", 0L),
+                            endedAtMillis = o.optLong("endedAtMillis", 0L),
+                        ),
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}

@@ -1,0 +1,1105 @@
+{
+    "joined":  {
+                   "value":  [
+                                 {
+                                     "stop_order":  1,
+                                     "expected_minutes":  0,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222202",
+                                                   "latitude":  37.22405,
+                                                   "longitude":  127.18735,
+                                                   "stop_name":  "버스관리사무소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  1,
+                                     "expected_minutes":  0,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222210",
+                                                   "latitude":  37.22015,
+                                                   "longitude":  127.18515,
+                                                   "stop_name":  "생활관(명현관)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  1,
+                                     "expected_minutes":  0,
+                                     "routes":  {
+                                                    "id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                                    "route_name":  "기흥역 통학버스"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222211",
+                                                   "latitude":  37.22415,
+                                                   "longitude":  127.18705,
+                                                   "stop_name":  "채플관 앞"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  1,
+                                     "expected_minutes":  0,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222202",
+                                                   "latitude":  37.22405,
+                                                   "longitude":  127.18735,
+                                                   "stop_name":  "버스관리사무소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  2,
+                                     "expected_minutes":  5,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222215",
+                                                   "latitude":  37.2318,
+                                                   "longitude":  127.1894,
+                                                   "stop_name":  "상공회의소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  2,
+                                     "expected_minutes":  2,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222221",
+                                                   "latitude":  37.22135,
+                                                   "longitude":  127.18555,
+                                                   "stop_name":  "함박관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  2,
+                                     "expected_minutes":  5,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222215",
+                                                   "latitude":  37.2318,
+                                                   "longitude":  127.1894,
+                                                   "stop_name":  "상공회의소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  2,
+                                     "expected_minutes":  15,
+                                     "routes":  {
+                                                    "id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                                    "route_name":  "기흥역 통학버스"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222201",
+                                                   "latitude":  37.27597,
+                                                   "longitude":  127.11669,
+                                                   "stop_name":  "기흥역 5번 출구"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  3,
+                                     "expected_minutes":  4,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222223",
+                                                   "latitude":  37.22455,
+                                                   "longitude":  127.18875,
+                                                   "stop_name":  "정문"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  3,
+                                     "expected_minutes":  8,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222217",
+                                                   "latitude":  37.2362,
+                                                   "longitude":  127.1915,
+                                                   "stop_name":  "진입로(럭스나인 앞)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  3,
+                                     "expected_minutes":  8,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222217",
+                                                   "latitude":  37.2362,
+                                                   "longitude":  127.1915,
+                                                   "stop_name":  "진입로(럭스나인 앞)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  3,
+                                     "expected_minutes":  30,
+                                     "routes":  {
+                                                    "id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                                    "route_name":  "기흥역 통학버스"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222211",
+                                                   "latitude":  37.22415,
+                                                   "longitude":  127.18705,
+                                                   "stop_name":  "채플관 앞"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  4,
+                                     "expected_minutes":  12,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222218",
+                                                   "latitude":  37.2349,
+                                                   "longitude":  127.1988,
+                                                   "stop_name":  "동부경찰서 중앙지구대"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  4,
+                                     "expected_minutes":  12,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222205",
+                                                   "latitude":  37.23811,
+                                                   "longitude":  127.19057,
+                                                   "stop_name":  "경전철 명지대역"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  4,
+                                     "expected_minutes":  8,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222215",
+                                                   "latitude":  37.2318,
+                                                   "longitude":  127.1894,
+                                                   "stop_name":  "상공회의소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  5,
+                                     "expected_minutes":  11,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222217",
+                                                   "latitude":  37.2362,
+                                                   "longitude":  127.1915,
+                                                   "stop_name":  "진입로(럭스나인 앞)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  5,
+                                     "expected_minutes":  14,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222219",
+                                                   "latitude":  37.23755,
+                                                   "longitude":  127.19185,
+                                                   "stop_name":  "명지대역 사거리 정류장"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  5,
+                                     "expected_minutes":  16,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222206",
+                                                   "latitude":  37.23509,
+                                                   "longitude":  127.20561,
+                                                   "stop_name":  "용인CGV"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  6,
+                                     "expected_minutes":  18,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222207",
+                                                   "latitude":  37.23455,
+                                                   "longitude":  127.2072,
+                                                   "stop_name":  "중앙공영주차장"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  6,
+                                     "expected_minutes":  17,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222204",
+                                                   "latitude":  37.23446,
+                                                   "longitude":  127.1883,
+                                                   "stop_name":  "진입로(역북동 주민센터)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  6,
+                                     "expected_minutes":  15,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222218",
+                                                   "latitude":  37.2349,
+                                                   "longitude":  127.1988,
+                                                   "stop_name":  "동부경찰서 중앙지구대"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  7,
+                                     "expected_minutes":  20,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222216",
+                                                   "latitude":  37.23143,
+                                                   "longitude":  127.18916,
+                                                   "stop_name":  "이마트"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  7,
+                                     "expected_minutes":  22,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222204",
+                                                   "latitude":  37.23446,
+                                                   "longitude":  127.1883,
+                                                   "stop_name":  "진입로(역북동 주민센터)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  7,
+                                     "expected_minutes":  18,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222206",
+                                                   "latitude":  37.23509,
+                                                   "longitude":  127.20561,
+                                                   "stop_name":  "용인CGV"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  8,
+                                     "expected_minutes":  24,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222208",
+                                                   "latitude":  37.22255,
+                                                   "longitude":  127.18695,
+                                                   "stop_name":  "명진당"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  8,
+                                     "expected_minutes":  25,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222216",
+                                                   "latitude":  37.23143,
+                                                   "longitude":  127.18916,
+                                                   "stop_name":  "이마트"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  8,
+                                     "expected_minutes":  20,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222207",
+                                                   "latitude":  37.23455,
+                                                   "longitude":  127.2072,
+                                                   "stop_name":  "중앙공영주차장"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  9,
+                                     "expected_minutes":  29,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222220",
+                                                   "latitude":  37.22185,
+                                                   "longitude":  127.18615,
+                                                   "stop_name":  "제1공학관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  9,
+                                     "expected_minutes":  23,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222205",
+                                                   "latitude":  37.23811,
+                                                   "longitude":  127.19057,
+                                                   "stop_name":  "경전철 명지대역"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  9,
+                                     "expected_minutes":  26,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222209",
+                                                   "latitude":  37.22125,
+                                                   "longitude":  127.18675,
+                                                   "stop_name":  "제3공학관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  10,
+                                     "expected_minutes":  28,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222221",
+                                                   "latitude":  37.22135,
+                                                   "longitude":  127.18555,
+                                                   "stop_name":  "함박관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  10,
+                                     "expected_minutes":  26,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222204",
+                                                   "latitude":  37.23446,
+                                                   "longitude":  127.1883,
+                                                   "stop_name":  "진입로(역북동 주민센터)"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  10,
+                                     "expected_minutes":  31,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222209",
+                                                   "latitude":  37.22125,
+                                                   "longitude":  127.18675,
+                                                   "stop_name":  "제3공학관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  11,
+                                     "expected_minutes":  30,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222222",
+                                                   "latitude":  37.22305,
+                                                   "longitude":  127.18665,
+                                                   "stop_name":  "창조관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  11,
+                                     "expected_minutes":  33,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222221",
+                                                   "latitude":  37.22135,
+                                                   "longitude":  127.18555,
+                                                   "stop_name":  "함박관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  11,
+                                     "expected_minutes":  28,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222216",
+                                                   "latitude":  37.23143,
+                                                   "longitude":  127.18916,
+                                                   "stop_name":  "이마트"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  12,
+                                     "expected_minutes":  35,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222222",
+                                                   "latitude":  37.22305,
+                                                   "longitude":  127.18665,
+                                                   "stop_name":  "창조관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  12,
+                                     "expected_minutes":  33,
+                                     "routes":  {
+                                                    "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                                    "route_name":  "명지대역 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222202",
+                                                   "latitude":  37.22405,
+                                                   "longitude":  127.18735,
+                                                   "stop_name":  "버스관리사무소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  12,
+                                     "expected_minutes":  32,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222220",
+                                                   "latitude":  37.22185,
+                                                   "longitude":  127.18615,
+                                                   "stop_name":  "제1공학관"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  13,
+                                     "expected_minutes":  38,
+                                     "routes":  {
+                                                    "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                                    "route_name":  "시내 셔틀"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222202",
+                                                   "latitude":  37.22405,
+                                                   "longitude":  127.18735,
+                                                   "stop_name":  "버스관리사무소"
+                                               }
+                                 },
+                                 {
+                                     "stop_order":  13,
+                                     "expected_minutes":  36,
+                                     "routes":  {
+                                                    "id":  "66666666-6666-6666-6666-666666666002",
+                                                    "route_name":  "시내 셔틀 (주말·공휴일·방학)"
+                                                },
+                                     "stops":  {
+                                                   "id":  "22222222-2222-2222-2222-222222222210",
+                                                   "latitude":  37.22015,
+                                                   "longitude":  127.18515,
+                                                   "stop_name":  "생활관(명현관)"
+                                               }
+                                 }
+                             ],
+                   "Count":  41
+               },
+    "routes":  {
+                   "value":  [
+                                 {
+                                     "id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                     "route_name":  "기흥역 통학버스",
+                                     "start_location":  "채플관 앞",
+                                     "end_location":  "채플관 앞"
+                                 },
+                                 {
+                                     "id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                     "route_name":  "명지대역 셔틀",
+                                     "start_location":  "버스관리사무소",
+                                     "end_location":  "버스관리사무소"
+                                 },
+                                 {
+                                     "id":  "66666666-6666-6666-6666-666666666001",
+                                     "route_name":  "명지대역 셔틀 (18시 이후)",
+                                     "start_location":  "버스관리사무소",
+                                     "end_location":  "버스관리사무소"
+                                 },
+                                 {
+                                     "id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                     "route_name":  "시내 셔틀",
+                                     "start_location":  "버스관리사무소",
+                                     "end_location":  "버스관리사무소"
+                                 },
+                                 {
+                                     "id":  "66666666-6666-6666-6666-666666666002",
+                                     "route_name":  "시내 셔틀 (주말·공휴일·방학)",
+                                     "start_location":  "생활관(명현관)",
+                                     "end_location":  "생활관(명현관)"
+                                 }
+                             ],
+                   "Count":  5
+               },
+    "route_stops":  {
+                        "value":  [
+                                      {
+                                          "id":  "85bbee07-c7f5-498d-b5ac-06559cf4328d",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222202",
+                                          "stop_order":  1,
+                                          "expected_minutes":  0
+                                      },
+                                      {
+                                          "id":  "76fb64e9-4ea3-49c5-99fc-e989a10c6922",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222215",
+                                          "stop_order":  2,
+                                          "expected_minutes":  5
+                                      },
+                                      {
+                                          "id":  "7732abd5-211e-481b-89bc-17f7d37c92b8",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222217",
+                                          "stop_order":  3,
+                                          "expected_minutes":  8
+                                      },
+                                      {
+                                          "id":  "f705bb3b-cb28-4ac1-b14b-dfaba582eacd",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222218",
+                                          "stop_order":  4,
+                                          "expected_minutes":  12
+                                      },
+                                      {
+                                          "id":  "bb8753fe-a014-4a01-a584-8670481c25de",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222206",
+                                          "stop_order":  5,
+                                          "expected_minutes":  16
+                                      },
+                                      {
+                                          "id":  "dade8514-2ec6-4964-a1e7-2be42b45e158",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222207",
+                                          "stop_order":  6,
+                                          "expected_minutes":  18
+                                      },
+                                      {
+                                          "id":  "bfdc273e-9d58-4dd7-9e1d-d36ec57084b8",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222204",
+                                          "stop_order":  7,
+                                          "expected_minutes":  22
+                                      },
+                                      {
+                                          "id":  "9dba5be4-20dc-4d7c-9cde-7f6f6a2a4349",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222216",
+                                          "stop_order":  8,
+                                          "expected_minutes":  25
+                                      },
+                                      {
+                                          "id":  "7a5c5449-e20e-4881-ad03-342be4dd87a3",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222220",
+                                          "stop_order":  9,
+                                          "expected_minutes":  29
+                                      },
+                                      {
+                                          "id":  "03142602-7d6e-4053-a9a3-dd1ce7fe3f65",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222209",
+                                          "stop_order":  10,
+                                          "expected_minutes":  31
+                                      },
+                                      {
+                                          "id":  "3b1608fd-137c-45db-8d63-97c168233dc3",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222221",
+                                          "stop_order":  11,
+                                          "expected_minutes":  33
+                                      },
+                                      {
+                                          "id":  "bc654c9d-848f-4236-8ac0-69ddd943062a",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222222",
+                                          "stop_order":  12,
+                                          "expected_minutes":  35
+                                      },
+                                      {
+                                          "id":  "f19b6915-7f7a-4bd7-9db5-7fc9f21bda20",
+                                          "route_id":  "0c01e3ed-0004-4c33-ba62-f7efa8f718c8",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222202",
+                                          "stop_order":  13,
+                                          "expected_minutes":  38
+                                      },
+                                      {
+                                          "id":  "db19cfc8-127a-4101-b252-c1b38d214be5",
+                                          "route_id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222211",
+                                          "stop_order":  1,
+                                          "expected_minutes":  0
+                                      },
+                                      {
+                                          "id":  "14b8daf8-d6df-4d39-b8c4-7bcf4f5f2c18",
+                                          "route_id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222201",
+                                          "stop_order":  2,
+                                          "expected_minutes":  15
+                                      },
+                                      {
+                                          "id":  "e0ec9df8-11a0-40c5-b765-ac0f4c85a30a",
+                                          "route_id":  "370d794c-7139-423c-949a-25f320e93c5d",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222211",
+                                          "stop_order":  3,
+                                          "expected_minutes":  30
+                                      },
+                                      {
+                                          "id":  "4807d3fd-532d-4f86-9587-2fe4c4c121db",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222210",
+                                          "stop_order":  1,
+                                          "expected_minutes":  0
+                                      },
+                                      {
+                                          "id":  "f48a2620-5077-4281-854e-5dfef574db3d",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222221",
+                                          "stop_order":  2,
+                                          "expected_minutes":  2
+                                      },
+                                      {
+                                          "id":  "c88a27c4-021a-4d5c-be84-2775419cd99d",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222223",
+                                          "stop_order":  3,
+                                          "expected_minutes":  4
+                                      },
+                                      {
+                                          "id":  "82212df7-b2f0-4062-963e-c057fefe81ef",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222215",
+                                          "stop_order":  4,
+                                          "expected_minutes":  8
+                                      },
+                                      {
+                                          "id":  "2694f6b1-a539-4c99-9a04-82d5b3e854f8",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222217",
+                                          "stop_order":  5,
+                                          "expected_minutes":  11
+                                      },
+                                      {
+                                          "id":  "06c7f0a0-19ad-4ff4-9e46-ddbcc5d7b216",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222218",
+                                          "stop_order":  6,
+                                          "expected_minutes":  15
+                                      },
+                                      {
+                                          "id":  "0fb835a4-955c-4302-97dc-318ef0cfe0ec",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222206",
+                                          "stop_order":  7,
+                                          "expected_minutes":  18
+                                      },
+                                      {
+                                          "id":  "96b3f1cd-1377-457f-ad61-8d40562b71fb",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222207",
+                                          "stop_order":  8,
+                                          "expected_minutes":  20
+                                      },
+                                      {
+                                          "id":  "de8c4657-dce7-4746-866c-badc30e339f0",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222205",
+                                          "stop_order":  9,
+                                          "expected_minutes":  23
+                                      },
+                                      {
+                                          "id":  "31e4410b-c76b-4abc-a746-9a1f6787a367",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222204",
+                                          "stop_order":  10,
+                                          "expected_minutes":  26
+                                      },
+                                      {
+                                          "id":  "5fc8ab21-78be-4f1a-b7b9-676a14c43888",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222216",
+                                          "stop_order":  11,
+                                          "expected_minutes":  28
+                                      },
+                                      {
+                                          "id":  "ff05cefb-5322-4535-acad-caa11b0ebf33",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222220",
+                                          "stop_order":  12,
+                                          "expected_minutes":  32
+                                      },
+                                      {
+                                          "id":  "81f01d40-731d-4120-af3d-62fa6e7538ee",
+                                          "route_id":  "66666666-6666-6666-6666-666666666002",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222210",
+                                          "stop_order":  13,
+                                          "expected_minutes":  36
+                                      },
+                                      {
+                                          "id":  "4aecfeca-6410-49cc-b8ab-0c6a4e4defc9",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222202",
+                                          "stop_order":  1,
+                                          "expected_minutes":  0
+                                      },
+                                      {
+                                          "id":  "188b7c8a-68c2-4609-bc3a-e38660af46e7",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222215",
+                                          "stop_order":  2,
+                                          "expected_minutes":  5
+                                      },
+                                      {
+                                          "id":  "f597cb96-13c3-4705-9916-8d1abf907a2f",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222217",
+                                          "stop_order":  3,
+                                          "expected_minutes":  8
+                                      },
+                                      {
+                                          "id":  "44c86697-21b2-48d2-87fb-8ea2ffaaec7e",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222205",
+                                          "stop_order":  4,
+                                          "expected_minutes":  12
+                                      },
+                                      {
+                                          "id":  "acc1756e-121c-42c5-9454-6b110fe2d465",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222219",
+                                          "stop_order":  5,
+                                          "expected_minutes":  14
+                                      },
+                                      {
+                                          "id":  "a9a903b2-e9d3-46fd-842e-228febbc873a",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222204",
+                                          "stop_order":  6,
+                                          "expected_minutes":  17
+                                      },
+                                      {
+                                          "id":  "c78f3bd9-6185-406b-8922-dfc4dfad6e8c",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222216",
+                                          "stop_order":  7,
+                                          "expected_minutes":  20
+                                      },
+                                      {
+                                          "id":  "913c158f-e95d-4795-acb4-635351de0619",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222208",
+                                          "stop_order":  8,
+                                          "expected_minutes":  24
+                                      },
+                                      {
+                                          "id":  "a69d1738-e2bd-4fdc-8fdc-88ab5c8bde5a",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222209",
+                                          "stop_order":  9,
+                                          "expected_minutes":  26
+                                      },
+                                      {
+                                          "id":  "57190438-b127-444a-8b6f-12137c1f23b7",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222221",
+                                          "stop_order":  10,
+                                          "expected_minutes":  28
+                                      },
+                                      {
+                                          "id":  "999c0510-f2c6-4c79-94f3-929de0d7e8d6",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222222",
+                                          "stop_order":  11,
+                                          "expected_minutes":  30
+                                      },
+                                      {
+                                          "id":  "d6ba578c-e4c5-40c6-b100-0ade672e6039",
+                                          "route_id":  "795693ce-876f-4132-a84c-2ad0c32776c4",
+                                          "stop_id":  "22222222-2222-2222-2222-222222222202",
+                                          "stop_order":  12,
+                                          "expected_minutes":  33
+                                      }
+                                  ],
+                        "Count":  41
+                    },
+    "stops":  {
+                  "value":  [
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222205",
+                                    "stop_name":  "경전철 명지대역",
+                                    "latitude":  37.23811,
+                                    "longitude":  127.19057,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222201",
+                                    "stop_name":  "기흥역 5번 출구",
+                                    "latitude":  37.27597,
+                                    "longitude":  127.11669,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222218",
+                                    "stop_name":  "동부경찰서 중앙지구대",
+                                    "latitude":  37.2349,
+                                    "longitude":  127.1988,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222219",
+                                    "stop_name":  "명지대역 사거리 정류장",
+                                    "latitude":  37.23755,
+                                    "longitude":  127.19185,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "b90ad5f7-1263-4361-8ee0-420f54bc2060",
+                                    "stop_name":  "명지대학교",
+                                    "latitude":  37.5806,
+                                    "longitude":  126.9236,
+                                    "created_at":  "2026-08-06T09:45:28.937566+00:00",
+                                    "updated_at":  "2026-08-06T09:45:28.937566+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222208",
+                                    "stop_name":  "명진당",
+                                    "latitude":  37.22255,
+                                    "longitude":  127.18695,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222202",
+                                    "stop_name":  "버스관리사무소",
+                                    "latitude":  37.22405,
+                                    "longitude":  127.18735,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222215",
+                                    "stop_name":  "상공회의소",
+                                    "latitude":  37.2318,
+                                    "longitude":  127.1894,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222210",
+                                    "stop_name":  "생활관(명현관)",
+                                    "latitude":  37.22015,
+                                    "longitude":  127.18515,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222206",
+                                    "stop_name":  "용인CGV",
+                                    "latitude":  37.23509,
+                                    "longitude":  127.20561,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222213",
+                                    "stop_name":  "용인시청",
+                                    "latitude":  37.2342,
+                                    "longitude":  127.2095,
+                                    "created_at":  "2026-08-09T19:37:26.296062+00:00",
+                                    "updated_at":  "2026-08-11T06:43:45.009086+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222216",
+                                    "stop_name":  "이마트",
+                                    "latitude":  37.23143,
+                                    "longitude":  127.18916,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222203",
+                                    "stop_name":  "이마트·상공회의소 앞",
+                                    "latitude":  37.2301,
+                                    "longitude":  127.1889,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-09T19:07:11.536755+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222214",
+                                    "stop_name":  "자연캠퍼스",
+                                    "latitude":  37.2248,
+                                    "longitude":  127.187,
+                                    "created_at":  "2026-08-09T19:37:26.296062+00:00",
+                                    "updated_at":  "2026-08-11T06:43:45.009086+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222223",
+                                    "stop_name":  "정문",
+                                    "latitude":  37.22455,
+                                    "longitude":  127.18875,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222220",
+                                    "stop_name":  "제1공학관",
+                                    "latitude":  37.22185,
+                                    "longitude":  127.18615,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222209",
+                                    "stop_name":  "제3공학관",
+                                    "latitude":  37.22125,
+                                    "longitude":  127.18675,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222207",
+                                    "stop_name":  "중앙공영주차장",
+                                    "latitude":  37.23455,
+                                    "longitude":  127.2072,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222217",
+                                    "stop_name":  "진입로(럭스나인 앞)",
+                                    "latitude":  37.2362,
+                                    "longitude":  127.1915,
+                                    "created_at":  "2026-08-11T17:50:09.538014+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222204",
+                                    "stop_name":  "진입로(역북동 주민센터)",
+                                    "latitude":  37.23446,
+                                    "longitude":  127.1883,
+                                    "created_at":  "2026-08-09T19:07:11.536755+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222222",
+                                    "stop_name":  "창조관",
+                                    "latitude":  37.22305,
+                                    "longitude":  127.18665,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222211",
+                                    "stop_name":  "채플관 앞",
+                                    "latitude":  37.22415,
+                                    "longitude":  127.18705,
+                                    "created_at":  "2026-08-09T19:37:26.296062+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222212",
+                                    "stop_name":  "학생회관",
+                                    "latitude":  37.2225,
+                                    "longitude":  127.1888,
+                                    "created_at":  "2026-08-09T19:37:26.296062+00:00",
+                                    "updated_at":  "2026-08-11T06:43:45.009086+00:00"
+                                },
+                                {
+                                    "id":  "22222222-2222-2222-2222-222222222221",
+                                    "stop_name":  "함박관",
+                                    "latitude":  37.22135,
+                                    "longitude":  127.18555,
+                                    "created_at":  "2026-08-11T17:46:33.754677+00:00",
+                                    "updated_at":  "2026-08-11T18:08:05.579575+00:00"
+                                }
+                            ],
+                  "Count":  24
+              }
+}

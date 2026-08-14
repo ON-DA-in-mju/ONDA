@@ -1,0 +1,3 @@
+-- DEPRECATED: 소통 글쓰기는 reports.board_type = 'POST' 로 통합되었습니다.
+-- 이 파일을 실행하지 마세요.
+-- 대신 실행: frontend/admin/supabase/migrate_reports_board_type.sql
