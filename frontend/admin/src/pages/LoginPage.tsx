@@ -34,61 +34,67 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-top">
-        <Logo height={52} />
-        <span className="login-contact">계정 문의 : admin@mju.ac.kr</span>
-      </div>
+      <div className="login-shell">
+        <div className="login-top">
+          <Logo height={36} />
+          <span className="login-contact">
+            계정 문의 : <a href="mailto:admin@mju.ac.kr">admin@mju.ac.kr</a>
+          </span>
+        </div>
 
-      <div className="login-main">
-        <h1>셔틀버스 관리자 시스템</h1>
-        <p className="lead">
-          명지대학교 셔틀버스 서비스 관리를 위한
-          <br />
-          관리자 전용 시스템입니다.
-        </p>
-        <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12 }}>
-          {usingSupabase ? 'Supabase 연결됨 · Auth + users 테이블' : 'Supabase 미설정 · 로컬 데모 모드 (.env.local 확인)'}
-        </p>
+        <div className="login-main">
+          <h1>셔틀버스 관리자 시스템</h1>
+          <p className="lead">
+            명지대학교 셔틀버스 서비스 관리를 위한
+            <br />
+            관리자 전용 시스템입니다.
+          </p>
+          <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12, textAlign: 'center' }}>
+            {usingSupabase
+              ? 'Supabase 연결됨 · Auth + users 테이블'
+              : 'Supabase 미설정 · Vercel Environment Variables 확인'}
+          </p>
 
-        <form className="login-form" onSubmit={onSubmit}>
-          <Field label="관리자 ID" required>
-            <IconInput
-              leftIcon={<User size={16} />}
-              type="email"
-              placeholder="아이디를 입력하세요."
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="username"
-            />
-          </Field>
+          <form className="login-form" onSubmit={onSubmit}>
+            <Field label="관리자 ID" required>
+              <IconInput
+                leftIcon={<User size={16} />}
+                type="email"
+                placeholder="아이디를 입력하세요."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="username"
+              />
+            </Field>
 
-          <Field label="비밀번호" required>
-            <PasswordInput
-              leftIcon={<Lock size={16} />}
-              placeholder="비밀번호를 입력하세요."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </Field>
+            <Field label="비밀번호" required>
+              <PasswordInput
+                leftIcon={<Lock size={16} />}
+                placeholder="비밀번호를 입력하세요."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </Field>
 
-          {error ? <div className="alert alert-danger">{error}</div> : null}
+            {error ? <div className="alert alert-danger">{error}</div> : null}
 
-          <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
-            {loading ? '로그인 중...' : '로그인'}
-          </button>
-        </form>
+            <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
+              {loading ? '로그인 중...' : '로그인'}
+            </button>
+          </form>
 
-        <p className="login-links">
-          아직 계정이 없으신가요?
-          <Link to="/signup">회원가입</Link>
-        </p>
-      </div>
+          <p className="login-links">
+            아직 계정이 없으신가요?
+            <Link to="/signup">회원가입</Link>
+          </p>
+        </div>
 
-      <div className="login-hero" aria-hidden>
-        <img src={heroImg} alt="" />
+        <div className="login-hero" aria-hidden>
+          <img src={heroImg} alt="" />
+        </div>
       </div>
     </div>
   )
