@@ -25,6 +25,8 @@ import { todayDateKey } from '../types/assignment'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createExclusivePoll } from '../lib/exclusivePoll'
 import { StatCard, StatusBadge } from '../components/ui/Form'
+import { LiveVehiclesMap } from '../components/LiveVehiclesMap'
+import { LIVE_MAP_ROUTES } from '../data/cityShuttleStops'
 
 const iconNodes = [CalendarDays, Bus, Bus, RadioTower, MessageSquareWarning, Megaphone]
 
@@ -208,7 +210,9 @@ export function DashboardPage() {
               v.gpsKind === n.gpsKind &&
               v.status === n.status &&
               v.updatedAt === n.updatedAt &&
-              v.stop === n.stop
+              v.stop === n.stop &&
+              v.lat === n.lat &&
+              v.lng === n.lng
             )
           })
         ) {
@@ -387,14 +391,9 @@ export function DashboardPage() {
               실시간 운행 보기
             </button>
           </div>
-          <button
-            type="button"
-            className="map-frame dash-map-preview"
-            onClick={() => navigate('/live')}
-            aria-label="실시간 운행 지도로 이동"
-          >
-            <img src="/dash-live-map.png" alt="" className="dash-map-preview-img" />
-          </button>
+          <div className="map-frame">
+            <LiveVehiclesMap vehicles={vehicles} routes={LIVE_MAP_ROUTES} height={300} />
+          </div>
         </section>
 
         <section className="card card-pad">

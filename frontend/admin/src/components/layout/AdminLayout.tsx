@@ -143,7 +143,7 @@ export function AdminLayout() {
       : location.pathname.startsWith('/schedules/detail')
         ? '운행 일정 상세'
         : location.pathname.startsWith('/reports/detail')
-          ? '제보 상세'
+          ? '커뮤니티 상세'
           : 'ON-DA 관리자')
 
   return (
@@ -163,6 +163,7 @@ export function AdminLayout() {
           userEmail={user?.email ?? 'admin@mju.ac.kr'}
           notificationCount={unreadCount}
           onNotificationClick={() => navigate('/notifications')}
+          onProfileClick={() => navigate('/settings')}
         />
         <main className="admin-content">
           <Outlet />

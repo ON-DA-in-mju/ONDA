@@ -24,6 +24,7 @@ import {
   deleteReport,
   fetchNotices,
   fetchReportById,
+  fetchReportReactionCounts,
   fetchReports,
   fetchUsers,
   updateNotice,
@@ -53,10 +54,8 @@ import { StatusBadge } from '../components/ui/Form'
 import { ListPagination } from '../components/ui/ListPagination'
 import '../styles/figma-pages.css'
 
-const reportStatusKo: Record<string, string> = {
-  PENDING: '처리 대기',
-  PROCESSING: '검토 중',
-  COMPLETED: '처리 완료',
+function boardTypeLabel(type?: string | null): '제보' | '소통' {
+  return type === 'POST' ? '소통' : '제보'
 }
 
 const NOTICE_BODY_MAX = 2000
@@ -236,7 +235,7 @@ const emptyEditorCmds: EditorCmdState = {
 /** ADM-05 커뮤니티 제보 관리 */
 export function ReportsPage() {
   const navigate = useNavigate()
-  const [selected] = useState(0)
+  const [selected, setSelected] = useState(0)
   const [listPage, setListPage] = useState(1)
   const [dbReports, setDbReports] = useState<ReportRow[] | null>(null)
 
@@ -265,20 +264,30 @@ export function ReportsPage() {
     if (listPage > reportPageCount) setListPage(reportPageCount)
   }, [listPage, reportPageCount])
 
+  useEffect(() => {
+    const max = (dbReports?.length ?? reports.length) - 1
+    if (selected > max) setSelected(Math.max(0, max))
+  }, [dbReports, selected])
+
   const item = usingDb && dbReports?.[selected] ? dbReports[selected] : null
   const mockItem = reports[Math.min(selected, reports.length - 1)] ?? reports[0]
 
   return (
     <div className="page">
       <p className="page-subtitle">
-        학생들의 제보를 검토하고 신뢰도를 관리하는 공간입니다.
-        {isSupabaseConfigured ? (dbReports ? ` · Supabase reports ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
+        학생 앱의 제보와 소통 글을 함께 확인하는 공간입니다.
+        {isSupabaseConfigured ? (dbReports ? ` · Supabase ${dbReports.length}건` : ' · DB 로딩/권한 확인') : ' · mock'}
       </p>
       <div className="grid grid-3 reports-kpis">
         {[
-          ['전체 제보 수', `${dbReports?.length ?? 38}건`, dbReports ? 'DB' : '전체', 'blue'],
-          ['처리 대기', `${dbReports?.filter((r) => r.status === 'PENDING').length ?? 12}건`, 'PENDING', 'orange'],
-          ['완료', `${dbReports?.filter((r) => r.status === 'COMPLETED').length ?? 26}건`, 'COMPLETED', 'gray'],
+          ['전체', `${dbReports?.length ?? 38}건`, dbReports ? '제보+소통' : '전체', 'blue'],
+          [
+            '제보',
+            `${dbReports?.filter((r) => r.board_type !== 'POST').length ?? 12}건`,
+            'REPORT',
+            'orange',
+          ],
+          ['소통', `${dbReports?.filter((r) => r.board_type === 'POST').length ?? 26}건`, 'POST', 'purple'],
         ].map(([t, v, s, tone]) => (
           <div key={t} className="card card-pad reports-kpi">
             <div className="muted reports-kpi-label">{t}</div>
@@ -291,13 +300,13 @@ export function ReportsPage() {
       <div className="split-13">
         <section className="card card-pad">
           <div className="card-head">
-            <h3>제보 목록</h3>
+            <h3>커뮤니티 목록</h3>
           </div>
           <table className="data-table">
             <thead>
               <tr>
                 <th>{dbReports ? '제목' : '유형'}</th>
-                <th>{dbReports ? '상태' : '대상'}</th>
+                <th>{dbReports ? '구분' : '대상'}</th>
                 <th>시간</th>
                 {!dbReports ? <th>좋아요</th> : null}
                 {!dbReports ? <th>상태</th> : null}
@@ -309,15 +318,23 @@ export function ReportsPage() {
                 ? pagedDbReports.map((row, idx) => {
                     const absoluteIdx = (safeListPage - 1) * REPORTS_PAGE_SIZE + idx
                     return (
-                      <tr key={row.id} style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}>
+                      <tr
+                        key={row.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelected(absoluteIdx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') setSelected(absoluteIdx)
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          background: absoluteIdx === selected ? '#f5f8ff' : undefined,
+                        }}
+                      >
                         <td style={{ fontWeight: 700 }}>{row.title}</td>
                         <td>
-                          <StatusBadge
-                            tone={
-                              row.status === 'PENDING' ? 'orange' : row.status === 'PROCESSING' ? 'blue' : 'green'
-                            }
-                          >
-                            {reportStatusKo[row.status] ?? row.status}
+                          <StatusBadge tone={row.board_type === 'POST' ? 'purple' : 'blue'}>
+                            {boardTypeLabel(row.board_type)}
                           </StatusBadge>
                         </td>
                         <td>{row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '-'}</td>
@@ -326,7 +343,10 @@ export function ReportsPage() {
                             className="btn btn-outline"
                             type="button"
                             style={{ height: 28 }}
-                            onClick={() => navigate(`/reports/detail/${row.id}`)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/reports/detail/${row.id}`)
+                            }}
                           >
                             상세
                           </button>
@@ -339,7 +359,16 @@ export function ReportsPage() {
                     return (
                       <tr
                         key={row.type + row.time}
-                        style={absoluteIdx === selected ? { background: '#f5f8ff' } : undefined}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelected(absoluteIdx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') setSelected(absoluteIdx)
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          background: absoluteIdx === selected ? '#f5f8ff' : undefined,
+                        }}
                       >
                         <td>{row.type}</td>
                         <td>{row.target}</td>
@@ -353,7 +382,10 @@ export function ReportsPage() {
                             className="btn btn-outline"
                             type="button"
                             style={{ height: 28 }}
-                            onClick={() => navigate(`/reports/detail/mock-${absoluteIdx}`)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/reports/detail/mock-${absoluteIdx}`)
+                            }}
                           >
                             상세
                           </button>
@@ -368,19 +400,19 @@ export function ReportsPage() {
             page={safeListPage}
             pageSize={REPORTS_PAGE_SIZE}
             onPageChange={setListPage}
-            ariaLabel="제보 목록 페이지"
+            ariaLabel="커뮤니티 목록 페이지"
           />
         </section>
 
         <section className="card card-pad">
           <div className="card-head">
-            <h3>제보 상세</h3>
+            <h3>미리보기</h3>
             {item ? (
-              <StatusBadge tone={item.status === 'PENDING' ? 'orange' : item.status === 'PROCESSING' ? 'blue' : 'green'}>
-                {reportStatusKo[item.status] ?? item.status}
+              <StatusBadge tone={item.board_type === 'POST' ? 'purple' : 'blue'}>
+                {boardTypeLabel(item.board_type)}
               </StatusBadge>
             ) : (
-              <StatusBadge tone={mockItem.tone}>{mockItem.status}</StatusBadge>
+              <StatusBadge tone="blue">제보</StatusBadge>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
@@ -407,6 +439,7 @@ export function ReportDetailPage() {
   const navigate = useNavigate()
   const { reportId = '' } = useParams()
   const [row, setRow] = useState<ReportRow | null>(null)
+  const [reactions, setReactions] = useState({ likes: 0, dislikes: 0 })
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -439,10 +472,12 @@ export function ReportDetailPage() {
         return
       }
       const data = await fetchReportById(reportId)
+      const counts = data ? await fetchReportReactionCounts(data.id) : { likes: 0, dislikes: 0 }
       if (!cancelled) {
         setRow(data)
+        setReactions(counts)
         setLoading(false)
-        if (!data) setMessage('제보를 찾을 수 없습니다.')
+        if (!data) setMessage('글을 찾을 수 없습니다.')
       }
     }
     void load()
@@ -487,16 +522,17 @@ export function ReportDetailPage() {
     navigate('/reports')
   }
 
-  const statusTone =
-    row?.status === 'PENDING' ? 'orange' : row?.status === 'PROCESSING' ? 'blue' : row ? 'green' : mockItem?.tone ?? 'gray'
-  const statusLabel = row ? reportStatusKo[row.status] ?? row.status : mockItem?.status ?? '-'
+  const kind = boardTypeLabel(row?.board_type)
+  const viewCount = row?.view_count ?? 0
+  const likeCount = mockItem ? mockItem.likes : reactions.likes
+  const dislikeCount = mockItem ? 0 : reactions.dislikes
 
   return (
     <div className="page">
       <div className="card-head" style={{ marginBottom: 4 }}>
         <div>
-          <h2 className="page-title">제보 상세</h2>
-          <p className="page-subtitle">학생 앱 제보와 같은 내용을 검토합니다. 문제없으면 유지하고, 부적절하면 삭제하세요.</p>
+          <h2 className="page-title">커뮤니티 상세</h2>
+          <p className="page-subtitle">학생 앱에서 올린 제보·소통 글의 내용과 반응을 확인합니다.</p>
         </div>
         <button className="btn btn-ghost" type="button" onClick={() => navigate('/reports')}>
           목록으로
@@ -512,28 +548,46 @@ export function ReportDetailPage() {
           <>
             <section className="card card-pad report-summary-card">
               <div className="report-summary-top">
-                <StatusBadge tone={statusTone as 'orange' | 'blue' | 'green' | 'gray'}>{statusLabel}</StatusBadge>
+                <StatusBadge tone={kind === '소통' ? 'purple' : 'blue'}>{kind}</StatusBadge>
                 <span className="muted" style={{ fontSize: 12.5 }}>
                   {row?.created_at
                     ? new Date(row.created_at).toLocaleString('ko-KR')
                     : mockItem?.time ?? '-'}
-                  {row ? ` · ${row.source === 'DRIVER' ? '기사 문의' : '학생 제보'}` : ' · mock'}
+                  {row ? ' · 학생 앱' : ' · mock'}
                 </span>
               </div>
-              <div className="report-summary-type">{parsed.typeLabel}</div>
-              <h3 className="report-summary-title">{row?.title ?? mockItem?.type ?? '제보'}</h3>
-              <p className="report-summary-meta">
-                {parsed.routeLabel}
-                {parsed.directionLabel && parsed.directionLabel !== '-' ? ` · ${parsed.directionLabel}` : ''}
-                {' · '}
-                {parsed.stopName}
-              </p>
+              <div className="report-summary-type">{kind === '소통' ? '소통 글' : parsed.typeLabel}</div>
+              <h3 className="report-summary-title">{row?.title ?? mockItem?.type ?? '커뮤니티 글'}</h3>
+              {kind === '제보' ? (
+                <p className="report-summary-meta">
+                  {parsed.routeLabel}
+                  {parsed.directionLabel && parsed.directionLabel !== '-' ? ` · ${parsed.directionLabel}` : ''}
+                  {' · '}
+                  {parsed.stopName}
+                </p>
+              ) : null}
+              <div className="report-info-list" style={{ marginTop: 14 }}>
+                <div className="report-info-row">
+                  <span>좋아요</span>
+                  <strong>{likeCount}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>싫어요</span>
+                  <strong>{dislikeCount}</strong>
+                </div>
+                <div className="report-info-row">
+                  <span>조회수</span>
+                  <strong>{viewCount}</strong>
+                </div>
+              </div>
             </section>
 
-            <div className="report-info-banner">학생들의 제보입니다. 실제 상황과 다를 수 있어요.</div>
+            <div className="report-info-banner">
+              {kind === '소통' ? '학생들의 소통 글입니다.' : '학생들의 제보입니다. 실제 상황과 다를 수 있어요.'}
+            </div>
 
             <section className="card card-pad report-section-card">
-              <h3>제보 내용</h3>
+              <h3>{kind === '소통' ? '글 내용' : '제보 내용'}</h3>
               <p className="report-body-text">{parsed.body}</p>
             </section>
 
@@ -541,28 +595,49 @@ export function ReportDetailPage() {
               <h3>관련 정보</h3>
               <div className="report-info-list">
                 <div className="report-info-row">
-                  <span>노선</span>
-                  <strong>{parsed.routeLabel}</strong>
+                  <span>구분</span>
+                  <strong>{kind}</strong>
+                </div>
+                {kind === '제보' ? (
+                  <>
+                    <div className="report-info-row">
+                      <span>노선</span>
+                      <strong>{parsed.routeLabel}</strong>
+                    </div>
+                    <div className="report-info-row">
+                      <span>방향</span>
+                      <strong>{parsed.directionLabel}</strong>
+                    </div>
+                    <div className="report-info-row">
+                      <span>정류장</span>
+                      <strong>{parsed.stopName}</strong>
+                    </div>
+                    <div className="report-info-row">
+                      <span>차량</span>
+                      <strong>{parsed.vehicleLabel}</strong>
+                    </div>
+                    <div className="report-info-row">
+                      <span>제보 유형</span>
+                      <strong>{parsed.typeLabel}</strong>
+                    </div>
+                  </>
+                ) : (
+                  <div className="report-info-row">
+                    <span>카테고리</span>
+                    <strong>{row?.category || parsed.typeLabel || '-'}</strong>
+                  </div>
+                )}
+                <div className="report-info-row">
+                  <span>좋아요</span>
+                  <strong>{likeCount}</strong>
                 </div>
                 <div className="report-info-row">
-                  <span>방향</span>
-                  <strong>{parsed.directionLabel}</strong>
+                  <span>싫어요</span>
+                  <strong>{dislikeCount}</strong>
                 </div>
                 <div className="report-info-row">
-                  <span>정류장</span>
-                  <strong>{parsed.stopName}</strong>
-                </div>
-                <div className="report-info-row">
-                  <span>차량</span>
-                  <strong>{parsed.vehicleLabel}</strong>
-                </div>
-                <div className="report-info-row">
-                  <span>제보 유형</span>
-                  <strong>{parsed.typeLabel}</strong>
-                </div>
-                <div className="report-info-row">
-                  <span>상태</span>
-                  <strong>{statusLabel}</strong>
+                  <span>조회수</span>
+                  <strong>{viewCount}</strong>
                 </div>
                 {row ? (
                   <div className="report-info-row">
@@ -606,7 +681,7 @@ export function ReportDetailPage() {
               ) : (
                 <>
                   <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
-                    이 제보를 삭제할까요? 되돌릴 수 없습니다.
+                    이 글을 삭제할까요? 되돌릴 수 없습니다.
                   </span>
                   <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void onDelete()}>
                     {busy ? '삭제 중…' : '삭제 확인'}

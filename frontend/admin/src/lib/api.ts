@@ -180,25 +180,40 @@ export async function fetchBuses(): Promise<BusRow[] | null> {
 
 export async function fetchReports(): Promise<ReportRow[] | null> {
   if (!isSupabaseConfigured) return null
-  // 관리자 제보 관리: 학생 상황 제보(REPORT)만. 소통 글(POST)·기사 문의 제외.
+  // 학생 앱 커뮤니티: 제보(REPORT) + 소통(POST). 기사 문의는 제외.
+  const community = await supabase
+    .from('reports')
+    .select('*')
+    .eq('source', 'STUDENT')
+    .in('board_type', ['REPORT', 'POST'])
+    .order('created_at', { ascending: false })
+  if (!community.error) return community.data as ReportRow[]
+
+  console.warn('[reports] community filter failed, fallback:', community.error.message)
   const studentOnly = await supabase
     .from('reports')
     .select('*')
-    .eq('board_type', 'REPORT')
     .eq('source', 'STUDENT')
     .order('created_at', { ascending: false })
   if (!studentOnly.error) return studentOnly.data as ReportRow[]
 
-  console.warn('[reports] student filter failed, fallback:', studentOnly.error.message)
-  const reportOnly = await supabase
-    .from('reports')
-    .select('*')
-    .eq('board_type', 'REPORT')
-    .order('created_at', { ascending: false })
-  if (!reportOnly.error) return reportOnly.data as ReportRow[]
-
-  console.warn('[reports] board_type filter failed, fallback:', reportOnly.error?.message)
+  console.warn('[reports] source filter failed, fallback:', studentOnly.error.message)
   return selectAll<ReportRow>('reports')
+}
+
+export async function fetchReportReactionCounts(
+  reportId: string,
+): Promise<{ likes: number; dislikes: number }> {
+  if (!isSupabaseConfigured || !reportId.trim()) return { likes: 0, dislikes: 0 }
+  const { data, error } = await supabase
+    .from('report_reactions')
+    .select('reaction')
+    .eq('report_id', reportId)
+  if (error || !data) return { likes: 0, dislikes: 0 }
+  return {
+    likes: data.filter((row) => String(row.reaction).toUpperCase() === 'LIKE').length,
+    dislikes: data.filter((row) => String(row.reaction).toUpperCase() === 'DISLIKE').length,
+  }
 }
 
 /** 학생 상황 제보 전체 건수 (대시보드 KPI) */

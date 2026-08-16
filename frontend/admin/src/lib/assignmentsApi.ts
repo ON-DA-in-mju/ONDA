@@ -185,6 +185,49 @@ async function resolveScheduleId(routeName: string, departTime: string, date: st
   return null
 }
 
+/** 해당 시각 스케줄이 없으면 그 날짜 요일·학기로 새로 만든다. */
+async function ensureScheduleId(routeName: string, departTime: string, date: string): Promise<string | null> {
+  const existing = await resolveScheduleId(routeName, departTime, date)
+  if (existing) return existing
+
+  const resolvedName = resolveOperationalRouteName({
+    baseRouteName: routeName,
+    departureTime: departTime,
+    date,
+  })
+  const namesToTry = [...new Set([resolvedName, routeName])]
+  const depart = departTime.length === 5 ? `${departTime}:00` : departTime
+  const weekday = weekdayOfDate(date)
+  const semester = semesterForDate(date)
+
+  for (const name of namesToTry) {
+    const { data: route, error: routeErr } = await supabase
+      .from('routes')
+      .select('id')
+      .eq('route_name', name)
+      .maybeSingle()
+    if (routeErr || !route?.id) continue
+
+    const { data, error } = await supabase
+      .from('schedules')
+      .insert({
+        route_id: route.id,
+        departure_time: depart,
+        weekday,
+        semester,
+      })
+      .select('id')
+      .maybeSingle()
+    if (data?.id) return data.id
+    if (error) {
+      const again = await resolveScheduleId(name, departTime, date)
+      if (again) return again
+      console.warn('[schedules] ensure', error.message)
+    }
+  }
+  return null
+}
+
 async function resolveStopId(stopName: string): Promise<string | null> {
   const name = stopName.trim()
   if (!name) return null
@@ -351,6 +394,62 @@ export async function fetchRouteStopsByName(routeName: string): Promise<RouteSto
     .filter((x): x is RouteStopOption => Boolean(x))
 }
 
+function uniqueStopNames(names: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of names) {
+    const name = (raw ?? '').trim()
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    out.push(name)
+  }
+  return out
+}
+
+/** 노선 출발/도착을 알면 그 값만, 아니면 노선(또는 전체) 정류장 목록 */
+export async function fetchRouteStopChoices(routeName: string): Promise<{
+  originOptions: string[]
+  destinationOptions: string[]
+  stops: RouteStopOption[]
+}> {
+  const empty = { originOptions: [] as string[], destinationOptions: [] as string[], stops: [] as RouteStopOption[] }
+  if (!isSupabaseConfigured || !routeName.trim()) return empty
+
+  const { data: route } = await supabase
+    .from('routes')
+    .select('id, start_location, end_location')
+    .eq('route_name', routeName)
+    .maybeSingle()
+
+  const stops = await fetchRouteStopsByName(routeName)
+  const start = (route?.start_location ?? '').trim()
+  const end = (route?.end_location ?? '').trim()
+  const first = stops[0]?.name?.trim() ?? ''
+  const last = stops[stops.length - 1]?.name?.trim() ?? ''
+  const knownStart = start || first
+  const knownEnd = end || last
+  const distinguishable = Boolean(knownStart && knownEnd && knownStart !== knownEnd)
+
+  if (distinguishable) {
+    return {
+      originOptions: uniqueStopNames([knownStart]),
+      destinationOptions: uniqueStopNames([knownEnd]),
+      stops,
+    }
+  }
+
+  let catalog = uniqueStopNames(stops.map((s) => s.name))
+  if (!catalog.length) {
+    const { data: all } = await supabase.from('stops').select('stop_name').order('stop_name', { ascending: true })
+    catalog = uniqueStopNames((all ?? []).map((row) => row.stop_name))
+  }
+  return {
+    originOptions: catalog,
+    destinationOptions: catalog,
+    stops,
+  }
+}
+
 export async function createAssignment(
   payload: Omit<TodayAssignment, 'id'> & { id?: string },
 ): Promise<{ ok: boolean; entry?: TodayAssignment; message?: string }> {
@@ -441,11 +540,11 @@ export async function createUnassignedOperation(
   if (!busId) return { ok: false, message: `차량 없음: ${payload.vehicleName} (buses.bus_name)` }
 
   const scheduleId =
-    payload.scheduleId?.trim() || (await resolveScheduleId(payload.routeName, payload.departTime, payload.date))
+    payload.scheduleId?.trim() || (await ensureScheduleId(payload.routeName, payload.departTime, payload.date))
   if (!scheduleId) {
     return {
       ok: false,
-      message: `스케줄 없음: ${payload.routeName} ${payload.departTime} (해당 날짜 요일의 schedules가 있어야 함)`,
+      message: `스케줄을 만들 수 없습니다: ${payload.routeName} ${payload.departTime} (노선이 있는지 확인해 주세요)`,
     }
   }
 

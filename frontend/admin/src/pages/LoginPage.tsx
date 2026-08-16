@@ -60,7 +60,7 @@ export function LoginPage() {
               <IconInput
                 leftIcon={<User size={16} />}
                 type="email"
-                placeholder="아이디를 입력하세요."
+                placeholder="아이디 (예: admin@mju.ac.kr)"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -71,7 +71,7 @@ export function LoginPage() {
             <Field label="비밀번호" required>
               <PasswordInput
                 leftIcon={<Lock size={16} />}
-                placeholder="비밀번호를 입력하세요."
+                placeholder="비밀번호 (예: Admin1234!)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

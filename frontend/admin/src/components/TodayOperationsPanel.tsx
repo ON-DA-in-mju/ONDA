@@ -8,7 +8,7 @@ import {
   createUnassignedOperation,
   deleteAssignment,
   fetchAssignments,
-  fetchRouteStopsByName,
+  fetchRouteStopChoices,
   type RouteStopOption,
 } from '../lib/assignmentsApi'
 import { resolveAssignmentStatus } from '../lib/assignmentStatus'
@@ -49,9 +49,14 @@ export function TodayOperationsPanel() {
   const [buses, setBuses] = useState<BusOption[]>([])
   const [schedules, setSchedules] = useState<ScheduleWithRoute[]>([])
   const [stops, setStops] = useState<RouteStopOption[]>([])
+  const [originOptions, setOriginOptions] = useState<string[]>([])
+  const [destinationOptions, setDestinationOptions] = useState<string[]>([])
+  const [origin, setOrigin] = useState('')
+  const [destination, setDestination] = useState('')
   const [routeName, setRouteName] = useState('')
   const [routeOptions, setRouteOptions] = useState<string[]>([])
   const [scheduleKey, setScheduleKey] = useState('')
+  const [departTime, setDepartTime] = useState('08:00')
   const [vehicleName, setVehicleName] = useState('')
   const [expectedEndTime, setExpectedEndTime] = useState('')
   const [round, setRound] = useState(1)
@@ -139,7 +144,7 @@ export function TodayOperationsPanel() {
     return list.sort((a, b) => a.time.localeCompare(b.time))
   }, [schedules, routeName])
 
-  const selectedDepart = departureOptions.find((o) => o.key === scheduleKey) ?? departureOptions[0]
+  const selectedDepart = departureOptions.find((o) => o.key === scheduleKey) ?? null
 
   useEffect(() => {
     if (!departureOptions.length) {
@@ -148,46 +153,54 @@ export function TodayOperationsPanel() {
     }
     if (!departureOptions.some((o) => o.key === scheduleKey)) {
       setScheduleKey(departureOptions[0].key)
+      setDepartTime(departureOptions[0].time)
     }
   }, [departureOptions, scheduleKey])
 
-  const actualRouteForStops = selectedDepart
-    ? resolveOperationalRouteName({
-        baseRouteName: selectedDepart.actualRouteName || routeName,
-        departureTime: selectedDepart.time,
-        date,
-      })
-    : routeName
+  const actualRouteForStops = resolveOperationalRouteName({
+    baseRouteName: selectedDepart?.actualRouteName || routeName,
+    departureTime: departTime || selectedDepart?.time || '08:00',
+    date,
+  })
 
   useEffect(() => {
     let alive = true
-    void fetchRouteStopsByName(actualRouteForStops).then((data) => {
+    void fetchRouteStopChoices(actualRouteForStops).then((data) => {
       if (!alive) return
-      setStops(data)
+      setStops(data.stops)
+      setOriginOptions(data.originOptions)
+      setDestinationOptions(data.destinationOptions)
+      setOrigin((prev) => (prev && data.originOptions.includes(prev) ? prev : data.originOptions[0] ?? ''))
+      setDestination((prev) =>
+        prev && data.destinationOptions.includes(prev) ? prev : data.destinationOptions[0] ?? '',
+      )
     })
     return () => {
       alive = false
     }
   }, [actualRouteForStops])
 
-  const origin = stops[0]?.name ?? ''
-  const destination = stops[stops.length - 1]?.name ?? ''
-
-  const selectedTime = selectedDepart?.time ?? ''
-  const lastExpectedMinutes = stops[stops.length - 1]?.expectedMinutes ?? null
+  const lastExpectedMinutes =
+    stops.find((s) => s.name === destination)?.expectedMinutes ??
+    stops[stops.length - 1]?.expectedMinutes ??
+    null
 
   useEffect(() => {
-    if (!selectedTime) {
+    if (!departTime) {
       setExpectedEndTime('')
       return
     }
     const add = lastExpectedMinutes && lastExpectedMinutes > 0 ? lastExpectedMinutes : 60
-    setExpectedEndTime(addMinutesToHm(selectedTime, add))
-  }, [selectedTime, lastExpectedMinutes])
+    setExpectedEndTime(addMinutesToHm(departTime, add))
+  }, [departTime, lastExpectedMinutes])
 
   const onCreate = async () => {
-    if (!selectedDepart) {
-      setMessage('선택한 날짜·노선에 시간표가 없습니다.')
+    if (!routeName) {
+      setMessage('노선을 선택해 주세요.')
+      return
+    }
+    if (!departTime) {
+      setMessage('출발 시각을 입력해 주세요.')
       return
     }
     if (!vehicleName) {
@@ -198,21 +211,20 @@ export function TodayOperationsPanel() {
     setMessage(null)
     const result = await createUnassignedOperation({
       date,
-      routeName: selectedDepart.actualRouteName || routeName,
-      departTime: selectedDepart.time,
+      routeName: selectedDepart?.actualRouteName || routeName,
+      departTime,
       expectedEndTime,
       vehicleName,
       origin: origin || undefined,
       destination: destination || undefined,
       round,
-      scheduleId: selectedDepart.scheduleId,
     })
     setBusy(false)
     if (!result.ok) {
       setMessage(result.message || '운행 생성 실패')
       return
     }
-    setMessage(`${selectedDepart.time} ${selectedDepart.actualRouteName || routeName} 운행이 생성되었습니다. 기사는 기사 배정에서 지정하세요.`)
+    setMessage(`${departTime} ${selectedDepart?.actualRouteName || routeName} 운행이 생성되었습니다. 기사는 기사 배정에서 지정하세요.`)
     await loadRows()
   }
 
@@ -307,26 +319,43 @@ export function TodayOperationsPanel() {
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-depart">출발</label>
-          <select
+          <input
             id="op-depart"
-            className="select"
-            style={{ width: 200, height: 32 }}
-            value={scheduleKey}
-            onChange={(e) => setScheduleKey(e.target.value)}
-            disabled={!departureOptions.length}
-          >
-            {departureOptions.length === 0 ? (
-              <option value="">시간표 없음</option>
-            ) : (
-              departureOptions.map((opt) => (
+            className="input"
+            type="time"
+            style={{ width: 130, height: 32 }}
+            value={departTime}
+            onChange={(e) => {
+              setDepartTime(e.target.value)
+              const matched = departureOptions.find((o) => o.time === e.target.value)
+              setScheduleKey(matched?.key ?? '')
+            }}
+          />
+        </div>
+        {departureOptions.length > 0 ? (
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="op-timetable">시간표</label>
+            <select
+              id="op-timetable"
+              className="select"
+              style={{ width: 160, height: 32 }}
+              value={scheduleKey}
+              onChange={(e) => {
+                setScheduleKey(e.target.value)
+                const opt = departureOptions.find((o) => o.key === e.target.value)
+                if (opt) setDepartTime(opt.time)
+              }}
+            >
+              <option value="">직접 입력</option>
+              {departureOptions.map((opt) => (
                 <option key={opt.key} value={opt.key}>
                   {opt.time}
                   {opt.actualRouteName !== routeName ? ` · ${opt.actualRouteName}` : ''}
                 </option>
-              ))
-            )}
-          </select>
-        </div>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-end">종료</label>
           <input
@@ -361,27 +390,43 @@ export function TodayOperationsPanel() {
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-origin">출발 정류장</label>
-          <input
+          <select
             id="op-origin"
-            className="input"
-            style={{ width: 180, height: 32, background: '#f3f4f6', cursor: 'default' }}
-            value={origin || '—'}
-            readOnly
-            tabIndex={-1}
-            title="노선의 첫 정류장으로 고정됩니다"
-          />
+            className="select"
+            style={{ width: 200, height: 32 }}
+            value={origin}
+            onChange={(e) => setOrigin(e.target.value)}
+          >
+            {originOptions.length === 0 ? (
+              <option value="">정류장 없음</option>
+            ) : (
+              originOptions.map((name) => (
+                <option key={`origin-${name}`} value={name}>
+                  {name}
+                </option>
+              ))
+            )}
+          </select>
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-dest">도착 정류장</label>
-          <input
+          <select
             id="op-dest"
-            className="input"
-            style={{ width: 180, height: 32, background: '#f3f4f6', cursor: 'default' }}
-            value={destination || '—'}
-            readOnly
-            tabIndex={-1}
-            title="노선의 마지막 정류장으로 고정됩니다"
-          />
+            className="select"
+            style={{ width: 200, height: 32 }}
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+          >
+            {destinationOptions.length === 0 ? (
+              <option value="">정류장 없음</option>
+            ) : (
+              destinationOptions.map((name) => (
+                <option key={`dest-${name}`} value={name}>
+                  {name}
+                </option>
+              ))
+            )}
+          </select>
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label htmlFor="op-round">회차</label>
