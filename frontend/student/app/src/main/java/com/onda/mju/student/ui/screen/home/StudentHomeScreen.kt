@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -538,7 +540,7 @@ private fun RouteShortcutRow(
     } else {
         sampleRouteList()
     }
-    // 2열 그리드 — 카드 높이·너비 통일
+    // 2열 그리드 — 같은 행은 높이만 맞추고, 글자가 잘리지 않게 내용만큼 늘어남
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -547,7 +549,7 @@ private fun RouteShortcutRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(158.dp),
+                    .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 rowRoutes.forEach { route ->
@@ -642,47 +644,55 @@ private fun RouteShortcutCard(
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(SoftBlueBg),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = OndaBlue,
-                modifier = Modifier.size(22.dp),
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SoftBlueBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = OndaBlue,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                color = TitleBlack,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                minLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp,
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                ),
+                modifier = Modifier.fillMaxWidth(),
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            StatusPill(text = badge, bg = badgeBg, fg = badgeFg)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = title,
-            color = TitleBlack,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            minLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            lineHeight = 16.sp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 32.dp),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        StatusPill(text = badge, bg = badgeBg, fg = badgeFg)
-        Spacer(modifier = Modifier.weight(1f))
         Text(
             text = nextDeparture,
             color = OndaBlue,
             fontSize = 11.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
+            style = TextStyle(
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -767,12 +777,17 @@ private fun StatusPill(
         text = text,
         color = fg,
         fontSize = 10.sp,
+        lineHeight = 13.sp,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = TextStyle(
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+        ),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(bg)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
+            .padding(horizontal = 7.dp, vertical = 4.dp),
     )
 }
 
