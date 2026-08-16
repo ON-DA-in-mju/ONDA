@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,11 +47,9 @@ import com.onda.mju.student.ui.theme.ONDAStudentTheme
  * Shared bottom navigation for the student app.
  *
  * Fixed visual rules (reuse on every main tab screen):
- * - Bar content height: 56.dp (+ navigationBarsPadding)
- * - Icon size: 24.dp
- * - Label: 11.sp / Medium
- * - Icon ↔ label gap: 4.dp
- * - Top padding inside item: 8.dp
+ * - Icon size: 22.dp
+ * - Label: 11.sp / Medium, no extra font padding (한글 하단이 잘리지 않게)
+ * - Icon ↔ label gap: 3.dp
  * - Active: [StudentBottomNavColors.Active]
  * - Inactive: [StudentBottomNavColors.Inactive]
  * - Tabs (fixed order): 홈 / 노선 / 커뮤니티 / 공지 / MY
@@ -109,8 +112,8 @@ fun StudentBottomNavBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 8.dp)
+                .heightIn(min = 56.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -146,8 +149,7 @@ private fun BottomNavItem(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
-            )
-            .padding(top = 8.dp, bottom = 4.dp),
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -155,15 +157,22 @@ private fun BottomNavItem(
             imageVector = icon,
             contentDescription = tab.label,
             tint = color,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(22.dp),
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = tab.label,
             color = color,
             fontSize = 11.sp,
+            lineHeight = 14.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            textAlign = TextAlign.Center,
             maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Visible,
+            style = TextStyle(
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+            ),
         )
     }
 }
@@ -178,3 +187,15 @@ private fun StudentBottomNavBarPreview() {
         )
     }
 }
+
+@Preview(showBackground = true, device = "spec:width=320dp,height=640dp,dpi=320")
+@Composable
+private fun StudentBottomNavBarCompactPreview() {
+    ONDAStudentTheme {
+        StudentBottomNavBar(
+            selectedTab = StudentBottomTab.Community,
+            onTabSelected = {},
+        )
+    }
+}
+
