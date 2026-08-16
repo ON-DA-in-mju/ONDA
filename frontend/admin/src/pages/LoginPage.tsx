@@ -4,6 +4,7 @@ import { Lock, User } from 'lucide-react'
 import { Logo } from '../components/brand/Logo'
 import { Field, IconInput, PasswordInput } from '../components/ui/Form'
 import { useAuth } from '../state/AuthContext'
+import { supabaseKeyKind, supabasePublicHost } from '../lib/supabase'
 import heroImg from '../assets/auth-hero.png'
 import '../styles/login.css'
 
@@ -51,7 +52,7 @@ export function LoginPage() {
           </p>
           <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12, textAlign: 'center' }}>
             {usingSupabase
-              ? 'Supabase 연결됨 · Auth + users 테이블'
+              ? `Supabase 연결됨 · ${supabasePublicHost} · ${supabaseKeyKind}`
               : 'Supabase 미설정 · Vercel Environment Variables 확인'}
           </p>
 
