@@ -5,17 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,12 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onda.mju.student.R
@@ -49,23 +48,6 @@ private val InfoSecondaryText = Color(0xFF33415E)
 private val FooterText = Color(0xFF6B7283)
 private val SloganText = Color(0xFF111111)
 
-/**
- * Fractions from Figma STU-00-01A (402 x 874).
- * Device chrome is omitted; positions are relative to the full screen.
- */
-// Shifted down together so the header cluster sits closer to the login button.
-private const val LogoTopFraction = 158f / 874f
-private const val LogoHeightFraction = 91f / 874f
-private const val LogoWidthFraction = 225f / 402f
-private const val SloganTopFraction = 272f / 874f
-private const val IllustrationTopFraction = 336f / 874f
-/** Intrinsic ratio of login_illustration.png (black bars cropped). */
-private const val IllustrationAspect = 398f / 291f
-private const val SideInsetFraction = 14f / 402f
-private const val BottomClusterBottomPaddingFraction = 28f / 874f
-private const val ButtonToInfoGapFraction = 19f / 874f
-private const val InfoToFooterGapFraction = 23f / 874f
-
 @Composable
 fun LoginStartScreen(
     modifier: Modifier = Modifier,
@@ -73,182 +55,154 @@ fun LoginStartScreen(
     onPrivacyPolicyClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(Color.White)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp),
     ) {
-        BoxWithConstraints(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding(),
+                .weight(1f)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            val density = LocalDensity.current
-            val screenHeight = maxHeight
-            val screenWidth = maxWidth
-
-            fun fracH(fraction: Float): Dp =
-                with(density) { (screenHeight.toPx() * fraction).toDp() }
-
-            fun fracW(fraction: Float): Dp =
-                with(density) { (screenWidth.toPx() * fraction).toDp() }
-
-            val sideInset = fracW(SideInsetFraction).coerceIn(12.dp, 20.dp)
-            val logoTop = fracH(LogoTopFraction)
-            val logoHeight = fracH(LogoHeightFraction).coerceIn(64.dp, 96.dp)
-            val sloganTop = fracH(SloganTopFraction)
-            val illustrationTop = fracH(IllustrationTopFraction)
+            Spacer(modifier = Modifier.height(36.dp))
 
             Image(
                 painter = painterResource(id = R.drawable.splash_logo),
                 contentDescription = "ON-DA",
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = logoTop)
-                    .fillMaxWidth(LogoWidthFraction)
-                    .height(logoHeight),
+                    .fillMaxWidth(0.56f)
+                    .heightIn(min = 56.dp, max = 88.dp),
                 contentScale = ContentScale.Fit,
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "언제 어디서나\n셔틀버스가 ON-DA",
                 color = SloganText,
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
-                lineHeight = 34.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = sloganTop)
-                    .fillMaxWidth(0.7f),
+                lineHeight = 32.sp,
+                modifier = Modifier.fillMaxWidth(0.86f),
             )
 
-            // Match intrinsic asset ratio so the full illustration shows without cropping.
             Image(
                 painter = painterResource(id = R.drawable.login_illustration),
                 contentDescription = null,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = illustrationTop)
                     .fillMaxWidth()
-                    .aspectRatio(IllustrationAspect),
+                    .weight(1f)
+                    .padding(top = 8.dp, bottom = 12.dp),
                 contentScale = ContentScale.Fit,
             )
+        }
 
-            // Button + info + terms anchored near the bottom (Figma ~75%–93%).
-            Column(
+        Button(
+            onClick = onLoginClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = OndaBlue,
+                contentColor = Color.White,
+            ),
+        ) {
+            Text(
+                text = "명지대학교 계정으로 로그인",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(InfoBoxBg)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = sideInset)
-                    .padding(bottom = fracH(BottomClusterBottomPaddingFraction).coerceIn(12.dp, 28.dp)),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center,
             ) {
-                Button(
-                    onClick = onLoginClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = OndaBlue,
-                        contentColor = Color.White,
-                    ),
-                ) {
-                    Text(
-                        text = "명지대학교 계정으로 로그인",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-
-                Spacer(
-                    modifier = Modifier.height(
-                        fracH(ButtonToInfoGapFraction).coerceIn(12.dp, 20.dp),
-                    ),
+                Icon(
+                    imageVector = Icons.Filled.Notifications,
+                    contentDescription = null,
+                    tint = OndaBlue,
+                    modifier = Modifier.size(22.dp),
                 )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(InfoBoxBg)
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Notifications,
-                            contentDescription = null,
-                            tint = OndaBlue,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "명지대학교 재학생 전용 서비스입니다.",
-                            color = InfoPrimaryText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "학교 계정 인증 후 셔틀 운행 정보를 확인할 수 있어요.",
-                            color = InfoSecondaryText,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                        )
-                    }
-                }
-
-                Spacer(
-                    modifier = Modifier.height(
-                        fracH(InfoToFooterGapFraction).coerceIn(14.dp, 28.dp),
-                    ),
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "개인정보 처리방침",
-                        color = FooterText,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable(onClick = onPrivacyPolicyClick)
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                    Text(
-                        text = "     |     ",
-                        color = FooterText,
-                        fontSize = 11.5.sp,
-                    )
-                    Text(
-                        text = "서비스 이용약관",
-                        color = FooterText,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable(onClick = onTermsClick)
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                }
             }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "명지대학교 재학생 전용 서비스입니다.",
+                    color = InfoPrimaryText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 18.sp,
+                )
+                Text(
+                    text = "학교 계정 인증 후 셔틀 운행 정보를 확인할 수 있어요.",
+                    color = InfoSecondaryText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "개인정보 처리방침",
+                color = FooterText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = onPrivacyPolicyClick)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+            Text(
+                text = "  |  ",
+                color = FooterText,
+                fontSize = 12.sp,
+            )
+            Text(
+                text = "서비스 이용약관",
+                color = FooterText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = onTermsClick)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+            )
         }
     }
 }
@@ -256,6 +210,14 @@ fun LoginStartScreen(
 @Preview(showBackground = true, showSystemUi = true, device = "id:pixel_7")
 @Composable
 private fun LoginStartScreenPreview() {
+    ONDAStudentTheme {
+        LoginStartScreen()
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, device = "spec:width=320dp,height=640dp,dpi=320")
+@Composable
+private fun LoginStartScreenCompactPreview() {
     ONDAStudentTheme {
         LoginStartScreen()
     }
