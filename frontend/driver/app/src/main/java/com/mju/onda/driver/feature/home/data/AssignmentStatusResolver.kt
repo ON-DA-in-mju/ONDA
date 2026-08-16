@@ -1,6 +1,7 @@
 package com.mju.onda.driver.feature.home.data
 
-import java.util.Calendar
+import com.mju.onda.driver.core.KoreaTime
+import java.time.Instant
 
 /**
  * 출발 시각 기준 표시 상태.
@@ -20,8 +21,8 @@ object AssignmentStatusResolver {
         }
 
         val depart = parseHm(operation.departTime) ?: return OperationStatus.Scheduled
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        val nowMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val now = Instant.ofEpochMilli(nowMillis).atZone(KoreaTime.zone).toLocalTime()
+        val nowMinutes = now.hour * 60 + now.minute
         val minutesUntil = depart - nowMinutes
         // 출발 전 0~10분만 「곧 출발」 (이미 지난 시각은 운행 예정 유지)
         return if (minutesUntil in 0..DEPARTING_SOON_MINUTES) {

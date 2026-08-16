@@ -2,6 +2,8 @@ package com.mju.onda.driver.feature.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
+import com.mju.onda.driver.feature.settings.data.SafeStopDispatch
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 import com.mju.onda.driver.feature.settings.data.SafeStopReviewStatus
 import java.util.Calendar
@@ -19,11 +21,12 @@ data class StopApprovedUiState(
     val approvedAt: String = "09:24",
     val reason: String = "차량 고장",
     val actionsEnabled: Boolean = true,
+    val operationId: String = "",
 )
 
 sealed interface StopApprovedEvent {
     data object NavigateBack : StopApprovedEvent
-    data object EndOperation : StopApprovedEvent
+    data class EndOperation(val operationId: String) : StopApprovedEvent
     data object ContactAdmin : StopApprovedEvent
 }
 
@@ -38,11 +41,14 @@ class StopApprovedViewModel : ViewModel() {
     fun load() {
         val item = SafeStopHistoryHolder.selected()
         val requestedAt = item?.requestedAt ?: "09:18"
+        val operationId = SafeStopDispatch.resolvedOperationId(item)
+        val live = SafeStopDispatch.isLive(item)
         _uiState.update {
             it.copy(
                 approvedAt = addMinutes(requestedAt, 6),
                 reason = item?.reason ?: "차량 고장",
-                actionsEnabled = item?.reviewStatus != SafeStopReviewStatus.ActionCompleted,
+                operationId = operationId,
+                actionsEnabled = item?.reviewStatus == SafeStopReviewStatus.Confirmed && live,
             )
         }
     }
@@ -67,9 +73,9 @@ class StopApprovedViewModel : ViewModel() {
 
     fun onEndOperation() {
         if (!_uiState.value.actionsEnabled) return
-        SafeStopHistoryHolder.markSelectedActionCompleted()
-        _uiState.update { it.copy(actionsEnabled = false) }
-        viewModelScope.launch { _events.emit(StopApprovedEvent.EndOperation) }
+        val operationId = _uiState.value.operationId
+        if (!OperationRuntimeStateHolder.isLiveOperation(operationId)) return
+        viewModelScope.launch { _events.emit(StopApprovedEvent.EndOperation(operationId)) }
     }
 
     fun onContactAdmin() {

@@ -58,10 +58,15 @@ object HistoryRuntimeStateHolder {
         persist()
     }
 
-    fun runtimeRecords(): List<HistoryRecord> =
-        completed.mapNotNull { (operationId, status) ->
-            toHistoryRecord(operationId, status)
+    fun runtimeRecords(): List<HistoryRecord> {
+        val seen = linkedSetOf<String>()
+        return completed.mapNotNull { (operationId, status) ->
+            val record = toHistoryRecord(operationId, status) ?: return@mapNotNull null
+            val key = record.id.removePrefix("runtime-")
+            if (!seen.add(key)) return@mapNotNull null
+            record
         }
+    }
 
     private fun toHistoryRecord(
         operationId: String,
@@ -71,9 +76,10 @@ object HistoryRuntimeStateHolder {
         val start = OperationRuntimeStateHolder.startedAtMillis(operationId) ?: return null
         val end = OperationRuntimeStateHolder.endedAtMillis(operationId)
             ?: System.currentTimeMillis()
+        val canonicalId = op.dbId.ifBlank { op.id }
         val date = OndaDates.today()
         return HistoryRecord(
-            id = "runtime-$operationId",
+            id = "runtime-$canonicalId",
             date = date,
             dateLabel = OndaDates.historyListDateLabel(date),
             routeName = op.routeName,

@@ -4,13 +4,14 @@ import { Bus, CalendarDays, Clock, Search, Users } from 'lucide-react'
 import { WeekRangePicker } from '../components/WeekRangePicker'
 import { SCHEDULE_ROUTE_OPTIONS, schedules } from '../data/mock'
 import { fetchRouteCatalog } from '../lib/routesApi'
+import { CITY_SHUTTLE_ROUTE_NAME, CITY_SHUTTLE_VACATION_ROUTE_NAME } from '../data/cityShuttleStops'
 import { MJU_TIMETABLE_PACKS, type MjuRouteName } from '../data/mjuTimetable'
 import { fetchAssignments, fetchAssignmentsInRange } from '../lib/assignmentsApi'
 import { fetchUsers } from '../lib/api'
 import { fetchSchedulesWithRoutes, routeMatchesFilter, type ScheduleWithRoute } from '../lib/seedMju'
 import { routeRunsOnTerm } from '../lib/routeVariants'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { semesterForDate } from '../lib/academicCalendar'
+import { isCityVacationServiceDay, semesterForDate } from '../lib/academicCalendar'
 import { resolveAssignmentStatus } from '../lib/assignmentStatus'
 import { todayDateKey } from '../types/assignment'
 import type { Weekday } from '../types/database'
@@ -162,16 +163,29 @@ export function SchedulesPage() {
     if (route === '기흥역 통학버스') {
       return MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-giheung') ?? MJU_TIMETABLE_PACKS[0]
     }
+    if (timetableRoute === CITY_SHUTTLE_VACATION_ROUTE_NAME) {
+      return MJU_TIMETABLE_PACKS.find((p) => p.id === 'weekend-vacation-city') ?? MJU_TIMETABLE_PACKS[0]
+    }
+    if (timetableRoute === CITY_SHUTTLE_ROUTE_NAME) {
+      return MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-shuttle') ?? MJU_TIMETABLE_PACKS[0]
+    }
     if (timetablePeriod === 'VACATION') {
       return MJU_TIMETABLE_PACKS.find((p) => p.id === 'weekend-vacation-city') ?? MJU_TIMETABLE_PACKS[0]
     }
     return MJU_TIMETABLE_PACKS.find((p) => p.id === 'semester-shuttle') ?? MJU_TIMETABLE_PACKS[0]
-  }, [timetableRoute, timetablePeriod, selectedWeekday])
+  }, [timetableRoute, timetablePeriod])
 
   const mjuTrips = useMemo(() => {
-    if (timetablePeriod === 'VACATION' && timetableRoute !== '시내 셔틀') return []
+    if (timetableRoute === CITY_SHUTTLE_VACATION_ROUTE_NAME) {
+      return mjuPack.trips.filter((t) => t.route === CITY_SHUTTLE_VACATION_ROUTE_NAME)
+    }
+    if (timetableRoute === CITY_SHUTTLE_ROUTE_NAME) {
+      if (isCityVacationServiceDay(selectedDateKey)) return []
+      return mjuPack.trips.filter((t) => t.route === CITY_SHUTTLE_ROUTE_NAME)
+    }
+    if (timetablePeriod === 'VACATION') return []
     return mjuPack.trips.filter((t) => t.route === timetableRoute)
-  }, [mjuPack, timetableRoute, timetablePeriod])
+  }, [mjuPack, timetableRoute, timetablePeriod, selectedDateKey])
 
   const loadDbSchedules = useCallback(async () => {
     try {
@@ -217,11 +231,6 @@ export function SchedulesPage() {
   }, [dbSchedules, timetableRoute, selectedWeekday, timetablePeriod])
 
   const timetableLoading = isSupabaseConfigured && dbSchedules === null
-  const timetableSourceLabel = isSupabaseConfigured
-    ? dbSchedules
-      ? `DB schedules · ${dbTrips.length}건`
-      : 'DB 조회 중…'
-    : '로컬 시간표'
 
   const dbRouteSummary = useMemo(() => {
     if (!dbSchedules) return null
@@ -693,17 +702,7 @@ export function SchedulesPage() {
           <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
             {formatDotDate(selectedDate)} · {WEEKDAY_LABELS[selectedDate.getDay()]}요일 ·{' '}
             {timetablePeriod === 'VACATION' ? '방학' : '학기 중'} · {timetableRoute}
-            {dbRouteSummary
-              ? ` · ${dbRouteSummary.rounds}회 · ${dbRouteSummary.start}~${dbRouteSummary.end}`
-              : timetableLoading
-                ? ' · 불러오는 중…'
-                : timetableRoute === '기흥역 통학버스' && timetablePeriod === 'VACATION'
-                  ? ' · 기흥역은 방학·계절학기 미운행'
-                  : timetableRoute === '명지대역 셔틀' && timetablePeriod === 'VACATION'
-                    ? ' · 명지대역 셔틀은 학기 중 평일만 운행'
-                    : ' · 해당 요일 일정 없음'}
-            {' · '}
-            {timetableSourceLabel}
+            {dbRouteSummary ? ` · ${dbRouteSummary.rounds}회 · ${dbRouteSummary.start}~${dbRouteSummary.end}` : ''}
           </p>
           <div className="sched-timetable-scroll">
             <table className="data-table dense">

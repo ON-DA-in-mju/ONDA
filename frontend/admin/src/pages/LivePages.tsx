@@ -6,6 +6,7 @@ import {
   enrichLiveVehiclesGps,
   applyLocationPatch,
   subscribeLiveUpdates,
+  adminCompletePastOperation,
   type LiveSnapshot,
   type LiveVehicle,
 } from '../lib/liveApi'
@@ -20,6 +21,7 @@ import { LIVE_MAP_ROUTES } from '../data/cityShuttleStops'
 import { fetchRouteCatalog, type RouteCatalogItem } from '../lib/routesApi'
 import { StatusBadge } from '../components/ui/Form'
 import { ListPagination } from '../components/ui/ListPagination'
+import { todayDateKey } from '../types/assignment'
 import '../styles/live.css'
 
 /** "명지대역 셔틀 (18시 이후)" → base + suffix 두 줄 표시용 */
@@ -636,10 +638,60 @@ function LiveVehicleRow({
   )
 }
 
-/** 오늘의 실시간 운행 목록 → 행 클릭 시 차량 상세 */
+/** 선택한 날짜의 운행 목록. 지난 날짜의 미종료 운행은 관리자가 완료 처리할 수 있다. */
 export function LiveDetailPage() {
-  const { snapshot } = useLiveSnapshot()
+  const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
+  const today = todayDateKey()
+  const date = params.get('date') || today
+  const isPastDate = date < today
+
+  const [snapshot, setSnapshot] = useState<LiveSnapshot>(empty)
+  const [endingId, setEndingId] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const list = await fetchLiveVehiclesList(date)
+    setSnapshot(list)
+  }, [date])
+
+  useEffect(() => {
+    void load()
+    if (!isPastDate) {
+      const timer = window.setInterval(() => void load(), LIVE_POLL_MS)
+      return () => window.clearInterval(timer)
+    }
+    return undefined
+  }, [load, isPastDate])
+
+  const onPickDate = (next: string) => {
+    const value = next || today
+    const nextParams = new URLSearchParams(params)
+    if (value === today) nextParams.delete('date')
+    else nextParams.set('date', value)
+    setParams(nextParams, { replace: true })
+    setMessage(null)
+  }
+
+  const onEnd = async (row: LiveVehicle) => {
+    if (!isPastDate || row.status === 'ended') return
+    const label = [row.vehicleName, row.routeName, row.driverName].filter(Boolean).join(' · ')
+    if (!window.confirm(`${label}\n이 운행을 종료할까요?\n기사가 종료하지 않고 날짜가 지난 운행만 완료 처리됩니다.`)) {
+      return
+    }
+    setEndingId(row.id)
+    setMessage(null)
+    const result = await adminCompletePastOperation(row.id)
+    setEndingId(null)
+    if (!result.ok) {
+      setMessage(result.message || '종료 처리에 실패했습니다.')
+      return
+    }
+    setMessage(`${row.vehicleName} 운행을 종료했습니다.`)
+    await load()
+  }
+
+  const canEnd = (row: LiveVehicle) => isPastDate && row.status !== 'ended'
 
   return (
     <div className="page">
@@ -650,9 +702,33 @@ export function LiveDetailPage() {
       </div>
       <section className="card card-pad">
         <div className="card-head">
-          <h3>오늘의 운행 목록</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h3>{date === today ? '오늘의 운행 목록' : `${date} 운행 목록`}</h3>
+            <label className="field" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                날짜
+              </span>
+              <input
+                className="input"
+                type="date"
+                style={{ width: 160, height: 32 }}
+                value={date}
+                onChange={(e) => onPickDate(e.target.value || today)}
+              />
+            </label>
+          </div>
           <StatusBadge tone="blue">{snapshot.stats.total}대</StatusBadge>
         </div>
+        {isPastDate ? (
+          <p className="muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 12 }}>
+            지난 날짜의 미종료 운행은 오른쪽 「종료」로 관리자가 완료 처리할 수 있습니다. 오늘 운행은 기사 앱에서 종료하세요.
+          </p>
+        ) : null}
+        {message ? (
+          <p style={{ fontSize: 13, marginTop: 0, marginBottom: 12, color: 'var(--color-primary, #2563eb)' }}>
+            {message}
+          </p>
+        ) : null}
         <table className="data-table">
           <thead>
             <tr>
@@ -663,13 +739,14 @@ export function LiveDetailPage() {
               <th>상태</th>
               <th>GPS</th>
               <th>갱신</th>
+              <th>관리</th>
             </tr>
           </thead>
           <tbody>
             {snapshot.vehicles.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted">
-                  오늘 표시할 운행이 없습니다.
+                <td colSpan={8} className="muted">
+                  {date === today ? '오늘 표시할 운행이 없습니다.' : `${date}에 표시할 운행이 없습니다.`}
                 </td>
               </tr>
             ) : (
@@ -680,7 +757,13 @@ export function LiveDetailPage() {
                     cursor: 'pointer',
                     ...(row.gpsKind === 'error' ? { background: '#fff5f5' } : {}),
                   }}
-                  onClick={() => navigate(`/live/detail/${encodeURIComponent(row.operationId || row.id)}`)}
+                  onClick={() =>
+                    navigate(
+                      `/live/detail/${encodeURIComponent(row.operationId || row.id)}${
+                        date === today ? '' : `?date=${encodeURIComponent(date)}`
+                      }`,
+                    )
+                  }
                 >
                   <td>{row.vehicleName}</td>
                   <td>
@@ -698,6 +781,20 @@ export function LiveDetailPage() {
                   <td className="muted" style={{ fontSize: 12 }}>
                     {row.last}
                   </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {canEnd(row) ? (
+                      <button
+                        className="btn btn-outline btn-xs"
+                        type="button"
+                        disabled={endingId === row.id}
+                        onClick={() => void onEnd(row)}
+                      >
+                        {endingId === row.id ? '처리 중…' : '종료'}
+                      </button>
+                    ) : (
+                      <span className="muted">-</span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
@@ -711,15 +808,35 @@ export function LiveDetailPage() {
 /** 선택한 차량의 실시간 상세 */
 export function LiveVehicleDetailPage() {
   const { operationId = '' } = useParams()
+  const [searchParams] = useSearchParams()
   const decodedId = decodeURIComponent(operationId)
+  const date = searchParams.get('date') || todayDateKey()
   const { snapshot } = useLiveSnapshot()
+  const [datedSnapshot, setDatedSnapshot] = useState<LiveSnapshot | null>(null)
   const navigate = useNavigate()
-  const vehicle = snapshot.vehicles.find((v) => v.operationId === decodedId || v.id === decodedId)
+
+  useEffect(() => {
+    if (date === todayDateKey()) {
+      setDatedSnapshot(null)
+      return
+    }
+    let alive = true
+    void fetchLiveVehiclesList(date).then((list) => {
+      if (alive) setDatedSnapshot(list)
+    })
+    return () => {
+      alive = false
+    }
+  }, [date])
+
+  const source = datedSnapshot ?? snapshot
+  const vehicle = source.vehicles.find((v) => v.operationId === decodedId || v.id === decodedId)
+  const backTo = date === todayDateKey() ? '/live/detail' : `/live/detail?date=${encodeURIComponent(date)}`
 
   return (
     <div className="page">
       <div className="toolbar" style={{ marginBottom: 4 }}>
-        <button className="btn btn-ghost" type="button" style={{ height: 30 }} onClick={() => navigate('/live/detail')}>
+        <button className="btn btn-ghost" type="button" style={{ height: 30 }} onClick={() => navigate(backTo)}>
           ← 이전
         </button>
       </div>

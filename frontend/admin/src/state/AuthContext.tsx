@@ -95,16 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (!mounted) return
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(() => reject(new Error('session-timeout')), 8000)
+          }),
+        ])
+        if (!mounted) return
 
-      if (data.session?.user) {
-        const profile = await fetchUserProfile(data.session.user.id, data.session.user.email ?? '')
-        if (mounted) setUser(profile)
-      } else {
-        setUser(null)
+        if (data.session?.user) {
+          const profile = await fetchUserProfile(data.session.user.id, data.session.user.email ?? '')
+          if (mounted) setUser(profile)
+        } else {
+          setUser(null)
+        }
+      } catch {
+        if (mounted) setUser(null)
       }
-      setLoading(false)
+      if (mounted) setLoading(false)
     }
 
     void boot()

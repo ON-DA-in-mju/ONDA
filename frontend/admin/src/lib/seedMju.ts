@@ -1,12 +1,7 @@
 import { isSupabaseConfigured, supabase } from './supabase'
 import { expandScheduleRows, MJU_ROUTES } from '../data/mjuTimetable'
 import { OPERATIONAL_ROUTE_NAMES, VARIANT_ROUTE_DEFS } from './routeVariants'
-import {
-  CITY_SHUTTLE_ROUTE_NAME,
-  CITY_SHUTTLE_VACATION_ROUTE_NAME,
-  MYONGJI_STATION_AFTER18_ROUTE_NAME,
-  MYONGJI_STATION_ROUTE_NAME,
-} from '../data/cityShuttleStops'
+import { MYONGJI_STATION_AFTER18_ROUTE_NAME, MYONGJI_STATION_ROUTE_NAME } from '../data/cityShuttleStops'
 import type { Database, SemesterType, Weekday } from '../types/database'
 
 type RouteRow = Database['public']['Tables']['routes']['Row']
@@ -30,14 +25,15 @@ const BASE_AND_VARIANT_DEFS = [
   })),
 ]
 
-/** UI에서 기본 노선 선택 시 변형 노선도 함께 조회 */
+/**
+ * UI에서 노선 선택 시 함께 조회할 DB 노선명.
+ * - 명지대역 셔틀: 18시 이후는 같은 평일 운행의 시간대 변형
+ * - 시내 셔틀 / 시내 셔틀 (주말·공휴일·방학): 서로 겹치지 않음 (평일·학기중 vs 주말·공휴일·방학)
+ */
 export function routeNamesForFilter(routeName?: string): string[] {
   if (!routeName) return [...TARGET_NAMES]
   if (routeName === MYONGJI_STATION_ROUTE_NAME) {
     return [MYONGJI_STATION_ROUTE_NAME, MYONGJI_STATION_AFTER18_ROUTE_NAME]
-  }
-  if (routeName === CITY_SHUTTLE_ROUTE_NAME) {
-    return [CITY_SHUTTLE_ROUTE_NAME, CITY_SHUTTLE_VACATION_ROUTE_NAME]
   }
   return [routeName]
 }

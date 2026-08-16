@@ -107,6 +107,7 @@ class StopRequestConfirmViewModel : ViewModel() {
                     routeName = routeName,
                     vehicleName = vehicleName,
                     dateLabel = MockSafeStopHistory.TODAY_DATE_LABEL,
+                    operationId = operationId.takeIf { it != "unknown" }.orEmpty(),
                 ),
             )
             StopRequestReceivedHolder.set(

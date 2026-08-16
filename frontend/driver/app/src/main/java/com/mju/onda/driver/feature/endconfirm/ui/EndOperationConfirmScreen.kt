@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -130,7 +131,7 @@ fun EndOperationConfirmScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = 28.dp),
             ) {
                 OperationSummaryHeader(info = uiState.info)
                 Spacer(modifier = Modifier.height(20.dp))
@@ -235,12 +236,12 @@ private fun ConfirmCard(onConfirm: () -> Unit) {
             .fillMaxWidth()
             .background(OndaColors.Surface, RoundedCornerShape(20.dp))
             .border(1.dp, OndaColors.Border, RoundedCornerShape(20.dp))
-            .padding(horizontal = 20.dp, vertical = 28.dp),
+            .padding(horizontal = 16.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(80.dp)
                 .background(WarningIconBg, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -248,10 +249,10 @@ private fun ConfirmCard(onConfirm: () -> Unit) {
                 imageVector = Icons.Rounded.WarningAmber,
                 contentDescription = null,
                 tint = OndaColors.Warning,
-                modifier = Modifier.size(53.dp),
+                modifier = Modifier.size(44.dp),
             )
         }
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = MockEndOperationConfirm.CONFIRM_TITLE,
             style = OndaTypography.headlineLarge.copy(
@@ -261,17 +262,17 @@ private fun ConfirmCard(onConfirm: () -> Unit) {
             ),
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = MockEndOperationConfirm.CONFIRM_BODY,
             style = OndaTypography.bodySmall.copy(
                 fontSize = 13.sp,
-                lineHeight = 19.sp,
+                lineHeight = 20.sp,
                 color = OndaColors.TextSecondary,
             ),
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         EndOperationPressButton(onClick = onConfirm)
     }
 }
@@ -296,7 +297,7 @@ private fun EndOperationPressButton(onClick: () -> Unit) {
         contentDescription = MockEndOperationConfirm.END_LABEL,
         modifier = Modifier
             .fillMaxWidth(0.72f)
-            .aspectRatio(248f / 282f)
+            .aspectRatio(402f / 271f)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -305,6 +306,7 @@ private fun EndOperationPressButton(onClick: () -> Unit) {
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                role = Role.Button,
                 onClick = onClick,
             ),
         contentScale = ContentScale.Fit,

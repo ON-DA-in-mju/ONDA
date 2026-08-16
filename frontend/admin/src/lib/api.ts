@@ -113,6 +113,17 @@ export async function endNotice(id: string): Promise<{ ok: boolean; message?: st
   return { ok: true }
 }
 
+/** 공지 완전 삭제 — notices 행 및 cascade 된 조회 이력까지 제거 */
+export async function deleteNotice(id: string): Promise<{ ok: boolean; message?: string }> {
+  if (!isSupabaseConfigured) return { ok: false, message: 'Supabase 미설정' }
+  if (!id.trim()) return { ok: false, message: '삭제할 공지를 선택하세요.' }
+
+  const { data, error } = await supabase.from('notices').delete().eq('id', id).select('id')
+  if (error) return { ok: false, message: error.message }
+  if (!data?.length) return { ok: false, message: '삭제 권한이 없거나 이미 없는 공지입니다.' }
+  return { ok: true }
+}
+
 export async function updateNotice(
   id: string,
   payload: {

@@ -1,5 +1,6 @@
 package com.onda.mju.student.data.mapper
 
+import com.onda.mju.student.core.calendar.AcademicCalendar
 import com.onda.mju.student.data.remote.dto.OperationDto
 import com.onda.mju.student.data.remote.dto.RouteDetailDto
 import com.onda.mju.student.data.route.OperationalRouteResolver
@@ -57,7 +58,8 @@ fun List<OperationDto>.toRouteUiModels(
             upcomingScheduled.isNotEmpty() || (anyScheduled && !anyFinished) -> RouteStatus.SCHEDULED
             anyFinished || (operations.isNotEmpty() && inProgressCount == 0 && upcomingScheduled.isEmpty()) ->
                 RouteStatus.ENDED
-            else -> RouteStatus.SCHEDULED // 오늘 배차 아직 없음 → 예정으로 표시
+            routeOperatesToday(uiId) -> RouteStatus.SCHEDULED
+            else -> RouteStatus.ENDED
         }
 
         val nextDeparture = when (status) {
@@ -86,6 +88,15 @@ fun List<OperationDto>.toRouteUiModels(
             nextDeparture = nextDeparture,
             imageRes = StudentRouteIds.imageRes(uiId),
         )
+    }
+}
+
+private fun routeOperatesToday(uiId: String): Boolean {
+    val today = AcademicCalendar.todayDateKey()
+    return when (uiId) {
+        StudentRouteIds.CITY_SHUTTLE -> AcademicCalendar.isSemesterWeekday(today)
+        StudentRouteIds.CITY_SHUTTLE_VACATION -> AcademicCalendar.isCityVacationServiceDay(today)
+        else -> true
     }
 }
 

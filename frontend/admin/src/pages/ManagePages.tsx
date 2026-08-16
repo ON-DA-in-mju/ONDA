@@ -21,6 +21,7 @@ import { maintenances, reports, systemLogs as mockSystemLogs, users } from '../d
 import {
   createNotice,
   endNotice,
+  deleteNotice,
   deleteReport,
   fetchNotices,
   fetchReportById,
@@ -1041,6 +1042,36 @@ export function NoticesPage() {
     if (updated) loadNoticeIntoForm(updated)
   }
 
+  const onHardDelete = async () => {
+    if (!selectedNoticeId) {
+      setFlash('목록에서 삭제할 공지를 먼저 선택하세요.')
+      return
+    }
+    const selected = dbNotices?.find((n) => n.id === selectedNoticeId)
+    const title = selected?.title?.trim() || '이 공지'
+    const ok = window.confirm(
+      `「${title}」을(를) DB에서 완전히 삭제할까요?\n관리자 목록·앱·조회 이력에서 사라지고 되돌릴 수 없습니다.`,
+    )
+    if (!ok) return
+    setSaving(true)
+    setFlash('')
+    const res = await deleteNotice(selectedNoticeId)
+    setSaving(false)
+    if (!res.ok) {
+      setFlash(res.message ?? '삭제 실패')
+      return
+    }
+    setEditing(false)
+    resetFormForCreate()
+    const list = await fetchNotices()
+    setDbNotices(list.rows)
+    if (list.error) {
+      setFlash(`공지를 삭제했습니다. 다만 목록을 불러오지 못했습니다. ${list.error}`)
+      return
+    }
+    setFlash('공지를 DB에서 삭제했습니다.')
+  }
+
   const noticeKpis = useMemo(() => {
     const rows = dbNotices ?? []
     const now = Date.now()
@@ -1279,6 +1310,16 @@ export function NoticesPage() {
                   onClick={() => void onDelete()}
                   title={selectedNoticeId ? '앱에서 숨기고 목록에는 종료로 남깁니다' : '목록에서 공지를 선택하세요'}
                 >
+                  종료
+                </button>
+                <button
+                  className="btn btn-outline btn-xs"
+                  type="button"
+                  disabled={saving || !selectedNoticeId}
+                  onClick={() => void onHardDelete()}
+                  title={selectedNoticeId ? 'DB와 이력에서 완전히 삭제합니다' : '목록에서 공지를 선택하세요'}
+                  style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                >
                   삭제
                 </button>
                 <button
@@ -1290,26 +1331,32 @@ export function NoticesPage() {
                 >
                   수정
                 </button>
-                {selectedNoticeId && editing ? (
-                  <button
-                    className="btn btn-primary btn-xs"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void onSave()}
-                  >
-                    {saving ? '저장 중...' : '저장'}
-                  </button>
-                ) : null}
-                {!selectedNoticeId ? (
-                  <button
-                    className="btn btn-primary btn-xs"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void onCreate()}
-                  >
-                    {saving ? '등록 중...' : '공지 등록'}
-                  </button>
-                ) : null}
+                <button
+                  className="btn btn-primary btn-xs"
+                  type="button"
+                  disabled={saving || !(selectedNoticeId && editing)}
+                  onClick={() => void onSave()}
+                  title={
+                    selectedNoticeId && editing
+                      ? '수정한 내용을 저장합니다'
+                      : '목록에서 공지를 고른 뒤 「수정」을 눌러 주세요'
+                  }
+                >
+                  {saving && selectedNoticeId && editing ? '저장 중...' : '저장'}
+                </button>
+                <button
+                  className="btn btn-primary btn-xs"
+                  type="button"
+                  disabled={saving || Boolean(selectedNoticeId)}
+                  onClick={() => void onCreate()}
+                  title={
+                    selectedNoticeId
+                      ? '새 공지를 쓰려면 「새 공지」를 눌러 주세요'
+                      : '작성한 내용을 등록합니다'
+                  }
+                >
+                  {saving && !selectedNoticeId ? '등록 중...' : '공지 등록'}
+                </button>
                 <button
                   className="btn btn-ghost btn-xs"
                   type="button"

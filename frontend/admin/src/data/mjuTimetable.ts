@@ -1,4 +1,5 @@
 import type { Weekday, SemesterType } from '../types/database';
+import { CITY_SHUTTLE_VACATION_ROUTE_NAME } from './cityShuttleStops';
 import { resolveOperationalRouteName } from '../lib/routeVariants';
 
 export const MJU_ROUTE_NAMES = [
@@ -11,9 +12,11 @@ export type MjuRouteName = (typeof MJU_ROUTE_NAMES)[number];
 /** schedules에 저장되는 실제 노선명(변형 포함) */
 export type ScheduleRouteName = string;
 
+export type MjuTripRoute = MjuRouteName | typeof CITY_SHUTTLE_VACATION_ROUTE_NAME;
+
 export type MjuTrip = {
   no: number;
-  route: MjuRouteName;
+  route: MjuTripRoute;
   departure: string;
   via?: string;
   arrival?: string;
@@ -101,18 +104,18 @@ const SEMESTER_SHUTTLE: MjuTrip[] = [
 /** 계절학기 = 학기 중 평일과 동일 (18:10까지) */
 const SEASONAL_SHUTTLE: MjuTrip[] = SEMESTER_SHUTTLE;
 
-/** 학기중 주말·공휴일·방학 — 시내만 (생활관 기점) */
+/** 학기중 주말·공휴일·방학 — 시내만 (생활관 기점). 평일 시내 셔틀과 겹치지 않음 */
 const WEEKEND_VACATION_CITY: MjuTrip[] = [
-  { no: 1, route: '시내 셔틀', departure: '08:20', arrival: '08:45' },
-  { no: 2, route: '시내 셔틀', departure: '09:20', arrival: '09:45' },
-  { no: 3, route: '시내 셔틀', departure: '10:20', arrival: '10:45' },
-  { no: 4, route: '시내 셔틀', departure: '11:20', arrival: '11:45' },
-  { no: 5, route: '시내 셔틀', departure: '12:20', arrival: '12:45' },
-  { no: 6, route: '시내 셔틀', departure: '13:20', arrival: '13:45' },
-  { no: 7, route: '시내 셔틀', departure: '15:20', arrival: '15:45' },
-  { no: 8, route: '시내 셔틀', departure: '16:20', arrival: '16:45' },
-  { no: 9, route: '시내 셔틀', departure: '17:20', arrival: '17:45' },
-  { no: 10, route: '시내 셔틀', departure: '18:00', arrival: '18:25' },
+  { no: 1, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '08:20', arrival: '08:45' },
+  { no: 2, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '09:20', arrival: '09:45' },
+  { no: 3, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '10:20', arrival: '10:45' },
+  { no: 4, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '11:20', arrival: '11:45' },
+  { no: 5, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '12:20', arrival: '12:45' },
+  { no: 6, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '13:20', arrival: '13:45' },
+  { no: 7, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '15:20', arrival: '15:45' },
+  { no: 8, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '16:20', arrival: '16:45' },
+  { no: 9, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '17:20', arrival: '17:45' },
+  { no: 10, route: CITY_SHUTTLE_VACATION_ROUTE_NAME, departure: '18:00', arrival: '18:25' },
 ];
 
 /** 기흥역 통학버스 — 학기중 평일 (학교→기흥 + 기흥→학교) */
@@ -175,7 +178,7 @@ export const MJU_ROUTES = [
     name: '시내 셔틀' as const,
     direction: '시내',
     description:
-      '학기(계절학기 포함) 중 평일 운행. 1대·10회. 18:10까지만 운행. 버스관리사무소 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인CGV → 중앙공영주차장 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 제3공학관 → 함박관 → 창조관 → 버스관리사무소.',
+      '학기(계절학기 포함) 중 평일만 운행. 주말·공휴일·방학은 「시내 셔틀 (주말·공휴일·방학)」과 겹치지 않는다. 1대·10회. 18:10까지만 운행. 버스관리사무소 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인CGV → 중앙공영주차장 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 제3공학관 → 함박관 → 창조관 → 버스관리사무소.',
     start_location: '버스관리사무소',
     end_location: '버스관리사무소',
     buses: '1대',
@@ -191,7 +194,7 @@ export const MJU_ROUTE_VARIANTS = [
     name: '시내 셔틀 (주말·공휴일·방학)',
     direction: '시내',
     description:
-      '공휴일(주말) 및 방학 중 운행. 1대·10회. 생활관(명현관) → 함박관 → 정문 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인 CGV → 중앙공영주차장 → 경전철 명지대역 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 생활관(명현관).',
+      '주말·공휴일·방학 중 운행. 학기 중 평일 「시내 셔틀」과 겹치지 않는다. 1대·10회. 생활관(명현관) → 함박관 → 정문 → 상공회의소 → 진입로(럭스나인 앞) → 동부경찰서 중앙지구대 → 용인 CGV → 중앙공영주차장 → 경전철 명지대역 → 진입로(역북동 주민센터) → 이마트 → 제1공학관 → 생활관(명현관).',
     start_location: '생활관(명현관)',
     end_location: '생활관(명현관)',
   },
@@ -305,32 +308,36 @@ export function expandScheduleRows(): {
     }
   };
 
-  // 학기 중 평일
+  // 학기 중 평일 — 시내 셔틀은 여기만 (주말·방학 변형과 분리)
   push(GIHEUNG_SEMESTER, WEEKDAYS, 'SEMESTER');
   push(SEMESTER_SHUTTLE, WEEKDAYS, 'SEMESTER');
-  // 계절학기 평일 (= 학기 중 평일 셔틀)
-  push(SEASONAL_SHUTTLE, WEEKDAYS, 'VACATION');
-  // 학기중 주말도 시내 운행 → 시내 셔틀 (주말·공휴일·방학)
-  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER', '시내 셔틀');
-  push(WEEKEND_VACATION_CITY, WEEKEND, 'VACATION', '시내 셔틀');
-  // 방학 평일 시내 → 시내 셔틀 (주말·공휴일·방학)
-  push(WEEKEND_VACATION_CITY, WEEKDAYS, 'VACATION', '시내 셔틀');
+  // 계절학기 평일 (= 학기 중 평일 셔틀). 시내는 SEMESTER 쪽에만 두고,
+  // VACATION semester의 시내는 주말·공휴일·방학 시간표만 사용한다.
+  push(
+    SEASONAL_SHUTTLE.filter((t) => t.route !== '시내 셔틀'),
+    WEEKDAYS,
+    'VACATION',
+  );
+  // 학기중 주말 · 방학 주말 · 방학 평일 → 시내 셔틀 (주말·공휴일·방학)
+  push(WEEKEND_VACATION_CITY, WEEKEND, 'SEMESTER');
+  push(WEEKEND_VACATION_CITY, WEEKEND, 'VACATION');
+  push(WEEKEND_VACATION_CITY, WEEKDAYS, 'VACATION');
 
   return out;
 }
 
 export function summarizeRouteSchedule(
-  route: MjuRouteName,
+  route: MjuTripRoute,
   semester: SemesterType = 'SEMESTER',
 ) {
   const trips =
     route === '기흥역 통학버스'
       ? GIHEUNG_SEMESTER
-      : semester === 'VACATION'
-        ? SEASONAL_SHUTTLE.filter((t) => t.route === route).concat(
-            route === '시내 셔틀' ? WEEKEND_VACATION_CITY : [],
-          )
-        : SEMESTER_SHUTTLE.filter((t) => t.route === route);
+      : route === CITY_SHUTTLE_VACATION_ROUTE_NAME
+        ? WEEKEND_VACATION_CITY
+        : semester === 'VACATION'
+          ? SEASONAL_SHUTTLE.filter((t) => t.route === route)
+          : SEMESTER_SHUTTLE.filter((t) => t.route === route);
 
   const times = trips.map((t) => t.departure).sort();
   return {

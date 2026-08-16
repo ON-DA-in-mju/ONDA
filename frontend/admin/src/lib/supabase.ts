@@ -1,10 +1,23 @@
 ﻿import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim()
+const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim()
 
-export const isSupabaseConfigured = Boolean(url && anonKey && !url.includes('YOUR_PROJECT'))
+function isPlaceholder(value: string | undefined): boolean {
+  if (!value) return true
+  const v = value.toLowerCase()
+  return (
+    v.includes('xxxx') ||
+    v.includes('your_') ||
+    v.includes('your-') ||
+    v.includes('placeholder') ||
+    v.includes('example') ||
+    v.includes('your_project')
+  )
+}
+
+export const isSupabaseConfigured = Boolean(url && anonKey && !isPlaceholder(url) && !isPlaceholder(anonKey))
 
 if (!isSupabaseConfigured) {
   console.warn(

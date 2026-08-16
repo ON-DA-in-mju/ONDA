@@ -16,7 +16,7 @@ data class EndOperationConfirmInfo(
 object MockEndOperationConfirm {
     const val SCREEN_TITLE = "운행 중"
     const val CONFIRM_TITLE = "운행을 종료하시겠습니까?"
-    const val CONFIRM_BODY = "종료하면 차량 위치 전송이 즉시 중단됩니다."
+    const val CONFIRM_BODY = "종료하면 차량 위치 전송이\n즉시 중단됩니다."
     const val END_LABEL = "운행 종료"
     const val LABEL_ACTUAL_START = "실제 시작 시간"
     const val LABEL_ELAPSED = "운행 경과 시간"

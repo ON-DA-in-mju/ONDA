@@ -22,6 +22,8 @@ export type LiveVehicle = {
   gpsKind: LiveGpsKind
   updatedAt: number
   last: string
+  /** YYYY-MM-DD */
+  operationDate: string
 }
 
 export type LiveStats = {
@@ -418,6 +420,7 @@ function buildVehiclesFromOps(
       gpsKind,
       updatedAt: updatedAt || now,
       last: formatLast(updatedAt || now, now),
+      operationDate: row.operation_date,
     }
   })
 
@@ -482,7 +485,63 @@ async function fetchGpsLocMap(inProgressIds: string[]): Promise<Map<string, LocR
 }
 
 /**
- * 목록·KPI용 — 오늘 operations(+안전정차)만. GPS 조회 없음 → 페이지 진입 즉시 표시.
+ * 기사가 종료하지 않고 날짜가 지난 운행을 관리자가 완료 처리한다.
+ * 오늘(및 이후) 운행은 거부한다.
+ */
+export async function adminCompletePastOperation(
+  operationId: string,
+): Promise<{ ok: boolean; message?: string }> {
+  if (!isSupabaseConfigured) return { ok: false, message: 'Supabase 미설정' }
+  if (!operationId.trim()) return { ok: false, message: '운행 ID가 없습니다.' }
+
+  const byId = await supabase
+    .from('operations')
+    .select('id, operation_date, status')
+    .eq('id', operationId)
+    .maybeSingle()
+  let row = byId.data
+  if (!row) {
+    const byExt = await supabase
+      .from('operations')
+      .select('id, operation_date, status')
+      .eq('external_id', operationId)
+      .maybeSingle()
+    row = byExt.data
+  }
+  if (!row) return { ok: false, message: '운행을 찾을 수 없습니다.' }
+
+  const today = todayDateKey()
+  if (row.operation_date >= today) {
+    return { ok: false, message: '오늘 운행은 이 버튼으로 종료할 수 없습니다. 날짜가 지난 운행만 처리하세요.' }
+  }
+
+  const status = String(row.status)
+  if (status === 'COMPLETED' || status === 'CANCELLED') {
+    return { ok: false, message: '이미 종료된 운행입니다.' }
+  }
+
+  const { error } = await supabase
+    .from('operations')
+    .update({
+      status: 'COMPLETED',
+      ended_at: new Date().toISOString(),
+    })
+    .eq('id', row.id)
+    .in('status', ['SCHEDULED', 'IN_PROGRESS'])
+
+  if (error) return { ok: false, message: error.message }
+
+  await supabase.from('operation_logs').insert({
+    operation_id: row.id,
+    event_type: 'STATUS_CHANGED',
+    log_message: 'ADMIN_FORCE_END reason=past_unclosed',
+  })
+
+  return { ok: true }
+}
+
+/**
+ * 목록·KPI용 — 지정일 operations(+안전정차)만. GPS 조회 없음 → 페이지 진입 즉시 표시.
  */
 export async function fetchLiveVehiclesList(date = todayDateKey()): Promise<LiveSnapshot> {
   if (!isSupabaseConfigured) return fetchLiveFromDevApi()
