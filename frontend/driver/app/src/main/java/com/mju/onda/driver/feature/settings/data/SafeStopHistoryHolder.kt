@@ -54,6 +54,7 @@ data class SafeStopHistoryItem(
     val dateLabel: String = MockSafeStopHistory.TODAY_DATE_LABEL,
     val reviewStatus: SafeStopReviewStatus = SafeStopReviewStatus.Pending,
     val outcome: SafeStopOutcome? = null,
+    val operationId: String = "",
 )
 /**
  * 안전 정차 요청 이력. SharedPreferences에 보관해 앱 재실행 후에도 유지.
@@ -140,21 +141,31 @@ object SafeStopHistoryHolder {
                         dateLabel = dateLabel,
                         reviewStatus = status.first,
                         outcome = status.second,
+                        operationId = r.operationId,
                     ),
                 )
                 changed++
-            } else if (items[index].reviewStatus == SafeStopReviewStatus.Pending &&
-                status.first != SafeStopReviewStatus.Pending
-            ) {
+            } else {
                 val cur = items[index]
-                items[index] = cur.copy(
-                    reviewStatus = status.first,
-                    outcome = status.second,
-                    reason = r.reason.ifBlank { cur.reason },
-                    routeName = r.routeName.ifBlank { cur.routeName },
-                    vehicleName = r.vehicleName.ifBlank { cur.vehicleName },
-                )
-                changed++
+                var next = cur
+                if (cur.operationId.isBlank() && r.operationId.isNotBlank()) {
+                    next = next.copy(operationId = r.operationId)
+                }
+                if (cur.reviewStatus == SafeStopReviewStatus.Pending &&
+                    status.first != SafeStopReviewStatus.Pending
+                ) {
+                    next = next.copy(
+                        reviewStatus = status.first,
+                        outcome = status.second,
+                        reason = r.reason.ifBlank { cur.reason },
+                        routeName = r.routeName.ifBlank { cur.routeName },
+                        vehicleName = r.vehicleName.ifBlank { cur.vehicleName },
+                    )
+                }
+                if (next != cur) {
+                    items[index] = next
+                    changed++
+                }
             }
         }
         if (changed > 0) persist()
@@ -220,6 +231,58 @@ object SafeStopHistoryHolder {
         persist()
     }
 
+    /**
+     * 같은 배차의 정차 요청을 모두 조치 완료로 바꾼다.
+     * (한 배차에서 요청을 여러 번 보낸 뒤 한 번만 종료해도 이력이 남기지 않도록)
+     */
+    fun markDispatchActionCompleted(anchor: SafeStopHistoryItem) {
+        markDispatchEnded(
+            operationId = anchor.operationId,
+            routeName = anchor.routeName,
+            vehicleName = anchor.vehicleName,
+            dateLabel = anchor.dateLabel,
+        )
+    }
+
+    fun markDispatchEnded(
+        operationId: String,
+        routeName: String? = null,
+        vehicleName: String? = null,
+        dateLabel: String? = null,
+    ) {
+        var changed = false
+        for (i in items.indices) {
+            val item = items[i]
+            if (item.reviewStatus == SafeStopReviewStatus.Cancelled ||
+                item.reviewStatus == SafeStopReviewStatus.ActionCompleted
+            ) {
+                continue
+            }
+            if (!sameDispatch(item, operationId, routeName, vehicleName, dateLabel)) continue
+            items[i] = item.copy(reviewStatus = SafeStopReviewStatus.ActionCompleted)
+            changed = true
+        }
+        if (changed) persist()
+    }
+
+    private fun sameDispatch(
+        item: SafeStopHistoryItem,
+        operationId: String,
+        routeName: String?,
+        vehicleName: String?,
+        dateLabel: String?,
+    ): Boolean {
+        if (operationId.isNotBlank() && item.operationId.isNotBlank() &&
+            item.operationId == operationId
+        ) {
+            return true
+        }
+        if (routeName.isNullOrBlank() || vehicleName.isNullOrBlank()) return false
+        val sameRoute = item.routeName == routeName && item.vehicleName == vehicleName
+        val sameDay = dateLabel.isNullOrBlank() || item.dateLabel == dateLabel
+        return sameRoute && sameDay
+    }
+
     fun clearAll() {
         items.clear()
         selectedId = null
@@ -252,6 +315,7 @@ object SafeStopHistoryHolder {
                     put("dateLabel", item.dateLabel)
                     put("reviewStatus", item.reviewStatus.name)
                     put("outcome", item.outcome?.name)
+                    put("operationId", item.operationId)
                 },
             )
         }
@@ -281,6 +345,7 @@ object SafeStopHistoryHolder {
                             .ifBlank { MockSafeStopHistory.TODAY_DATE_LABEL },
                         reviewStatus = status,
                         outcome = outcome,
+                        operationId = obj.optString("operationId", ""),
                     ),
                 )
             }

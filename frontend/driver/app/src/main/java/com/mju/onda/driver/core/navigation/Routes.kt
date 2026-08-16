@@ -51,8 +51,8 @@ object Routes {
     const val STOP_REQUEST_RECEIVED = "stop_request_received"
     const val STOP_APPROVED = "stop_approved"
     const val CONTINUE_OPERATION = "continue_operation"
-    const val INTERRUPTED_END_PROCESSING = "interrupted_end_processing"
-    const val INTERRUPTED_END_COMPLETE = "interrupted_end_complete"
+    const val INTERRUPTED_END_PROCESSING = "interrupted_end_processing/{operationId}"
+    const val INTERRUPTED_END_COMPLETE = "interrupted_end_complete/{operationId}"
 
     fun assignmentChange(operationId: String): String =
         "assignment_change?operationId=${Uri.encode(operationId)}"
@@ -73,6 +73,10 @@ object Routes {
     fun endOperationComplete(operationId: String): String = "end_operation_complete/${Uri.encode(operationId)}"
     fun endTimeElapsed(operationId: String): String = "end_time_elapsed/${Uri.encode(operationId)}"
     fun adminForceEnd(operationId: String): String = "admin_force_end/${Uri.encode(operationId)}"
+    fun interruptedEndProcessing(operationId: String): String =
+        "interrupted_end_processing/${Uri.encode(operationId)}"
+    fun interruptedEndComplete(operationId: String): String =
+        "interrupted_end_complete/${Uri.encode(operationId)}"
     fun operationHistoryDetail(recordId: String): String = "operation_history_detail/$recordId"
     fun stopRequestDetail(reason: String): String =
         "stop_request_detail/${Uri.encode(reason)}"

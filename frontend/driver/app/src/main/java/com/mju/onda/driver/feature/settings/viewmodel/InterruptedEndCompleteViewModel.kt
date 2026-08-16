@@ -7,6 +7,7 @@ import com.mju.onda.driver.feature.history.data.HistoryRuntimeStateHolder
 import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.settings.data.InterruptedEndSummary
+import com.mju.onda.driver.feature.settings.data.SafeStopDispatch
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,34 +44,30 @@ class InterruptedEndCompleteViewModel : ViewModel() {
 
     private var recorded = false
 
-    fun load() {
+    fun load(operationId: String = "") {
         val historyItem = SafeStopHistoryHolder.selected()
-        val operationId = OperationRuntimeStateHolder.activeOperationId()
-            ?: MockTodayOperations.assignedOperations
-                .find { it.routeName == historyItem?.routeName && it.vehicleName == historyItem.vehicleName }
-                ?.id
-            ?: MockTodayOperations.assignedOperations.firstOrNull()?.id
-            ?: return
-        val operation = MockTodayOperations.findById(operationId)
-            ?: MockTodayOperations.assignedOperations.firstOrNull()
-            ?: return
+        val resolvedId = operationId.ifBlank {
+            SafeStopDispatch.resolvedOperationId(historyItem)
+        }
+        if (resolvedId.isBlank()) return
+        val operation = MockTodayOperations.findById(resolvedId)
         val reason = historyItem?.reason ?: "차량 고장"
 
         if (!recorded) {
-            OperationRuntimeStateHolder.endOperation(operationId)
-            HistoryRuntimeStateHolder.recordInterruptedEnd(operationId)
+            OperationRuntimeStateHolder.endOperation(resolvedId)
+            HistoryRuntimeStateHolder.recordInterruptedEnd(resolvedId)
             recorded = true
         }
 
-        val start = OperationRuntimeStateHolder.startedAtMillis(operationId)
+        val start = OperationRuntimeStateHolder.startedAtMillis(resolvedId)
             ?: System.currentTimeMillis()
-        val end = OperationRuntimeStateHolder.endedAtMillis(operationId)
+        val end = OperationRuntimeStateHolder.endedAtMillis(resolvedId)
             ?: System.currentTimeMillis()
 
         _uiState.value = InterruptedEndCompleteUiState(
             summary = InterruptedEndSummary(
-                routeName = historyItem?.routeName ?: operation.routeName,
-                vehicleName = historyItem?.vehicleName ?: operation.vehicleName,
+                routeName = historyItem?.routeName ?: operation?.routeName.orEmpty(),
+                vehicleName = historyItem?.vehicleName ?: operation?.vehicleName.orEmpty(),
                 reason = reason,
                 actualStart = OperationTripClock.formatHm(start),
                 interruptedAt = OperationTripClock.formatHm(end),

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.feature.settings.data.MockStopRequestReceived
 import com.mju.onda.driver.feature.settings.data.SafeStopDecisionPoller
+import com.mju.onda.driver.feature.settings.data.SafeStopDispatch
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 import com.mju.onda.driver.feature.settings.data.SafeStopReviewStatus
 import com.mju.onda.driver.feature.settings.data.SafeStopApi
@@ -31,6 +32,7 @@ data class StopRequestReceivedUiState(
 
 sealed interface StopRequestReceivedEvent {
     data object NavigateBack : StopRequestReceivedEvent
+    data object GoHome : StopRequestReceivedEvent
     data object GoToList : StopRequestReceivedEvent
     data object ContactAdmin : StopRequestReceivedEvent
     data object Cancelled : StopRequestReceivedEvent
@@ -103,7 +105,8 @@ class StopRequestReceivedViewModel : ViewModel() {
                     else -> MockStopRequestReceived.ADMIN_PENDING
                 },
                 canCancel = !cancelled && pending &&
-                    selected?.reviewStatus != SafeStopReviewStatus.Confirmed,
+                    selected?.reviewStatus != SafeStopReviewStatus.Confirmed &&
+                    SafeStopDispatch.isLive(selected),
             )
         }
     }
@@ -122,12 +125,22 @@ class StopRequestReceivedViewModel : ViewModel() {
                 _events.emit(StopRequestReceivedEvent.Cancelled)
             }
             "stop" -> {
+                val item = SafeStopHistoryHolder.all().find { it.id == requestId }
                 StopRequestReceivedHolder.clear()
-                _events.emit(StopRequestReceivedEvent.OpenApproved(requestId))
+                if (SafeStopDispatch.isLive(item)) {
+                    _events.emit(StopRequestReceivedEvent.OpenApproved(requestId))
+                } else {
+                    _events.emit(StopRequestReceivedEvent.GoToList)
+                }
             }
             "continue" -> {
+                val item = SafeStopHistoryHolder.all().find { it.id == requestId }
                 StopRequestReceivedHolder.clear()
-                _events.emit(StopRequestReceivedEvent.OpenContinue(requestId))
+                if (SafeStopDispatch.isLive(item)) {
+                    _events.emit(StopRequestReceivedEvent.OpenContinue(requestId))
+                } else {
+                    _events.emit(StopRequestReceivedEvent.GoToList)
+                }
             }
         }
     }
@@ -177,5 +190,9 @@ class StopRequestReceivedViewModel : ViewModel() {
 
     fun onBack() {
         viewModelScope.launch { _events.emit(StopRequestReceivedEvent.NavigateBack) }
+    }
+
+    fun onHome() {
+        viewModelScope.launch { _events.emit(StopRequestReceivedEvent.GoHome) }
     }
 }

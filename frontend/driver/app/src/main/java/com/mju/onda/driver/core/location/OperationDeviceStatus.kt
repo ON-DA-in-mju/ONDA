@@ -93,17 +93,18 @@ object OperationDeviceStatus {
             (operationId == null ||
                 OperationLocationTracker.activeOperationId == null ||
                 OperationLocationTracker.activeOperationId == operationId)
+        val heartbeat = LiveHeartbeatReporter.isRunning()
         val fix = LatestLocationHolder.latest?.takeIf {
             operationId == null || it.operationId == operationId
         }
         val recentFix = fix != null &&
             System.currentTimeMillis() - fix.recordedAtMillis < 60_000L
-        val isOk = tracking && networkOk
-        // 서버 미연동: 네트워크+트래킹이면 정상으로 간주
-        val serverOk = networkOk && tracking
+        val sending = networkOk && (tracking || heartbeat)
         val shortStatus = when {
             tracking && networkOk && recentFix -> "정상 전송 중"
-            tracking && networkOk -> "전송 중"
+            tracking && networkOk -> "GPS 수신 대기"
+            heartbeat && networkOk -> "전송 중"
+            !networkOk -> "네트워크 끊김"
             else -> "이상"
         }
 
@@ -111,16 +112,17 @@ object OperationDeviceStatus {
             lastTransmissionLabel = formatLastTransmission(fix?.recordedAtMillis),
             networkLabel = if (networkOk) "연결됨" else "끊김",
             serverLabel = when {
-                serverOk -> "정상"
-                !networkOk -> "대기"
+                sending -> "정상"
+                !networkOk -> "끊김"
                 else -> "대기"
             },
             locationBadgeLabel = "위치 전송 상태 | $shortStatus",
             shortStatusLabel = shortStatus,
-            isOk = isOk,
+            isOk = sending,
             locationOkLabel = when {
                 tracking && recentFix && networkOk -> "위치 전송 정상"
-                tracking && networkOk -> "위치 전송 중"
+                tracking && networkOk -> "GPS 수신 대기"
+                sending -> "위치 전송 중"
                 else -> "위치 전송 이상"
             },
         )

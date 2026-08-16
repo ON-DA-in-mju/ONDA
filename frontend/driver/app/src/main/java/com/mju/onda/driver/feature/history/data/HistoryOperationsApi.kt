@@ -100,9 +100,12 @@ object HistoryOperationsApi {
     private fun parseHistoryList(body: String): List<HistoryRecord> {
         val arr = JSONArray(body)
         val out = ArrayList<HistoryRecord>(arr.length())
+        val seenIds = HashSet<String>()
         for (i in 0 until arr.length()) {
             val row = arr.getJSONObject(i)
-            mapRow(row)?.let { out.add(it) }
+            val mapped = mapRow(row) ?: continue
+            if (!seenIds.add(mapped.id)) continue
+            out.add(mapped)
         }
         return out
     }

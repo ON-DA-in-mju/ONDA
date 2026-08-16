@@ -37,7 +37,7 @@ object MockDriverSettings {
 
     val menuItems: List<SettingsMenuItem> = listOf(
         SettingsMenuItem(SettingsMenuId.DevicePermission, "기기 · 권한 상태"),
-        SettingsMenuItem(SettingsMenuId.Alarm, "알람 설정"),
+        SettingsMenuItem(SettingsMenuId.Alarm, "알림 설정"),
         SettingsMenuItem(SettingsMenuId.LocationConsent, "위치 정보 동의 관리"),
         SettingsMenuItem(SettingsMenuId.ContactAdmin, "관리자 문의"),
         SettingsMenuItem(SettingsMenuId.SafeStop, "안전 정차"),

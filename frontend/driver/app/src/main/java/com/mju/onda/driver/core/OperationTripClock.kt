@@ -3,22 +3,19 @@ package com.mju.onda.driver.core
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/** 운행 실제 시작·종료·경과 시각 포맷 (기기 시계 기준) */
+/**
+ * 운행 실제 시작·종료·경과 시각 포맷.
+ * 표시는 항상 Asia/Seoul. 에뮬레이터/기기 타임존(UTC 등)을 쓰지 않는다.
+ */
 object OperationTripClock {
+    private val hmFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.KOREA)
 
     fun formatHm(millis: Long): String {
         if (millis <= 0L) return "--:--"
-        val cal = Calendar.getInstance().apply { timeInMillis = millis }
-        return String.format(
-            Locale.KOREA,
-            "%02d:%02d",
-            cal.get(Calendar.HOUR_OF_DAY),
-            cal.get(Calendar.MINUTE),
-        )
+        return Instant.ofEpochMilli(millis).atZone(KoreaTime.zone).format(hmFmt)
     }
 
     fun elapsedMillis(startMillis: Long, endMillis: Long = System.currentTimeMillis()): Long {

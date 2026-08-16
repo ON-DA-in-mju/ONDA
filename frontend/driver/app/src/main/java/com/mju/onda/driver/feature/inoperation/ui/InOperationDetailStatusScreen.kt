@@ -293,7 +293,6 @@ private fun TimeStat(
 @Composable
 private fun TransmissionCard(info: InOperationDetailStatusInfo) {
     val ok = info.transmissionOk
-    val valueOkColor = if (ok) OndaColors.SuccessText else Color(0xFFE05A3C)
     val badgeBg = if (ok) OndaColors.SuccessSoft else Color(0xFFFFF0E8)
     val badgeFg = if (ok) OndaColors.SuccessText else Color(0xFFF07A3A)
     Column(
@@ -326,25 +325,40 @@ private fun TransmissionCard(info: InOperationDetailStatusInfo) {
             label = MockInOperationDetailStatus.LABEL_LAST_TRANSMISSION,
             value = info.lastTransmission,
             valueColor = OndaColors.TextPrimary,
-            iconTint = valueOkColor,
+            iconTint = lastTransmissionIconColor(info.lastTransmission, ok),
         )
         Spacer(modifier = Modifier.height(10.dp))
         StatusRow(
             icon = Icons.Rounded.Wifi,
             label = MockInOperationDetailStatus.LABEL_NETWORK,
             value = info.networkStatus,
-            valueColor = valueOkColor,
-            iconTint = valueOkColor,
+            valueColor = networkStatusColor(info.networkStatus),
+            iconTint = networkStatusColor(info.networkStatus),
         )
         Spacer(modifier = Modifier.height(10.dp))
         StatusRow(
             icon = Icons.Outlined.Dns,
             label = MockInOperationDetailStatus.LABEL_SERVER,
             value = info.serverStatus,
-            valueColor = valueOkColor,
-            iconTint = valueOkColor,
+            valueColor = serverStatusColor(info.serverStatus),
+            iconTint = serverStatusColor(info.serverStatus),
         )
     }
+}
+
+private fun networkStatusColor(status: String): Color =
+    if (status == "연결됨") OndaColors.SuccessText else Color(0xFFE05A3C)
+
+private fun serverStatusColor(status: String): Color = when (status) {
+    "정상" -> OndaColors.SuccessText
+    "대기" -> OndaColors.Warning
+    else -> Color(0xFFE05A3C)
+}
+
+private fun lastTransmissionIconColor(label: String, sending: Boolean): Color = when {
+    label != "없음" -> OndaColors.SuccessText
+    sending -> OndaColors.Warning
+    else -> Color(0xFFE05A3C)
 }
 
 @Composable

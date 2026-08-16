@@ -62,6 +62,7 @@ private val RowIconSize = 22.dp
 
 @Composable
 fun InterruptedEndCompleteScreen(
+    operationId: String = "",
     onBack: () -> Unit,
     onGoToToday: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -69,8 +70,8 @@ fun InterruptedEndCompleteScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        viewModel.load()
+    LaunchedEffect(operationId) {
+        viewModel.load(operationId)
     }
 
     LaunchedEffect(Unit) {
