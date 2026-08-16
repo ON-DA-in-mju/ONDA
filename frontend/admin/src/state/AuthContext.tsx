@@ -8,7 +8,12 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import {
+  isSupabaseConfigured,
+  supabase,
+  clearSupabaseAuthStorage,
+  isFetchInvalidValueError,
+} from '../lib/supabase'
 import type { UserRole } from '../types/database'
 
 /** 관리자 웹에서 쓰는 역할 — DB `user_role` 과 동일 */
@@ -95,16 +100,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (!mounted) return
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (!mounted) return
 
-      if (data.session?.user) {
-        const profile = await fetchUserProfile(data.session.user.id, data.session.user.email ?? '')
-        if (mounted) setUser(profile)
-      } else {
-        setUser(null)
+        if (data.session?.user) {
+          const profile = await fetchUserProfile(data.session.user.id, data.session.user.email ?? '')
+          if (mounted) setUser(profile)
+        } else {
+          setUser(null)
+        }
+      } catch (e) {
+        if (isFetchInvalidValueError(e)) clearSupabaseAuthStorage()
+        if (mounted) setUser(null)
       }
-      setLoading(false)
+      if (mounted) setLoading(false)
     }
 
     void boot()
@@ -143,10 +153,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: true, message: '로컬 데모 로그인 (Supabase 미설정)' }
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data']
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error']
+    try {
+      ;({ data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      }))
+    } catch (e) {
+      if (isFetchInvalidValueError(e)) {
+        clearSupabaseAuthStorage()
+        try {
+          ;({ data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          }))
+        } catch {
+          return {
+            ok: false,
+            message:
+              'Supabase 키가 브라우저 fetch에 들어갈 수 없는 형식입니다. Vercel 환경변수 값에 따옴표/공백 없이 넣고 Redeploy 하세요.',
+          }
+        }
+      } else {
+        const msg = e instanceof Error ? e.message : String(e)
+        return { ok: false, message: msg }
+      }
+    }
 
     if (error) {
       return { ok: false, message: error.message }
