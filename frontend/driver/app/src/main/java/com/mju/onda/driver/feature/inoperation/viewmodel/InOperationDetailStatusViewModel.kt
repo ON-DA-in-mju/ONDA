@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mju.onda.driver.core.OperationTripClock
 import com.mju.onda.driver.core.location.LatestLocationHolder
 import com.mju.onda.driver.core.location.OperationDeviceStatus
+import com.mju.onda.driver.core.location.OperationLocationTracker
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
 import com.mju.onda.driver.feature.inoperation.data.InOperationDetailStatusInfo
 import com.mju.onda.driver.feature.inoperation.data.MockInOperationDetailStatus
@@ -58,6 +59,7 @@ class InOperationDetailStatusViewModel(
 
     private var baseInfo: InOperationDetailStatusInfo = _uiState.value.info
     private var refreshJob: Job? = null
+    private var lastTrackerRestartAt = 0L
 
     fun load(operationId: String) {
         baseInfo = MockInOperationDetailStatus.forOperationId(operationId)
@@ -89,11 +91,21 @@ class InOperationDetailStatusViewModel(
     }
 
     private fun refreshLive() {
-        val start = OperationRuntimeStateHolder.startedAtMillis(baseInfo.id)
-            ?: OperationRuntimeStateHolder.ensureStartedAt(baseInfo.id)
+        val opId = baseInfo.id
+        val now = System.currentTimeMillis()
+        if (opId.isNotBlank() &&
+            OperationRuntimeStateHolder.activeOperationId() == opId &&
+            !OperationLocationTracker.isTracking &&
+            now - lastTrackerRestartAt > 5_000L
+        ) {
+            lastTrackerRestartAt = now
+            OperationLocationTracker.startForOperation(opId)
+        }
+        val start = OperationRuntimeStateHolder.startedAtMillis(opId)
+            ?: OperationRuntimeStateHolder.ensureStartedAt(opId)
         val snap = OperationDeviceStatus.transmissionSnapshot(
             getApplication(),
-            baseInfo.id,
+            opId,
         )
         _uiState.update {
             it.copy(

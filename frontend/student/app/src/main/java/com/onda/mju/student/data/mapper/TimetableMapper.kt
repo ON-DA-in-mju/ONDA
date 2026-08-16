@@ -36,10 +36,14 @@ fun buildTimetableRoutes(
             .filter { row ->
                 val name = row.routes?.routeName ?: return@filter false
                 val family = OperationalRouteResolver.baseRouteFamily(name)
-                family == baseName &&
-                    row.semester.equals("SEMESTER", ignoreCase = true) &&
-                    row.weekday.uppercase() in Weekdays &&
-                    !name.contains("주말")
+                if (family != baseName) return@filter false
+                if (baseName == OperationalRouteResolver.CITY_SHUTTLE &&
+                    OperationalRouteResolver.isCityVacationName(name)
+                ) {
+                    return@filter false
+                }
+                row.semester.equals("SEMESTER", ignoreCase = true) &&
+                    row.weekday.uppercase() in Weekdays
             }
             .map { formatHm(it.departureTime) }
             .filter { it.isNotBlank() }
@@ -53,6 +57,9 @@ fun buildTimetableRoutes(
                 val name = row.routes?.routeName ?: return@filter false
                 val family = OperationalRouteResolver.baseRouteFamily(name)
                 if (family != baseName) return@filter false
+                if (baseName == OperationalRouteResolver.CITY_SHUTTLE) {
+                    return@filter OperationalRouteResolver.isCityVacationName(name)
+                }
                 val weekendish =
                     row.weekday.uppercase() in Weekend ||
                         row.semester.equals("VACATION", ignoreCase = true) ||

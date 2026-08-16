@@ -99,10 +99,10 @@ fun LoginScreen(
         val trimmedId = studentId.trim()
 
         if (trimmedId.isEmpty()) {
-            studentIdError = "학번을 입력해주세요."
+            studentIdError = "아이디를 입력해주세요."
             valid = false
         } else if (!isValidStudentIdOrEmail(trimmedId)) {
-            studentIdError = "학번 또는 이메일 형식을 확인해주세요."
+            studentIdError = "아이디 또는 이메일 형식을 확인해주세요."
             valid = false
         } else {
             studentIdError = null
@@ -139,7 +139,7 @@ fun LoginScreen(
                     isLoading = false
                     studentIdError = null
                     passwordError = null
-                    onShowMessage("학번 또는 비밀번호를 다시 확인해주세요.")
+                    onShowMessage("아이디 또는 비밀번호를 다시 확인해주세요.")
                 }
 
                 is AuthResult.Failure -> {
@@ -224,11 +224,11 @@ fun LoginScreen(
                     studentId = it
                     if (studentIdError != null) studentIdError = null
                 },
-                placeholder = "아이디 또는 이메일",
+                placeholder = "아이디 (예: 60201234)",
                 leadingIcon = Icons.Filled.Person,
                 isError = studentIdError != null,
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
+                    keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Next,
                 ),
                 keyboardActions = KeyboardActions(
@@ -245,7 +245,7 @@ fun LoginScreen(
                     password = it
                     if (passwordError != null) passwordError = null
                 },
-                placeholder = "비밀번호",
+                placeholder = "비밀번호 (예: onda1234)",
                 leadingIcon = Icons.Filled.Lock,
                 isError = passwordError != null,
                 visualTransformation = if (passwordVisible) {

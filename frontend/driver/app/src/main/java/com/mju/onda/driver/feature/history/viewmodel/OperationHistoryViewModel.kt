@@ -200,12 +200,24 @@ class OperationHistoryViewModel : ViewModel() {
         val runtime = HistoryRuntimeStateHolder.runtimeRecords().filter { record ->
             !record.date.isBefore(range.start) && !record.date.isAfter(range.end)
         }
-        val byId = linkedMapOf<String, HistoryRecord>()
-        runtime.forEach { byId[it.id.removePrefix("runtime-")] = it }
-        apiRecords.forEach { byId[it.id] = it }
-        return byId.values.sortedWith(
+        val merged = linkedMapOf<String, HistoryRecord>()
+        runtime.forEach { merged[historyTripKey(it)] = it }
+        // 서버 행이 있으면 로컬 임시 이력을 덮어쓴다 (uuid vs external_id 중복 방지)
+        apiRecords.forEach { merged[historyTripKey(it)] = it }
+        return merged.values.sortedWith(
             compareByDescending<HistoryRecord> { it.date }
+                .thenByDescending { it.startedAtMillis }
                 .thenByDescending { it.actualDepart },
         )
+    }
+
+    /** 같은 운행이 로컬·서버에 다른 id로 있으면 한 건으로 묶는다. */
+    private fun historyTripKey(record: HistoryRecord): String {
+        val id = record.id.removePrefix("runtime-")
+        val minute = if (record.startedAtMillis > 0L) record.startedAtMillis / 60_000L else 0L
+        val plate = record.plateNumber.trim().takeIf { it.isNotEmpty() && it != "-" }.orEmpty()
+        val vehicle = record.vehicleName.trim().takeIf { it.isNotEmpty() && it != "-" }.orEmpty()
+        val identity = plate.ifBlank { vehicle }.ifBlank { id }
+        return "${record.date}|$identity|$minute|${record.routeName}"
     }
 }

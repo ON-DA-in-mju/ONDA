@@ -273,21 +273,13 @@ fun PreOperationCheckScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
 
             ) {
-
                 Image(
-
                     painter = painterResource(id = R.drawable.precheck_illustration),
-
                     contentDescription = null,
-
                     modifier = Modifier
-
                         .fillMaxWidth()
-
                         .aspectRatio(251f / 113f),
-
-                    contentScale = ContentScale.FillWidth,
-
+                    contentScale = ContentScale.Fit,
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

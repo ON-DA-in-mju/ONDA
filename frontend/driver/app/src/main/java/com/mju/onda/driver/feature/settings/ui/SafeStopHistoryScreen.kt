@@ -23,12 +23,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DirectionsBus
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -66,6 +68,7 @@ private val ConfirmedText = Color(0xFF2BB673)
 @Composable
 fun SafeStopHistoryScreen(
     onBack: () -> Unit,
+    onGoHome: () -> Unit = {},
     onOpenNewRequest: () -> Unit,
     onOpenReceived: () -> Unit,
     onOpenApproved: () -> Unit,
@@ -90,6 +93,7 @@ fun SafeStopHistoryScreen(
         viewModel.events.collect { event ->
             when (event) {
                 SafeStopHistoryEvent.NavigateBack -> onBack()
+                SafeStopHistoryEvent.GoHome -> onGoHome()
                 SafeStopHistoryEvent.OpenNewRequest -> onOpenNewRequest()
                 SafeStopHistoryEvent.NotInOperation -> {
                     Toast.makeText(
@@ -112,6 +116,15 @@ fun SafeStopHistoryScreen(
             OndaTopBar(
                 title = MockSafeStopHistory.SCREEN_TITLE,
                 onBack = viewModel::onBack,
+                actions = {
+                    IconButton(onClick = viewModel::onHome) {
+                        Icon(
+                            imageVector = Icons.Outlined.Home,
+                            contentDescription = "홈",
+                            tint = OndaColors.TextPrimary,
+                        )
+                    }
+                },
             )
         },
     ) { innerPadding ->

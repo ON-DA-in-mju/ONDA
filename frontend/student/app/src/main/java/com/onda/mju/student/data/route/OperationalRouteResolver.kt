@@ -12,7 +12,7 @@ object OperationalRouteResolver {
     const val MYONGJI_STATION_AFTER18 = "명지대역 셔틀 (18시 이후)"
     const val GIHEUNG = "기흥역 통학버스"
 
-    /** 계열만 (기흥 / 명지대 / 시내). 시내 평일·방학은 같은 계열. */
+    /** 계열만 (기흥 / 명지대 / 시내). 시내 평일·방학은 별도 노선. */
     fun baseRouteFamily(routeName: String): String {
         val key = routeName.trim()
         return when {

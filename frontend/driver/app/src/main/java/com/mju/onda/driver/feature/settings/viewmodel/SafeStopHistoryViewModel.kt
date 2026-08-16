@@ -2,8 +2,11 @@ package com.mju.onda.driver.feature.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mju.onda.driver.feature.home.data.MockTodayOperations
 import com.mju.onda.driver.feature.home.data.OperationRuntimeStateHolder
+import com.mju.onda.driver.feature.settings.data.MockSafeStopHistory
 import com.mju.onda.driver.feature.settings.data.SafeStopDecisionPoller
+import com.mju.onda.driver.feature.settings.data.SafeStopDispatch
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder
 import com.mju.onda.driver.feature.settings.data.SafeStopHistoryItem
 import com.mju.onda.driver.feature.settings.data.SafeStopOutcome
@@ -26,6 +29,7 @@ data class SafeStopHistoryUiState(
 
 sealed interface SafeStopHistoryEvent {
     data object NavigateBack : SafeStopHistoryEvent
+    data object GoHome : SafeStopHistoryEvent
     data object OpenNewRequest : SafeStopHistoryEvent
     data object NotInOperation : SafeStopHistoryEvent
     data object Refreshed : SafeStopHistoryEvent
@@ -59,12 +63,36 @@ class SafeStopHistoryViewModel : ViewModel() {
     }
 
     private fun refreshState() {
+        reconcileEndedDispatches()
         _uiState.update {
             it.copy(
                 items = SafeStopHistoryHolder.all(),
                 canCreateRequest = OperationRuntimeStateHolder.hasActiveOperation(),
             )
         }
+    }
+
+    private fun reconcileEndedDispatches() {
+        MockTodayOperations.assignedOperations
+            .filter { OperationRuntimeStateHolder.isEnded(it.id) }
+            .forEach { op ->
+                SafeStopHistoryHolder.markDispatchEnded(
+                    operationId = op.id,
+                    routeName = op.routeName,
+                    vehicleName = op.vehicleName,
+                    dateLabel = MockSafeStopHistory.TODAY_DATE_LABEL,
+                )
+            }
+        SafeStopHistoryHolder.all()
+            .filter { it.operationId.isNotBlank() && OperationRuntimeStateHolder.isEnded(it.operationId) }
+            .forEach { item ->
+                SafeStopHistoryHolder.markDispatchEnded(
+                    operationId = item.operationId,
+                    routeName = item.routeName,
+                    vehicleName = item.vehicleName,
+                    dateLabel = item.dateLabel,
+                )
+            }
     }
 
     private suspend fun syncFromServer() {
@@ -95,6 +123,7 @@ class SafeStopHistoryViewModel : ViewModel() {
         viewModelScope.launch {
             when (item.reviewStatus) {
                 SafeStopReviewStatus.Pending -> {
+                    if (!SafeStopDispatch.isLive(item)) return@launch
                     StopRequestReceivedHolder.set(
                         StopRequestReceivedInfo(
                             requestId = item.id,
@@ -104,10 +133,11 @@ class SafeStopHistoryViewModel : ViewModel() {
                     )
                     _events.emit(SafeStopHistoryEvent.OpenReceived(item.id))
                 }
-                SafeStopReviewStatus.Cancelled -> Unit
-                SafeStopReviewStatus.Confirmed,
+                SafeStopReviewStatus.Cancelled,
                 SafeStopReviewStatus.ActionCompleted,
-                -> {
+                -> Unit
+                SafeStopReviewStatus.Confirmed -> {
+                    if (!SafeStopDispatch.isLive(item)) return@launch
                     when (item.outcome ?: SafeStopOutcome.Approved) {
                         SafeStopOutcome.Approved ->
                             _events.emit(SafeStopHistoryEvent.OpenApproved(item.id))
@@ -131,5 +161,9 @@ class SafeStopHistoryViewModel : ViewModel() {
 
     fun onBack() {
         viewModelScope.launch { _events.emit(SafeStopHistoryEvent.NavigateBack) }
+    }
+
+    fun onHome() {
+        viewModelScope.launch { _events.emit(SafeStopHistoryEvent.GoHome) }
     }
 }

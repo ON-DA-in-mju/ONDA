@@ -24,6 +24,7 @@ object SafeStopApi {
         val routeName: String,
         val vehicleName: String,
         val date: String,
+        val operationId: String = "",
     )
 
     sealed class PostResult {
@@ -133,6 +134,7 @@ object SafeStopApi {
                 "reason",
                 "requested_at",
                 "created_at",
+                "operation_id",
                 "operations:operation_id(operation_date,buses:bus_id(bus_name),schedules:schedule_id(routes:route_id(route_name)))",
             ).joinToString(",")
             val path =
@@ -220,6 +222,7 @@ object SafeStopApi {
                     routeName = routes?.optString("route_name").orEmpty(),
                     vehicleName = buses?.optString("bus_name").orEmpty(),
                     date = ops?.optString("operation_date").orEmpty(),
+                    operationId = o.optString("operation_id", ""),
                 ),
             )
         }

@@ -72,7 +72,7 @@ private val RowIconCircle = 34.dp
 @Composable
 fun StopApprovedScreen(
     onBack: () -> Unit,
-    onEndOperation: () -> Unit,
+    onEndOperation: (operationId: String) -> Unit,
     onContactAdmin: () -> Unit,
     viewModel: StopApprovedViewModel = viewModel(),
 ) {
@@ -84,7 +84,7 @@ fun StopApprovedScreen(
         viewModel.events.collect { event ->
             when (event) {
                 StopApprovedEvent.NavigateBack -> onBack()
-                StopApprovedEvent.EndOperation -> onEndOperation()
+                is StopApprovedEvent.EndOperation -> onEndOperation(event.operationId)
                 StopApprovedEvent.ContactAdmin -> onContactAdmin()
             }
         }

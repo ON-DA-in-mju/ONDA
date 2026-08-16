@@ -166,6 +166,13 @@ object OperationRuntimeStateHolder {
             startedAtMillis = startedAtMillis(operationId),
             endedAtMillis = endedAtMillis(operationId) ?: now,
         )
+        val endedOp = MockTodayOperations.findById(operationId)
+        com.mju.onda.driver.feature.settings.data.SafeStopHistoryHolder.markDispatchEnded(
+            operationId = operationId,
+            routeName = endedOp?.routeName,
+            vehicleName = endedOp?.vehicleName,
+            dateLabel = com.mju.onda.driver.feature.settings.data.MockSafeStopHistory.TODAY_DATE_LABEL,
+        )
         if (!hasActiveOperation()) {
             com.mju.onda.driver.core.location.OperationLocationTracker.stop()
         }
@@ -234,6 +241,9 @@ object OperationRuntimeStateHolder {
 
     fun isInProgress(operationId: String): Boolean =
         aliasIds(operationId).any { it in inProgressIds }
+
+    fun isLiveOperation(operationId: String): Boolean =
+        operationId.isNotBlank() && isInProgress(operationId) && !isEnded(operationId)
 
     fun isEnded(operationId: String): Boolean {
         if (aliasIds(operationId).any { it in endedIds }) return true

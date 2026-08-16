@@ -72,7 +72,7 @@ private val RowIconCircle = 34.dp
 @Composable
 fun ContinueOperationScreen(
     onBack: () -> Unit,
-    onContinue: () -> Unit,
+    onContinue: (operationId: String) -> Unit,
     onContactAdmin: () -> Unit,
     viewModel: ContinueOperationViewModel = viewModel(),
 ) {
@@ -84,7 +84,7 @@ fun ContinueOperationScreen(
         viewModel.events.collect { event ->
             when (event) {
                 ContinueOperationEvent.NavigateBack -> onBack()
-                ContinueOperationEvent.Continue -> onContinue()
+                is ContinueOperationEvent.Continue -> onContinue(event.operationId)
                 ContinueOperationEvent.ContactAdmin -> onContactAdmin()
             }
         }

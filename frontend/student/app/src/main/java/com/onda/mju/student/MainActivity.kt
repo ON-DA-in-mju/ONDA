@@ -47,8 +47,8 @@ private enum class AppScreen {
     Main,
 }
 
-/** 브랜드가 잠깐 보이도록 하는 최소 스플래시 시간 */
-private const val SplashMinMillis = 280L
+/** 브랜드가 보이도록 기사 앱과 같은 스플래시 시간 */
+private const val SplashMinMillis = 2800L
 
 /** 자동 로그인 세션 복원 대기 상한 (스플래시와 병렬) */
 private const val SessionWaitMillis = 450L

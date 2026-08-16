@@ -120,6 +120,23 @@ private fun NavHostController.navigateToHistory() {
     }
 }
 
+private fun NavHostController.hasRoute(route: String): Boolean =
+    runCatching { getBackStackEntry(route) }.isSuccess
+
+/** 중단 요청 접수가 안전 정차 이력 아래에 남지 않게 이력으로 이동한다. */
+private fun NavHostController.navigateToSafeStopHistoryFromReceived() {
+    if (popBackStack(Routes.SAFE_STOP_HISTORY, inclusive = false)) return
+    val popTarget = if (hasRoute(Routes.SAFE_STOP_CONFIRM)) {
+        Routes.SAFE_STOP_CONFIRM
+    } else {
+        Routes.STOP_REQUEST_RECEIVED
+    }
+    navigate(Routes.SAFE_STOP_HISTORY) {
+        popUpTo(popTarget) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
 private val optionalOperationIdArgs = listOf(
     navArgument("operationId") {
         type = NavType.StringType
@@ -420,7 +437,24 @@ fun OndaNavHost() {
 
         composable(Routes.SAFE_STOP_HISTORY) {
             SafeStopHistoryScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    if (navController.previousBackStackEntry?.destination?.route ==
+                        Routes.STOP_REQUEST_RECEIVED
+                    ) {
+                        navController.popBackStack(
+                            Routes.STOP_REQUEST_RECEIVED,
+                            inclusive = true,
+                        )
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onGoHome = {
+                    navController.navigate(Routes.TODAY_OPERATION) {
+                        popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
                 onOpenNewRequest = {
                     navController.navigate(Routes.SAFE_STOP_CONFIRM)
                 },
@@ -545,20 +579,14 @@ fun OndaNavHost() {
 
         composable(Routes.STOP_REQUEST_RECEIVED) {
             StopRequestReceivedScreen(
-                onBack = {
-                    if (!navController.popBackStack(Routes.SAFE_STOP_HISTORY, inclusive = false)) {
-                        navController.navigate(Routes.SAFE_STOP_HISTORY) {
-                            launchSingleTop = true
-                        }
+                onBack = { navController.navigateToSafeStopHistoryFromReceived() },
+                onGoHome = {
+                    navController.navigate(Routes.TODAY_OPERATION) {
+                        popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
+                        launchSingleTop = true
                     }
                 },
-                onGoToList = {
-                    if (!navController.popBackStack(Routes.SAFE_STOP_HISTORY, inclusive = false)) {
-                        navController.navigate(Routes.SAFE_STOP_HISTORY) {
-                            launchSingleTop = true
-                        }
-                    }
-                },
+                onGoToList = { navController.navigateToSafeStopHistoryFromReceived() },
                 onContactAdmin = {
                     navController.navigate(Routes.CONTACT_ADMIN)
                 },
@@ -578,8 +606,10 @@ fun OndaNavHost() {
         composable(Routes.STOP_APPROVED) {
             StopApprovedScreen(
                 onBack = { navController.popBackStack() },
-                onEndOperation = {
-                    navController.navigate(Routes.INTERRUPTED_END_PROCESSING)
+                onEndOperation = { operationId ->
+                    navController.navigate(Routes.interruptedEndProcessing(operationId)) {
+                        popUpTo(Routes.STOP_APPROVED) { inclusive = true }
+                    }
                 },
                 onContactAdmin = {
                     navController.navigate(Routes.CONTACT_ADMIN)
@@ -587,20 +617,34 @@ fun OndaNavHost() {
             )
         }
 
-        composable(Routes.INTERRUPTED_END_PROCESSING) {
+        composable(
+            route = Routes.INTERRUPTED_END_PROCESSING,
+            arguments = listOf(
+                navArgument("operationId") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            val operationId = entry.arguments?.getString("operationId").orEmpty()
             EndProcessingScreen(
+                operationId = operationId,
                 screenTitle = MockInterruptedEndComplete.PROCESSING_TITLE,
                 headline = MockInterruptedEndComplete.PROCESSING_HEADLINE,
                 onFinished = {
-                    navController.navigate(Routes.INTERRUPTED_END_COMPLETE) {
+                    navController.navigate(Routes.interruptedEndComplete(operationId)) {
                         popUpTo(Routes.INTERRUPTED_END_PROCESSING) { inclusive = true }
                     }
                 },
             )
         }
 
-        composable(Routes.INTERRUPTED_END_COMPLETE) {
+        composable(
+            route = Routes.INTERRUPTED_END_COMPLETE,
+            arguments = listOf(
+                navArgument("operationId") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            val operationId = entry.arguments?.getString("operationId").orEmpty()
             InterruptedEndCompleteScreen(
+                operationId = operationId,
                 onBack = {
                     navController.navigate(Routes.TODAY_OPERATION) {
                         popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
@@ -625,9 +669,8 @@ fun OndaNavHost() {
         composable(Routes.CONTINUE_OPERATION) {
             ContinueOperationScreen(
                 onBack = { navController.popBackStack() },
-                onContinue = {
-                    val operationId = OperationRuntimeStateHolder.activeOperationId()
-                    if (operationId != null) {
+                onContinue = { operationId ->
+                    if (OperationRuntimeStateHolder.isLiveOperation(operationId)) {
                         navController.navigate(Routes.inOperationDetailStatus(operationId)) {
                             popUpTo(Routes.TODAY_OPERATION) { inclusive = false }
                             launchSingleTop = true
