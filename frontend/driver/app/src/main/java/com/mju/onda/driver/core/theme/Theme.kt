@@ -18,9 +18,11 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun OndaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = LightColorScheme,
-        typography = OndaTypography,
-        content = content,
-    )
+    ProvidePhoneFit {
+        MaterialTheme(
+            colorScheme = LightColorScheme,
+            typography = OndaTypography,
+            content = content,
+        )
+    }
 }
