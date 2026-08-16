@@ -52,7 +52,7 @@ export function LoginPage() {
           </p>
           <p className="muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12, textAlign: 'center' }}>
             {usingSupabase
-              ? `Supabase 연결됨 · ${supabasePublicHost} · ${supabaseKeyKind}`
+              ? `Supabase 연결됨 · ${supabasePublicHost} · ${supabaseKeyKind} · v3`
               : 'Supabase 미설정 · Vercel Environment Variables 확인'}
           </p>
 
