@@ -65,7 +65,12 @@ function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
   const headers = toSafeHeaders(init?.headers)
   let href = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
   href = asciiOnly(href).replace(/^["'`]+|["'`]+$/g, '')
-  return fetch(href, { ...init, headers })
+
+  // Chrome throws "Invalid value" if RequestInit enums are `undefined` (common after spread).
+  const next: RequestInit = { method: init?.method ?? 'GET', headers }
+  if (init?.body != null) next.body = init.body
+  if (init?.signal) next.signal = init.signal
+  return fetch(href, next)
 }
 
 const url = extractSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
@@ -78,6 +83,9 @@ export const isSupabaseConfigured = Boolean(
     /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) &&
     anonKey.length > 20,
 )
+
+export const supabaseUrl = url
+export const supabaseAnonKey = anonKey
 
 export const supabasePublicHost = isSupabaseConfigured
   ? url.replace(/^https:\/\//, '')
@@ -128,3 +136,51 @@ export const supabase = createClient<Database>(
     },
   },
 )
+
+type PasswordGrantResult = {
+  data: {
+    user: { id: string; email?: string | null } | null
+    session: { access_token: string } | null
+  }
+  error: { message: string } | null
+}
+
+/** supabase-js fetch 옵션을 우회하고 헤더를 직접 넣어 로그인 */
+export async function signInWithPasswordRaw(
+  email: string,
+  password: string,
+): Promise<PasswordGrantResult> {
+  const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  })
+  const json = (await res.json().catch(() => ({}))) as {
+    access_token?: string
+    refresh_token?: string
+    error_description?: string
+    msg?: string
+    error?: string
+  }
+  if (!res.ok || !json.access_token || !json.refresh_token) {
+    return {
+      data: { user: null, session: null },
+      error: {
+        message: json.error_description || json.msg || json.error || `로그인 실패 (${res.status})`,
+      },
+    }
+  }
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: json.access_token,
+    refresh_token: json.refresh_token,
+  })
+  return {
+    data: { user: data.user, session: data.session },
+    error: error ? { message: error.message } : null,
+  }
+}

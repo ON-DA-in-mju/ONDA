@@ -8,12 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import {
-  isSupabaseConfigured,
-  supabase,
-  clearSupabaseAuthStorage,
-  isFetchInvalidValueError,
-} from '../lib/supabase'
+import { isSupabaseConfigured, supabase, signInWithPasswordRaw } from '../lib/supabase'
 import type { UserRole } from '../types/database'
 
 /** 관리자 웹에서 쓰는 역할 — DB `user_role` 과 동일 */
@@ -110,8 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUser(null)
         }
-      } catch (e) {
-        if (isFetchInvalidValueError(e)) clearSupabaseAuthStorage()
+      } catch {
         if (mounted) setUser(null)
       }
       if (mounted) setLoading(false)
@@ -153,39 +147,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: true, message: '로컬 데모 로그인 (Supabase 미설정)' }
     }
 
-    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data']
-    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error']
     try {
-      ;({ data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      }))
-    } catch (e) {
-      if (isFetchInvalidValueError(e)) {
-        clearSupabaseAuthStorage()
-        try {
-          ;({ data, error } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          }))
-        } catch {
-          return {
-            ok: false,
-            message:
-              'Supabase 키가 브라우저 fetch에 들어갈 수 없는 형식입니다. Vercel 환경변수 값에 따옴표/공백 없이 넣고 Redeploy 하세요.',
-          }
-        }
-      } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        return { ok: false, message: msg }
+      const { data, error } = await signInWithPasswordRaw(email.trim(), password)
+      if (error || !data.user) {
+        return { ok: false, message: error?.message ?? '로그인에 실패했습니다.' }
       }
-    }
-
-    if (error) {
-      return { ok: false, message: error.message }
-    }
-
-    if (data.user) {
       const profile = await fetchUserProfile(data.user.id, data.user.email ?? email.trim())
       if (profile.role !== 'ADMIN' && profile.role !== 'DRIVER') {
         await supabase.auth.signOut()
@@ -193,8 +159,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: false, message: '관리자/기사 계정만 로그인할 수 있습니다.' }
       }
       setUser(profile)
+      return { ok: true }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { ok: false, message: msg }
     }
-    return { ok: true }
   }, [])
 
   const signup = useCallback(async (payload: SignupPayload) => {
