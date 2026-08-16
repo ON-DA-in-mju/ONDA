@@ -332,10 +332,11 @@ type Tables = {
       status: ReportStatus
       /** STUDENT = 학생 제보, DRIVER = 기사 문의 */
       source: ReportSource
-      /** REPORT = 상황 제보, POST = 학생 소통 글 (관리자 목록에서 제외) */
+      /** REPORT = 상황 제보, POST = 학생 소통 글 */
       board_type: 'REPORT' | 'POST'
       /** 문의 유형 (account, assignment, gps …) */
       category: string | null
+      view_count: number | null
       created_at: string | null
       updated_at: string | null
     }
@@ -348,6 +349,7 @@ type Tables = {
       source?: ReportSource
       board_type?: 'REPORT' | 'POST'
       category?: string | null
+      view_count?: number | null
       created_at?: string | null
       updated_at?: string | null
     }
@@ -501,6 +503,26 @@ type Tables = {
       created_at?: string
     }
     Update: Partial<Tables['safe_stop_requests']['Insert']>
+    Relationships: []
+  }
+  report_reactions: {
+    Row: {
+      id: string
+      report_id: string
+      user_id: string
+      reaction: 'LIKE' | 'DISLIKE'
+      created_at: string
+      updated_at: string
+    }
+    Insert: {
+      id?: string
+      report_id: string
+      user_id: string
+      reaction: 'LIKE' | 'DISLIKE'
+      created_at?: string
+      updated_at?: string
+    }
+    Update: Partial<Tables['report_reactions']['Insert']>
     Relationships: []
   }
 }

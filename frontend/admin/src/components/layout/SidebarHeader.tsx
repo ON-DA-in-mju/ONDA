@@ -18,10 +18,16 @@ type SidebarProps = {
 export function Sidebar({ items, activePath, onNavigate, onLogout }: SidebarProps) {
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
+      <button
+        type="button"
+        className="sidebar-logo"
+        onClick={() => onNavigate('/dashboard')}
+        aria-label="대시보드"
+        style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: '100%' }}
+      >
         <Logo height={56} />
         <span className="sidebar-logo-caption">관리자 페이지</span>
-      </div>
+      </button>
 
       <nav className="nav-list" aria-label="관리자 메뉴">
         {items.map((item) => {
@@ -56,6 +62,7 @@ type HeaderProps = {
   userEmail: string
   notificationCount: number
   onNotificationClick?: () => void
+  onProfileClick?: () => void
 }
 
 export function Header({
@@ -64,6 +71,7 @@ export function Header({
   userEmail,
   notificationCount,
   onNotificationClick,
+  onProfileClick,
 }: HeaderProps) {
   return (
     <header className="admin-header">
@@ -84,13 +92,13 @@ export function Header({
           <Bell size={16} />
           {notificationCount > 0 ? <span className="bell-badge">{notificationCount}</span> : null}
         </button>
-        <div className="profile">
+        <button type="button" className="profile" onClick={onProfileClick} aria-label="설정">
           <div className="avatar">{userName.slice(0, 1)}</div>
           <div>
             <strong>{userName}</strong>
             <span>{userEmail}</span>
           </div>
-        </div>
+        </button>
       </div>
     </header>
   )
